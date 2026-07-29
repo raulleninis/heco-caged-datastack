@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: stg_caged_movimentacoes
+    description: "Movimentações (admissões/desligamentos) do Novo CAGED, filtradas para Nossa Senhora do Socorro/SE."
+    columns:
+      - name: competencia_mov
+        tests:
+          - not_null
+      - name: uf
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [28]
+      - name: municipio
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [280480]
+      - name: grupamento
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Agropecuária', 'Indústria', 'Construção', 'Comércio', 'Serviços', 'Não Identificado']
