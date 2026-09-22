@@ -20,8 +20,28 @@ models:
               arguments:
                 values: [280480]
       - name: grupamento
+        description: "Nível 1 da Tabela 1 do MTE (Grupamentos de Atividades Econômicas para divulgação da RAIS e do CAGED), por seção da CNAE 2.0."
         tests:
           - not_null
           - accepted_values:
               arguments:
                 values: ['Agropecuária', 'Indústria', 'Construção', 'Comércio', 'Serviços', 'Não Identificado']
+      - name: subgrupamento
+        description: "Nível 2 da mesma Tabela 1 do MTE — abre Indústria e Serviços em subcategorias."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - 'Agropecuária'
+                  - 'Indústria geral'
+                  - 'Indústrias de Transformação'
+                  - 'Construção'
+                  - 'Comércio, reparação de veículos automotores e motocicletas'
+                  - 'Transporte, armazenagem e correio'
+                  - 'Alojamento e alimentação'
+                  - 'Informação, comunicação e atividades financeiras, imobiliárias, profissionais e administrativas'
+                  - 'Administração pública, defesa, seguridade social, educação, saúde humana e serviços sociais'
+                  - 'Outros serviços'
+                  - 'Serviços domésticos'
+                  - 'Não Identificado'

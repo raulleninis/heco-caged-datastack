@@ -38,8 +38,29 @@
         WHEN seção = 'G' THEN 'Comércio'
         WHEN seção IN ('H','I','J','K','L','M','N','O','P','Q','R','S','T','U') THEN 'Serviços'
         ELSE 'Não Identificado'
+    END",
+    "subgrupamento": "CASE
+        WHEN seção = 'A' THEN 'Agropecuária'
+        WHEN seção = 'C' THEN 'Indústrias de Transformação'
+        WHEN seção IN ('B','D','E') THEN 'Indústria geral'
+        WHEN seção = 'F' THEN 'Construção'
+        WHEN seção = 'G' THEN 'Comércio, reparação de veículos automotores e motocicletas'
+        WHEN seção = 'H' THEN 'Transporte, armazenagem e correio'
+        WHEN seção = 'I' THEN 'Alojamento e alimentação'
+        WHEN seção IN ('J','K','L','M','N') THEN 'Informação, comunicação e atividades financeiras, imobiliárias, profissionais e administrativas'
+        WHEN seção IN ('O','P','Q') THEN 'Administração pública, defesa, seguridade social, educação, saúde humana e serviços sociais'
+        WHEN seção IN ('R','S','U') THEN 'Outros serviços'
+        WHEN seção = 'T' THEN 'Serviços domésticos'
+        ELSE 'Não Identificado'
     END"
 } %}
+
+{#
+    grupamento e subgrupamento seguem a Tabela 1 do MTE — "Grupamentos de Atividades
+    Econômicas para divulgação da RAIS e do CAGED" — que mapeia as seções da CNAE 2.0.
+    O agrupamento em 6 categorias (grupamento) já reproduzia essa tabela letra a letra;
+    subgrupamento acrescenta o segundo nível dela, ausente até aqui.
+#}
 
 with source as (
 
