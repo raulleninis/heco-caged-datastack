@@ -2,9 +2,10 @@
 Flows de ingestão do Novo CAGED (PDET / Ministério do Trabalho).
 
 Dois flows neste arquivo:
-- ingest_caged: roda no cron diário, busca só a competência mais recente.
+- ingest_caged: roda no cron diário, varre últimos 6 meses procurando lacunas.
+  Se encontrar competências não ingeridas, baixa e transforma todas.
 - backfill_caged: roda sob demanda, busca todas as competências de um ano
-  até a mais recente já publicada.
+  até a mais recente já publicada. Transforma uma vez no final.
 """
 
 from ftplib import FTP
@@ -26,6 +27,36 @@ def competencia_alvo() -> str:
     if mes == 0:
         mes, ano = 12, ano - 1
     return f"{ano}{mes:02d}"
+
+
+@task(log_prints=True)
+def competencias_faltantes(meses_para_tras: int = 6) -> list[str]:
+    """Retorna competências dos últimos N meses que estão no FTP mas ainda não foram ingeridas."""
+    logger = get_run_logger()
+    hoje = date.today()
+    extraido_dir = RAW_DIR / "extraido"
+
+    competencias_no_ftp = []
+    for i in range(meses_para_tras):
+        ano, mes = hoje.year, hoje.month - i
+        if mes <= 0:
+            mes += 12
+            ano -= 1
+        comp = f"{ano}{mes:02d}"
+        if arquivo_existe_no_ftp(comp):
+            competencias_no_ftp.append(comp)
+
+    competencias_ingeridas = set()
+    if extraido_dir.exists():
+        for txt_file in extraido_dir.glob("CAGEDMOV*.txt"):
+            comp = txt_file.stem.replace("CAGEDMOV", "")
+            competencias_ingeridas.add(comp)
+
+    faltantes = sorted([comp for comp in competencias_no_ftp if comp not in competencias_ingeridas])
+    logger.info(f"Competências no FTP (últimos {meses_para_tras} meses): {competencias_no_ftp}")
+    logger.info(f"Competências já ingeridas: {sorted(competencias_ingeridas)}")
+    logger.info(f"Faltantes: {faltantes}")
+    return faltantes
 
 
 def competencias_do_ano(ano: int) -> list[str]:
@@ -113,15 +144,23 @@ def run_dbt(comando: list[str]) -> None:
 @flow(name="ingest-caged", log_prints=True)
 def ingest_caged():
     logger = get_run_logger()
-    competencia = competencia_alvo()
-    logger.info(f"Competência-alvo de hoje: {competencia}")
+    faltantes = competencias_faltantes(meses_para_tras=6)
 
-    if not arquivo_existe_no_ftp(competencia):
-        logger.info("Encerrando sem erro -- tentamos de novo na próxima execução agendada.")
+    if not faltantes:
+        logger.info("Nenhuma competência faltante nos últimos 6 meses. Encerrando.")
         return
 
-    arquivo = baixar_arquivo(competencia)
-    extrair_7z(arquivo)
+    logger.info(f"Competências faltantes (últimos 6 meses): {faltantes}")
+
+    baixadas = []
+    for competencia in faltantes:
+        logger.info(f"Processando competência {competencia}...")
+        arquivo = baixar_arquivo(competencia)
+        extrair_7z(arquivo)
+        baixadas.append(competencia)
+
+    logger.info(f"Ingestão concluída. Competências baixadas: {baixadas}")
+    logger.info(f"Executando transformação dbt...")
     run_dbt(["run"])
     run_dbt(["test"])
 
