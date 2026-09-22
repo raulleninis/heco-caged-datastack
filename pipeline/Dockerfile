@@ -1,8 +1,8 @@
-# Pinada por tag de versão (não ":slim" solto, que muda sob os pés).
-# Para travar por digest também (reprodutibilidade máxima): faça o primeiro
-# build, rode `docker inspect --format='{{index .RepoDigests 0}}' <image>`
-# e substitua a tag abaixo por "python:3.11.10-slim-bookworm@sha256:<digest>".
-FROM python:3.11.10-slim-bookworm
+# Pinada por tag + digest (capturado em 22/09/2026 via
+# `docker inspect --format='{{index .RepoDigests 0}}' python:3.11.10-slim-bookworm`).
+# Reprodutibilidade máxima: mesmo se a tag for republicada, este build usa
+# sempre os mesmos bytes.
+FROM python:3.11.10-slim-bookworm@sha256:840e180ebcc6e5c8efab209c43f5e40fd2af98cb49db5c7103c90539c56bb30e
 
 WORKDIR /app
 
