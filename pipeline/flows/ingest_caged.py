@@ -128,6 +128,19 @@ def extrair_7z(caminho_arquivo: Path) -> Path:
 
 
 @task(log_prints=True)
+def deletar_arquivo_7z(caminho_arquivo: Path) -> None:
+    logger = get_run_logger()
+    try:
+        caminho_arquivo.unlink()
+        logger.info(f"Arquivo .7z deletado: {caminho_arquivo}")
+    except FileNotFoundError:
+        logger.warning(f"Arquivo .7z não encontrado (pode já ter sido deletado): {caminho_arquivo}")
+    except Exception as e:
+        logger.error(f"Erro ao deletar .7z: {e}")
+        raise
+
+
+@task(log_prints=True)
 def run_dbt(comando: list[str]) -> None:
     import subprocess
     logger = get_run_logger()
@@ -157,6 +170,7 @@ def ingest_caged():
         logger.info(f"Processando competência {competencia}...")
         arquivo = baixar_arquivo(competencia)
         extrair_7z(arquivo)
+        deletar_arquivo_7z(arquivo)
         baixadas.append(competencia)
 
     logger.info(f"Ingestão concluída. Competências baixadas: {baixadas}")
@@ -177,6 +191,7 @@ def backfill_caged(ano: int = 2026):
             continue
         arquivo = baixar_arquivo(competencia)
         extrair_7z(arquivo)
+        deletar_arquivo_7z(arquivo)
         baixadas.append(competencia)
 
     logger.info(f"Backfill concluído. Competências efetivamente baixadas: {baixadas}")

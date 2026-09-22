@@ -108,6 +108,20 @@ Backfill manual de um ano inteiro:
 docker compose run --rm pipeline python flows/ingest_caged.py backfill 2026
 ```
 
+### Limpeza de dados e permissões
+
+Containers agora rodam como usuário não-root (UID 1000) para evitar permissões bloqueadas.
+Se você já tem dados antigos com permissões `root:root`, corrija uma vez:
+
+```bash
+sudo chown -R $USER:$USER data/
+```
+
+Arquivos baixados do FTP são armazenados em `data/raw/`. O pipeline **automaticamente deleta
+os `.7z` originais após extração**, conservando apenas os `.txt` extraídos. Após a materialização
+da staging como tabela (F09), os `.txt` também serão deletados, deixando apenas os dados
+no `.duckdb`.
+
 ## Estrutura do repositório
 
 ```
