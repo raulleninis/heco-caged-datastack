@@ -22,8 +22,8 @@ flowchart LR
     SCAN -->|"competências<br/>faltantes"| DL
     DL -->|"extrai"| RAW
     RAW -->|"delete<br/>.7z"| DEL
-    RAW -->|"source declarado<br/>(all_varchar)"| RUN
-    RUN -->|"materializa<br/>staging (table)"| MART
+    RAW -->|"source, 1 arquivo<br/>por vez (all_varchar)"| RUN
+    RUN -->|"staging incremental<br/>(delete+insert)"| MART
     MART -.->|"próxima fase"| REPORT
 ```
 
@@ -100,8 +100,7 @@ erDiagram
 ```bash
 cp .env.example .env
 docker compose up -d
-docker compose run --rm pipeline dbt run --project-dir /dbt --profiles-dir /dbt
-docker compose run --rm pipeline dbt test --project-dir /dbt --profiles-dir /dbt
+docker compose run --rm pipeline python flows/ingest_caged.py backfill 2026
 ```
 
 Todas as variáveis têm valores padrão. `PREFECT_HOST` só precisa ser editada se você
@@ -112,10 +111,10 @@ O container `pipeline` roda contínuo: ao subir, aplica o deployment declarado e
 (`prefect deploy --all`) e inicia um worker (`prefect worker start --pool default`) que consome
 o schedule cron diário às 3h UTC (meia-noite em Brasília).
 
-Backfill manual de um ano inteiro:
-```bash
-docker compose run --rm pipeline python flows/ingest_caged.py backfill 2026
-```
+O `backfill_caged` acima baixa, extrai e transforma (dbt run + test) automaticamente. Para
+rodar dbt isoladamente (debug), veja [CLAUDE.md](CLAUDE.MD#comandos-comuns) — a staging é
+incremental, então `dbt run` sem `--select`/`--vars` lê tudo via glob (só para poucos meses
+em dev; nunca em produção, ver seção de memória abaixo).
 
 ### Permissões
 
@@ -126,9 +125,18 @@ mesmo que o usuário do host não seja UID 1000.
 ### Limpeza de dados
 
 Arquivos baixados do FTP são armazenados em `data/raw/`. O pipeline **automaticamente deleta
-os `.7z` originais após extração**, conservando os `.txt` extraídos. A staging já materializa
-como `table` (F09) — o `.txt` ainda não é deletado (isso é a fase 2 de F07, pendente), mas
-a staging não depende mais dele após o primeiro `dbt run`.
+os `.7z` originais após extração**, conservando os `.txt` extraídos. A staging materializa
+incrementalmente (`delete+insert`, uma competência por vez) — o `.txt` ainda não é deletado
+(isso é a fase 2 de F07, pendente), mas cada arquivo já é dispensável tecnicamente assim que
+a execução que o processou termina.
+
+### Por que incremental, não `table`
+
+Cada `.txt` bruto tem ~450-500MB (o Brasil inteiro; filtramos ~1.500-2.000 linhas do
+município). Ler todas as competências de uma vez via glob (`*.txt`) estoura memória — o
+servidor de produção real tem **830MB RAM total**. A staging processa uma competência por
+vez (`dbt run --select stg_caged_movimentacoes --vars '{"competencia_arquivo": "AAAAMM"}'`),
+mantendo o pico de memória em ~500MB.
 
 ## Estrutura do repositório
 
