@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: mart_caged_mensal_grupamento
-    description: "Admissões, desligamentos e saldo líquido do CAGED por competência e grupamento, materializada no Postgres."
+    description: "Admissões, desligamentos e saldo líquido do CAGED por competência e grupamento."
     columns:
       - name: competencia_mov
         tests:

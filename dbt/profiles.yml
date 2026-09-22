@@ -6,8 +6,3 @@ caged_analytics:
       path: /data/warehouse/caged.duckdb
       extensions:
         - httpfs
-        - postgres
-      attach:
-        - path: "host={{ env_var('POSTGRES_HOST') }} port=5432 dbname={{ env_var('POSTGRES_DB') }} user={{ env_var('POSTGRES_USER') }} password={{ env_var('POSTGRES_PASSWORD') }}"
-          type: postgres
-          alias: postgres_db

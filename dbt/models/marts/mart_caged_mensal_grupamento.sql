@@ -1,7 +1,5 @@
 {{ config(
-    materialized='table',
-    database='postgres_db',
-    schema='public'
+    materialized='table'
 ) }}
 
 select

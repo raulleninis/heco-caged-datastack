@@ -90,19 +90,18 @@ erDiagram
 ## Como rodar
 
 ```bash
-cp .env.example .env   # defina POSTGRES_PASSWORD; o resto tem valor padrão
+cp .env.example .env
 docker compose up -d
 docker compose run --rm pipeline dbt run --project-dir /dbt --profiles-dir /dbt
 docker compose run --rm pipeline dbt test --project-dir /dbt --profiles-dir /dbt
 ```
 
-Só `POSTGRES_PASSWORD` é obrigatória. `PREFECT_HOST` só precisa ser editada se você
+Todas as variáveis têm valores padrão. `PREFECT_HOST` só precisa ser editada se você
 acessa a UI do Prefect por outra máquina via Tailscale — sem ele, o padrão é
 `localhost` e o clone sobe sem Tailscale.
 
 > O container `pipeline` reinicia em loop até a [F03](docs/fatias/F03-agendamento-real.md)
-> ser feita — o `Dockerfile` ainda não tem `CMD`. Postgres, Adminer e Prefect Server
-> sobem normalmente.
+> ser feita — o `Dockerfile` ainda não tem `CMD`. Prefect Server sobe normalmente.
 
 Backfill de um ano inteiro:
 ```bash
@@ -149,7 +148,7 @@ referentes a ela — isso ainda não está implementado (ver Roadmap).
 - [x] Transformação e testes de qualidade (dbt + DuckDB)
 - [x] Agendamento via Prefect
 - [x] Simplificação da arquitetura: remoção do Postgres e do Metabase — DuckDB passa a ser a única camada de dado
-- [ ] Ajustes finais de consolidação da migração (revisão de materializações, configs e testes do dbt já 100% DuckDB)
+- [x] Ajustes finais de consolidação da migração (revisão de materializações, configs e testes do dbt já 100% DuckDB)
 - [ ] Ingestão de `CAGEDFORAAAAMM` (fora do prazo) e `CAGEDEXCAAAAMM` (exclusões)
 - [ ] Modelo de reconciliação: mart que combina movimentações + fora do prazo − exclusões, por competência de movimentação
 - [ ] Relatório mensal em PDF via CrewAI
