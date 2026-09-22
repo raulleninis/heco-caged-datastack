@@ -25,6 +25,20 @@ for mount in /data /dbt; do
     fi
 done
 
+# Garante a estrutura de diretórios que o pipeline espera. DuckDB não cria
+# diretórios pais ao conectar — profiles.yml aponta pra
+# /data/warehouse/caged.duckdb, e sem essa pasta existir de antemão, dbt run
+# falha com "IO Error: ... No such file or directory" (visto em validação
+# real: backfill baixa tudo certo, mas dbt run quebra num clone limpo onde
+# ninguém criou /data/warehouse manualmente).
+#
+# Roda DEPOIS do bloco de UID/GID acima, e sempre faz chown explícito —
+# mkdir como root cria subdiretório novo dono de root mesmo quando o mount
+# point /data já é caged:caged de uma execução anterior (o bloco acima só
+# corrige o dono do mount point em si, não recria subdiretórios).
+mkdir -p /data/warehouse /data/raw
+chown -R caged:caged /data/warehouse /data/raw
+
 chown -R caged:caged /app
 
 exec gosu caged "$@"
