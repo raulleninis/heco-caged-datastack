@@ -12,6 +12,10 @@ de Nossa Senhora do Socorro/SE, a partir dos microdados do Novo CAGED (PDET).
 - dbt-core + dbt-duckdb — transformação e testes de qualidade
 - Prefect 3.x — orquestração, backend SQLite com volume nomeado para persistência
 - Pipeline executa em container não-root (UID 1000)
+- Versões pinadas (`==`), sem pandas: prefect==3.8.0, dbt-core==1.12.0,
+  dbt-duckdb==1.10.1, duckdb==1.5.5, py7zr==0.22.0 (ver F08). Imagem base
+  `python:3.11.10-slim-bookworm` e `prefecthq/prefect:3.8.0-python3.11`
+  também pinadas — nenhuma tag flutuante (`:latest`, `:slim`) no projeto.
 
 ## Decisão de arquitetura importante
 Postgres e Metabase foram removidos deliberadamente. Não recomendar
