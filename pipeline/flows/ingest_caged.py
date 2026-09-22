@@ -4,8 +4,11 @@ Flows de ingestão do Novo CAGED (PDET / Ministério do Trabalho).
 Dois flows neste arquivo:
 - ingest_caged: roda no cron diário, varre últimos 6 meses procurando lacunas.
   Se encontrar competências não ingeridas, baixa e transforma todas.
-- backfill_caged: roda sob demanda, busca todas as competências de um ano
-  até a mais recente já publicada. Transforma uma vez no final.
+  Agendamento via deployment declarado em prefect.yaml, aplicado por
+  'prefect deploy' e consumido por 'prefect worker start' (ver start.sh).
+- backfill_caged: roda sob demanda (CLI: `python flows/ingest_caged.py
+  backfill <ano>`), busca todas as competências de um ano até a mais
+  recente já publicada. Transforma uma vez no final.
 """
 
 from ftplib import FTP
@@ -211,4 +214,9 @@ if __name__ == "__main__":
         ano = int(sys.argv[2]) if len(sys.argv) > 2 else 2026
         backfill_caged(ano)
     else:
-        ingest_caged.serve(name="caged-pipeline", cron="0 3 * * *")
+        print("Uso: python flows/ingest_caged.py backfill <ano>")
+        print(
+            "O agendamento diário roda via 'prefect deploy' + worker "
+            "(ver start.sh), não mais via .serve() direto."
+        )
+        sys.exit(1)

@@ -104,22 +104,22 @@ Todas as variáveis têm valores padrão. `PREFECT_HOST` só precisa ser editada
 acessa a UI do Prefect por outra máquina via Tailscale — sem ele, o padrão é
 `localhost` e o clone sobe sem Tailscale.
 
-O container `pipeline` roda contínuo, serving the `ingest_caged` flow com schedule cron diário às 3h UTC
-(meia-noite em Brasília). Deployments persistem em SQLite.
+O container `pipeline` roda contínuo: ao subir, aplica o deployment declarado em `prefect.yaml`
+(`prefect deploy --all`) e inicia um worker (`prefect worker start --pool default`) que consome
+o schedule cron diário às 3h UTC (meia-noite em Brasília).
 
 Backfill manual de um ano inteiro:
 ```bash
 docker compose run --rm pipeline python flows/ingest_caged.py backfill 2026
 ```
 
-### Limpeza de dados e permissões
+### Permissões
 
-Containers agora rodam como usuário não-root (UID 1000) para evitar permissões bloqueadas.
-Se você já tem dados antigos com permissões `root:root`, corrija uma vez:
+O container ajusta automaticamente o UID/GID do processo para bater com o dono de `data/`
+e `dbt/` no host (ver `pipeline/docker-entrypoint.sh`) — não é necessário `chown` manual,
+mesmo que o usuário do host não seja UID 1000.
 
-```bash
-sudo chown -R $USER:$USER data/
-```
+### Limpeza de dados
 
 Arquivos baixados do FTP são armazenados em `data/raw/`. O pipeline **automaticamente deleta
 os `.7z` originais após extração**, conservando apenas os `.txt` extraídos. Após a materialização

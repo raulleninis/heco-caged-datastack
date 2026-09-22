@@ -26,10 +26,17 @@ escrita em qualquer outro lugar até fechar a conexão.
 
 ## Estrutura
 - `docker-compose.yml` — 2 serviços: prefect-server, pipeline
-- `prefect.yaml` — deployment declarativo (cron schedule, work pool)
+- `pipeline/prefect.yaml` — deployment declarativo (cron schedule, work pool `default`)
+- `pipeline/start.sh` — CMD do container: aguarda Prefect Server, aplica
+  `prefect deploy --all`, inicia `prefect worker start --pool default`
+- `pipeline/docker-entrypoint.sh` — ENTRYPOINT: alinha UID/GID do usuário
+  `caged` com o dono real de `/data` e `/dbt` (bind mounts) antes de rodar
+  qualquer comando, depois dropa privilégio via `gosu`
 - `pipeline/flows/ingest_caged.py` — flows com varredura de lacunas:
-  - `ingest_caged()` — roda via cron diário, varre últimos 6 meses procurando faltantes
-  - `backfill_caged(ano)` — execução manual, varre ano inteiro
+  - `ingest_caged()` — consumido pelo worker via deployment agendado, varre
+    últimos 6 meses procurando faltantes
+  - `backfill_caged(ano)` — execução manual via CLI
+    (`python flows/ingest_caged.py backfill <ano>`), varre ano inteiro
   - Ambos: baixam → extraem → deletam .7z → rodam dbt run + test
 - `dbt/models/staging/stg_caged_movimentacoes.sql` — lê .txt bruto, filtra
   uf=28 (SE) e municipio=280480 (N. Sra. do Socorro), deriva `grupamento`
@@ -41,14 +48,14 @@ escrita em qualquer outro lugar até fechar a conexão.
   - `palma_index_admissao` (desigualdade: top 10% / bottom 40%)
 
 ## Comandos comuns
-# Iniciar stack (Prefect Server + pipeline com agendamento)
+# Iniciar stack (Prefect Server + pipeline com deployment + worker)
 docker compose up -d
 
-# Rodar ingest diário (varredura de 6 meses)
-docker compose run --rm pipeline python flows/ingest_caged.py
-
-# Backfill de um ano inteiro (manual)
+# Backfill de um ano inteiro (manual, fora do schedule)
 docker compose run --rm pipeline python flows/ingest_caged.py backfill 2026
+
+# Disparar o ingest_caged do deployment agendado manualmente (sem esperar o cron)
+docker compose exec pipeline prefect deployment run 'ingest-caged/caged-ingest-daily'
 
 # Rodar dbt isoladamente
 docker compose run --rm pipeline dbt run --project-dir /dbt --profiles-dir /dbt
@@ -89,9 +96,12 @@ Política D06: apagar dados regeneráveis da fonte (FTP).
 - FTP é fonte de verdade pública: re-download é sempre possível (minutos)
 
 ## Permissões e containers
-- Container roda como usuário `caged` (UID 1000), não root
-- Arquivos em `data/raw/` são `caged:caged`, usuário host consegue deletar
-- Se dados antigos estão `root:root`: `sudo chown -R $USER:$USER data/`
+- Container roda como usuário `caged` (UID 1000 por padrão), não root
+- `docker-entrypoint.sh` roda ANTES de qualquer comando e ajusta dinamicamente
+  o UID/GID de `caged` para bater com o dono real de `/data` e `/dbt` no host
+  — não exige que o host use UID 1000, nem `chown` manual
+- Se o bind mount acabou de ser criado pelo Docker (dono ainda `root:root`,
+  primeiro `up`), o entrypoint toma posse como `caged` diretamente
 
 ## Métricas de salário
 Mart publica 4 métricas de salário (todas em admissões):
