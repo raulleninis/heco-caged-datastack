@@ -10,16 +10,20 @@ Socorro/SE, rodando inteiramente num servidor caseiro headless.
 ```mermaid
 flowchart LR
     FTP[("FTP público\nftp.mtps.gov.br")]
-    DL["Prefect\ningest_caged()"]
-    RAW[("/data/raw\n.txt extraído")]
-    STG["dbt: stg_caged_movimentacoes\n(view, DuckDB)"]
-    MART["dbt: mart_caged_mensal_grupamento\n(table, DuckDB)"]
-    REPORT["CrewAI + PDF\n(planejado)"]
+    SCAN["Prefect\ncompetencias_faltantes<br/>últimos 6 meses"]
+    DL["baixar_arquivo()<br/>+ extrair_7z()"]
+    DEL["deletar .7z<br/>(liberando espaço)"]
+    RAW[("/data/raw/extraido<br/>.txt")]
+    RUN["dbt run<br/>+ dbt test"]
+    MART["mart_caged_mensal_grupamento<br/>(table, DuckDB)<br/>mediana, média, Palma Index"]
+    REPORT["CrewAI + PDF<br/>(planejado)"]
 
-    FTP -->|"download .7z"| DL
+    FTP -->|"varre<br/>lacunas"| SCAN
+    SCAN -->|"competências<br/>faltantes"| DL
     DL -->|"extrai"| RAW
-    RAW -->|"read_csv_auto"| STG
-    STG -->|"agrega por\ncompetência + grupamento"| MART
+    RAW -->|"delete<br/>.7z"| DEL
+    RAW -->|"read_csv_auto"| RUN
+    RUN -->|"materializa<br/>staging"| MART
     MART -.->|"próxima fase"| REPORT
 ```
 
