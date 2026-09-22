@@ -105,7 +105,8 @@ def run_dbt(comando: list[str]) -> None:
     result = subprocess.run(cmd, capture_output=True, text=True)
     logger.info(result.stdout)
     if result.returncode != 0:
-        logger.error(result.stderr)
+        logger.error(f"stdout:\n{result.stdout}")
+        logger.error(f"stderr:\n{result.stderr}")
         raise RuntimeError(f"dbt {' '.join(comando)} falhou")
 
 
@@ -121,8 +122,8 @@ def ingest_caged():
 
     arquivo = baixar_arquivo(competencia)
     extrair_7z(arquivo)
-    # run_dbt(["run"])
-    # run_dbt(["test"])
+    run_dbt(["run"])
+    run_dbt(["test"])
 
 
 @flow(name="backfill-caged", log_prints=True)
@@ -140,6 +141,13 @@ def backfill_caged(ano: int = 2026):
         baixadas.append(competencia)
 
     logger.info(f"Backfill concluído. Competências efetivamente baixadas: {baixadas}")
+
+    if baixadas:
+        logger.info(f"Transformando {len(baixadas)} competência(s) com dbt...")
+        run_dbt(["run"])
+        run_dbt(["test"])
+    else:
+        logger.info("Nenhuma competência foi baixada, pulando dbt.")
 
 
 if __name__ == "__main__":
