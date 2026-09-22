@@ -14,7 +14,6 @@ parar depois de qualquer uma delas e o projeto continua num estado coerente.
 flowchart TD
     F01["F01 · Destravar o clone<br/>XS"] --> F02["F02 · Concluir migração<br/>DuckDB-only · M"]
     F01 --> F08["F08 · Reprodutibilidade<br/>S"]
-    F08 --> F08b["F08b · Validar com<br/>Docker real · XS"]
     F02 --> F03["F03 · Agendamento real<br/>M"]
     F08 --> F03
     F03 --> F04["F04 · Religar o dbt<br/>no flow · S"]
@@ -22,6 +21,8 @@ flowchart TD
     F02 --> F05["F05 · Corrigir salário<br/>médio · S"]
     F05 --> F09["F09 · Testes de<br/>qualidade · M"]
     F04 --> F07["F07 · Retenção do raw<br/>S"]
+    F08 --> F08b["F08b · Validar com<br/>Docker real · S"]
+    F09 --> F08b
     F09 --> F10["F10 · Camada analítica<br/>visível · L"]
     F06 --> F11["F11 · Observabilidade<br/>M"]
     F09 --> F12["F12 · FOR/EXC +<br/>reconciliação · L"]
@@ -53,7 +54,7 @@ flowchart TD
 | [F06](F06-janela-resiliente.md) | Janela resiliente de competências | M | pré-prod | E | F04 |
 | [F07](F07-retencao-e-permissoes.md) | Retenção do raw + não-root | S | pré-prod | G, I | F04 |
 | [F08](F08-reprodutibilidade.md) | Reprodutibilidade do ambiente | S | pré-prod | J, K, L | F01 |
-| [F08b](F08b-validar-reprodutibilidade-docker.md) | Validar reprodutibilidade com Docker real | XS | pré-prod | — | F08 |
+| [F08b](F08b-validar-reprodutibilidade-docker.md) | Validar com Docker real (F08 + F09 + revisão) | S | pré-prod | — | F08, F09 |
 | [F09](F09-testes-de-qualidade.md) | Testes de qualidade ampliados | M | pré-prod | D, F | F05 |
 | [F10](F10-camada-analitica.md) | Camada analítica visível | L | vitrine | (portfólio) | F09 |
 | [F11](F11-observabilidade.md) | Observabilidade e alerta | M | produção | B | F06 |

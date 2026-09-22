@@ -1,19 +1,25 @@
-# F08b · Validar reprodutibilidade com Docker real
+# F08b · Validar com Docker real (F08 + F09 + correções de revisão)
 
 | | |
 |---|---|
-| **Esforço** | XS (menos de 15 min) |
+| **Esforço** | S (menos de 1 h) |
 | **Fase** | pré-produção |
-| **Depende de** | [F08](F08-reprodutibilidade.md) |
-| **Resolve** | Validação do critério de aceite de F08, que não pôde ser executado no ambiente de desenvolvimento (sem Docker disponível) |
+| **Depende de** | [F08](F08-reprodutibilidade.md), [F09](F09-testes-de-qualidade.md) |
+| **Resolve** | Validação dos critérios de aceite de F08 e F09, e das correções de F03/F05/F07 feitas na revisão de código — nada disso rodou com Docker de verdade |
 
 ## Problema
 
-[F08](F08-reprodutibilidade.md) foi implementada (requirements.txt pinado,
-`require-dbt-version`, imagens base fixadas por tag) mas o **critério de
-aceite não foi executado** — o ambiente onde a implementação aconteceu não
-tinha Docker instalado. As mudanças são coerentes na leitura do código, mas
-não foram validadas rodando de verdade.
+[F08](F08-reprodutibilidade.md) e [F09](F09-testes-de-qualidade.md) foram
+implementadas, assim como correções de uma revisão de código sobre F03/F05/F07
+(bug crítico no mart, permissões dinâmicas, `prefect deploy` real) — mas
+**nada disso rodou** no ambiente onde foi implementado, que não tinha Docker
+instalado. As mudanças são coerentes na leitura do código, mas não foram
+validadas executando de verdade.
+
+Em especial, F09 reescreveu a leitura do CSV bruto (source declarado,
+`all_varchar=true`, CAST explícito por coluna) — uma mudança estrutural que
+precisa ser validada contra dados reais para garantir que os números não
+mudaram (só a forma de leitura).
 
 Além disso, o Dockerfile hoje pina `python:3.11.10-slim-bookworm` só por
 **tag**, não por **digest** — porque capturar o digest exige um primeiro
@@ -53,14 +59,31 @@ build real, que não pôde ser feito.
 5. Disparar um `backfill_caged` de teste e confirmar que o mart bate com os
    números esperados após a correção do bug crítico de F05 (ver histórico
    de revisão — `admissoes`/`desligamentos`/`saldo_liquido` tinham regredido).
+6. Rodar `dbt run` + `dbt test` completo (critério de aceite de F09):
+   ```bash
+   docker compose run --rm pipeline dbt run --project-dir /dbt --profiles-dir /dbt
+   docker compose run --rm pipeline dbt test --project-dir /dbt --profiles-dir /dbt
+   # -> todos os testes passam, incluindo os 3 singulares novos em dbt/tests/
+   ```
+7. Confirmar que a mudança de leitura (source com `all_varchar=true` + CAST
+   explícito) não alterou nenhum valor em relação à leitura anterior
+   (inferência automática do DuckDB) — comparar contagens e agregados do
+   mart antes/depois se houver uma cópia do `.duckdb` anterior à mudança.
+8. Teste do teste — confirmar que os testes novos realmente pegam defeito:
+   ```sql
+   -- reintroduza um registro com unidade_salario_codigo=1 (hora) e
+   -- valor_salario_fixo=356620.00 na base, rode dbt test
+   -- -> test_faixa_salario_plausivel DEVE falhar
+   ```
 
 ## Fora de escopo
 
 - Qualquer mudança de código — esta fatia é **só validação**. Se algo
-  falhar, o ajuste correto é reabrir a fatia original (F03/F05/F07/F08),
+  falhar, o ajuste correto é reabrir a fatia original (F03/F05/F07/F08/F09),
   não fazer patch aqui.
 
 ## Critério de aceite
 
-Os 4 blocos de comando do escopo rodam sem erro, e o digest real está
-travado no Dockerfile (não mais só a tag).
+Os 8 blocos de comando do escopo rodam sem erro, o digest real está travado
+no Dockerfile (não mais só a tag), e o teste de faixa de salário falha
+quando o defeito é reintroduzido deliberadamente.
