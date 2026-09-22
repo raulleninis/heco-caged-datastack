@@ -49,11 +49,11 @@ def meses_candidatos(meses_para_tras: int = 6) -> list[str]:
 def competencias_ja_ingeridas() -> set[str]:
     """Competências (AAAAMM) que já têm .txt extraído em disco.
 
-    Depende de F07 ainda não ter passado a deletar o .txt (só o .7z é
-    deletado hoje). Quando F09 materializar a staging como table e F07
+    Staging já materializa como table (F09), mas o .txt ainda não é
+    deletado após dbt run — só o .7z é (F07 fase 1). Quando F07 fase 2
     passar a deletar o .txt também, este critério de detecção precisa
-    mudar para consultar o warehouse (.duckdb), não o filesystem — senão
-    toda execução vai achar que nada foi ingerido e re-baixar tudo.
+    mudar para consultar o warehouse (.duckdb) em vez do filesystem —
+    senão toda execução vai achar que nada foi ingerido e re-baixar tudo.
     """
     logger = get_run_logger()
     extraido_dir = RAW_DIR / "extraido"

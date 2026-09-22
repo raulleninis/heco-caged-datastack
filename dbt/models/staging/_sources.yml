@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: caged_raw
+    description: >
+      Arquivos brutos CAGEDMOV extraídos do FTP do PDET/MTE
+      (ver pipeline/flows/ingest_caged.py). Cada arquivo cobre o Brasil
+      inteiro; a staging filtra para uf=28, municipio=280480.
+    tables:
+      - name: caged_movimentacoes
+        description: "Todos os .txt de movimentação extraídos em /data/raw/extraido/."
+        meta:
+          # all_varchar=true desativa a inferência de tipo por amostragem do
+          # DuckDB: toda coluna vira VARCHAR na leitura, e os CASTs explícitos
+          # em stg_caged_movimentacoes.sql fazem a conversão real. Sem isso,
+          # union_by_name=true pode inferir tipos diferentes para a mesma
+          # coluna entre competências (ex.: subclasse como BIGINT numa,
+          # VARCHAR noutra) e gerar erro ou coerção silenciosa (ver F09).
+          external_location: "read_csv_auto('/data/raw/extraido/*.txt', delim=';', union_by_name=true, all_varchar=true)"
+        loaded_at_field: "make_date(CAST(competênciamov AS BIGINT) / 100, CAST(competênciamov AS BIGINT) % 100, 1)"
+        freshness:
+          # Defasagem observada de ~1 mês (ver F06/CLAUDE.MD); warn/error dão
+          # margem para a variação normal de data de publicação do PDET.
+          warn_after: {count: 45, period: day}
+          error_after: {count: 60, period: day}

@@ -42,8 +42,16 @@ escrita em qualquer outro lugar até fechar a conexão.
   - `backfill_caged(ano)` — execução manual via CLI
     (`python flows/ingest_caged.py backfill <ano>`), varre ano inteiro
   - Ambos: baixam → extraem → deletam .7z → rodam dbt run + test
-- `dbt/models/staging/stg_caged_movimentacoes.sql` — lê .txt bruto, filtra
-  uf=28 (SE) e municipio=280480 (N. Sra. do Socorro), deriva `grupamento`
+- `dbt/models/staging/_sources.yml` — declara `caged_raw.caged_movimentacoes`
+  como source (`meta.external_location` com `read_csv_auto(..., all_varchar=true)`),
+  com `freshness` baseada em `competencia_mov` convertida para data
+- `dbt/models/staging/stg_caged_movimentacoes.sql` — materializada como
+  `table` (F09), lê do source acima (tudo VARCHAR), faz CAST explícito por
+  coluna, filtra uf=28 (SE) e municipio=280480 (N. Sra. do Socorro), deriva
+  `grupamento` e `subgrupamento`
+- `dbt/tests/` — testes singulares: unicidade do grão do mart, coerência
+  aritmética (`saldo_liquido = admissoes - desligamentos`), faixa plausível
+  de salário (o teste que teria pego o bug de F05)
 - `dbt/models/marts/mart_caged_mensal_grupamento.sql` — métricas por competência + grupamento:
   - `admissoes`, `desligamentos`, `saldo_liquido` (contagens)
   - `admissoes_com_salario_valido` (base do cálculo de salários)
@@ -94,9 +102,9 @@ Definido em `prefect.yaml` com `timezone: "America/Maceio"` para clareza.
 Política D06: apagar dados regeneráveis da fonte (FTP).
 - `.7z` original: **deletado imediatamente** após extração bem-sucedida
   - Não será reutilizado, economia imediata (~50% espaço)
-- `.txt` extraído: **deletado após `dbt run`** quando staging for TABLE (F09)
-  - Hoje staging é VIEW (lê .txt por glob) — .txt permanece
-  - Após F09: staging materializada como TABLE — .txt será deletado
+- `.txt` extraído: staging já materializa como TABLE (F09), então não há
+  mais dependência técnica que impeça deletar o `.txt` — mas a deleção em
+  si (F07 fase 2) ainda não foi implementada. Pendente.
 - FTP é fonte de verdade pública: re-download é sempre possível (minutos)
 
 ## Permissões e containers

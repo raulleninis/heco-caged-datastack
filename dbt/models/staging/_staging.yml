@@ -19,6 +19,19 @@ models:
           - accepted_values:
               arguments:
                 values: [280480]
+      - name: saldo_movimentacao
+        description: "1 = admissão, -1 = desligamento. Todo o mart depende deste contrato — qualquer outro valor (0, 2, NULL) quebra admissoes/desligamentos/saldo_liquido silenciosamente."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, -1]
+      - name: unidade_salario_codigo
+        description: "Unidade do salário declarado (1=hora, 2=dia, 3=semana, 4=quinzena, 5=mês, 6=tarefa, conforme layout do Novo CAGED). As métricas de salário do mart filtram só código 5 (mensal) — um código novo na fonte deve ser detectado aqui, não silenciosamente ignorado ou misturado."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5, 6]
       - name: grupamento
         description: "Nível 1 da Tabela 1 do MTE (Grupamentos de Atividades Econômicas para divulgação da RAIS e do CAGED), por seção da CNAE 2.0."
         tests:

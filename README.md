@@ -22,8 +22,8 @@ flowchart LR
     SCAN -->|"competências<br/>faltantes"| DL
     DL -->|"extrai"| RAW
     RAW -->|"delete<br/>.7z"| DEL
-    RAW -->|"read_csv_auto"| RUN
-    RUN -->|"materializa<br/>staging"| MART
+    RAW -->|"source declarado<br/>(all_varchar)"| RUN
+    RUN -->|"materializa<br/>staging (table)"| MART
     MART -.->|"próxima fase"| REPORT
 ```
 
@@ -61,6 +61,7 @@ erDiagram
         bigint unidade_salario_codigo
         double valor_salario_fixo
         varchar grupamento
+        varchar subgrupamento
     }
 
     mart_caged_mensal_grupamento {
@@ -69,7 +70,10 @@ erDiagram
         bigint admissoes
         bigint desligamentos
         bigint saldo_liquido
+        bigint admissoes_com_salario_valido
+        double salario_mediano_admissao
         double salario_medio_admissao
+        double palma_index_admissao
     }
 
     stg_caged_movimentacoes ||--o{ mart_caged_mensal_grupamento : "agregada em"
@@ -122,9 +126,9 @@ mesmo que o usuário do host não seja UID 1000.
 ### Limpeza de dados
 
 Arquivos baixados do FTP são armazenados em `data/raw/`. O pipeline **automaticamente deleta
-os `.7z` originais após extração**, conservando apenas os `.txt` extraídos. Após a materialização
-da staging como tabela (F09), os `.txt` também serão deletados, deixando apenas os dados
-no `.duckdb`.
+os `.7z` originais após extração**, conservando os `.txt` extraídos. A staging já materializa
+como `table` (F09) — o `.txt` ainda não é deletado (isso é a fase 2 de F07, pendente), mas
+a staging não depende mais dele após o primeiro `dbt run`.
 
 ## Estrutura do repositório
 
@@ -134,12 +138,21 @@ no `.duckdb`.
 ├── pipeline/
 │   ├── Dockerfile
 │   ├── requirements.txt
+│   ├── docker-entrypoint.sh
+│   ├── start.sh
+│   ├── prefect.yaml
 │   └── flows/ingest_caged.py
 └── dbt/
     ├── dbt_project.yml
     ├── profiles.yml
+    ├── tests/
+    │   ├── test_unicidade_grao_mart.sql
+    │   ├── test_coerencia_saldo_liquido.sql
+    │   └── test_faixa_salario_plausivel.sql
     └── models/
-        ├── staging/stg_caged_movimentacoes.sql
+        ├── staging/
+        │   ├── stg_caged_movimentacoes.sql
+        │   └── _sources.yml
         └── marts/mart_caged_mensal_grupamento.sql
 ```
 

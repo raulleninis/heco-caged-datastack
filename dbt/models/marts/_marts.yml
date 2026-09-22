@@ -7,6 +7,9 @@ models:
       - name: competencia_mov
         tests:
           - not_null
+          - relationships:
+              to: ref('stg_caged_movimentacoes')
+              field: competencia_mov
       - name: grupamento
         tests:
           - not_null
