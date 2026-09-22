@@ -149,10 +149,13 @@ def deletar_arquivo_7z(caminho_arquivo: Path) -> None:
 
 
 @task(log_prints=True)
-def run_dbt(comando: list[str]) -> None:
+def run_dbt(comando: list[str], dbt_vars: dict | None = None) -> None:
+    import json
     import subprocess
     logger = get_run_logger()
     cmd = ["dbt", *comando, "--project-dir", str(DBT_PROJECT_DIR), "--profiles-dir", str(DBT_PROJECT_DIR)]
+    if dbt_vars:
+        cmd += ["--vars", json.dumps(dbt_vars)]
     logger.info(f"Executando: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
     logger.info(result.stdout)
@@ -160,6 +163,24 @@ def run_dbt(comando: list[str]) -> None:
         logger.error(f"stdout:\n{result.stdout}")
         logger.error(f"stderr:\n{result.stderr}")
         raise RuntimeError(f"dbt {' '.join(comando)} falhou")
+
+
+def _transformar(baixadas: list[str]) -> None:
+    """Roda a staging incrementalmente (uma competência por vez, ~500MB de
+    pico por execução, não ~3GB de uma vez — ver comentário em
+    stg_caged_movimentacoes.sql) e depois materializa o mart (pequeno,
+    processa tudo de uma vez sem risco de memória) e os testes."""
+    logger = get_run_logger()
+    for competencia in baixadas:
+        logger.info(f"Transformando staging para {competencia}...")
+        run_dbt(
+            ["run", "--select", "stg_caged_movimentacoes"],
+            dbt_vars={"competencia_arquivo": competencia},
+        )
+
+    logger.info("Materializando mart...")
+    run_dbt(["run", "--select", "mart_caged_mensal_grupamento"])
+    run_dbt(["test"])
 
 
 @flow(name="ingest-caged", log_prints=True)
@@ -185,9 +206,7 @@ def ingest_caged():
         baixadas.append(competencia)
 
     logger.info(f"Ingestão concluída. Competências baixadas: {baixadas}")
-    logger.info(f"Executando transformação dbt...")
-    run_dbt(["run"])
-    run_dbt(["test"])
+    _transformar(baixadas)
 
 
 @flow(name="backfill-caged", log_prints=True)
@@ -209,8 +228,7 @@ def backfill_caged(ano: int = 2026):
 
     if baixadas:
         logger.info(f"Transformando {len(baixadas)} competência(s) com dbt...")
-        run_dbt(["run"])
-        run_dbt(["test"])
+        _transformar(baixadas)
     else:
         logger.info("Nenhuma competência foi baixada, pulando dbt.")
 

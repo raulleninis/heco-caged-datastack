@@ -45,23 +45,35 @@ percentis as (
     group by 1, 2
 ),
 
-metricas_salario as (
+-- DuckDB não permite agregação aninhada (ex.: avg(... max(x) ...)), então
+-- os percentis precisam ser resolvidos POR LINHA (via join) antes de entrar
+-- em outra agregação — não dá pra chamar max(per.p90) dentro de um avg().
+salario_com_percentis as (
     select
         sv.competencia_mov,
         sv.grupamento,
-        count(*) as admissoes_com_salario_valido,
-        round(max(per.p50), 2) as salario_mediano_admissao,
-        round(avg(sv.valor_salario_fixo), 2) as salario_medio_admissao,
-        round(
-            avg(case when sv.valor_salario_fixo >= max(per.p90) then sv.valor_salario_fixo end) /
-            nullif(avg(case when sv.valor_salario_fixo <= max(per.p40) then sv.valor_salario_fixo end), 0),
-            4
-        ) as palma_index_admissao
+        sv.valor_salario_fixo,
+        per.p40,
+        per.p90
     from salario_valido sv
     left join percentis per
         on sv.competencia_mov = per.competencia_mov
         and sv.grupamento = per.grupamento
-    group by sv.competencia_mov, sv.grupamento
+),
+
+metricas_salario as (
+    select
+        competencia_mov,
+        grupamento,
+        count(*) as admissoes_com_salario_valido,
+        round(avg(valor_salario_fixo), 2) as salario_medio_admissao,
+        round(
+            avg(case when valor_salario_fixo >= p90 then valor_salario_fixo end) /
+            nullif(avg(case when valor_salario_fixo <= p40 then valor_salario_fixo end), 0),
+            4
+        ) as palma_index_admissao
+    from salario_com_percentis
+    group by competencia_mov, grupamento
 )
 
 select
@@ -71,11 +83,14 @@ select
     c.desligamentos,
     c.saldo_liquido,
     coalesce(ms.admissoes_com_salario_valido, 0) as admissoes_com_salario_valido,
-    ms.salario_mediano_admissao,
+    round(per.p50, 2) as salario_mediano_admissao,
     ms.salario_medio_admissao,
     ms.palma_index_admissao
 from contagens c
 left join metricas_salario ms
     on c.competencia_mov = ms.competencia_mov
     and c.grupamento = ms.grupamento
+left join percentis per
+    on c.competencia_mov = per.competencia_mov
+    and c.grupamento = per.grupamento
 order by 1, 2

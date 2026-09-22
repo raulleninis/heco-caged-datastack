@@ -27,11 +27,22 @@ models:
               arguments:
                 values: [1, -1]
       - name: unidade_salario_codigo
-        description: "Unidade do salário declarado (1=hora, 2=dia, 3=semana, 4=quinzena, 5=mês, 6=tarefa, conforme layout do Novo CAGED). As métricas de salário do mart filtram só código 5 (mensal) — um código novo na fonte deve ser detectado aqui, não silenciosamente ignorado ou misturado."
+        description: >
+          Unidade do salário declarado (1=hora, 2=dia, 3=semana, 4=quinzena,
+          5=mês, 6=tarefa, conforme layout do Novo CAGED). 7 e 99 também
+          aparecem nos dados reais (validado em runtime, 22/09/2026,
+          competências 202601-202607) — 7 sempre com valor_salario_fixo=0
+          (parece "não informado"); 99 majoritariamente 0, mas 2 registros
+          com valor não-zero (inconsistência da fonte declaratória, não
+          investigada a fundo). Nenhum dos dois afeta o mart: as métricas
+          de salário filtram só código 5, então 7/99 são excluídos de
+          qualquer forma. As métricas de salário do mart filtram só código
+          5 (mensal) — um código REALMENTE novo na fonte (fora desta lista)
+          deve ser detectado aqui, não silenciosamente ignorado ou misturado.
         tests:
           - accepted_values:
               arguments:
-                values: [1, 2, 3, 4, 5, 6]
+                values: [1, 2, 3, 4, 5, 6, 7, 99]
       - name: grupamento
         description: "Nível 1 da Tabela 1 do MTE (Grupamentos de Atividades Econômicas para divulgação da RAIS e do CAGED), por seção da CNAE 2.0."
         tests:

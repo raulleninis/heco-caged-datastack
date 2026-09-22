@@ -8,7 +8,12 @@ sources:
       inteiro; a staging filtra para uf=28, municipio=280480.
     tables:
       - name: caged_movimentacoes
-        description: "Todos os .txt de movimentação extraídos em /data/raw/extraido/."
+        description: >
+          .txt de movimentação extraídos em /data/raw/extraido/. Por padrão
+          lê todos via glob (*); passar --vars '{"competencia_arquivo": "202608"}'
+          restringe a um único arquivo — usado pela materialização incremental
+          da staging para processar uma competência por vez e não estourar
+          memória no servidor de produção (830MB RAM, ver D02/F09).
         meta:
           # all_varchar=true desativa a inferência de tipo por amostragem do
           # DuckDB: toda coluna vira VARCHAR na leitura, e os CASTs explícitos
@@ -16,7 +21,10 @@ sources:
           # union_by_name=true pode inferir tipos diferentes para a mesma
           # coluna entre competências (ex.: subclasse como BIGINT numa,
           # VARCHAR noutra) e gerar erro ou coerção silenciosa (ver F09).
-          external_location: "read_csv_auto('/data/raw/extraido/*.txt', delim=';', union_by_name=true, all_varchar=true)"
+          #
+          # {{ var(...) }} é resolvido porque todo YAML de projeto dbt passa
+          # pelo Jinja renderer antes do parse — não é exclusivo de .sql.
+          external_location: "read_csv_auto('/data/raw/extraido/CAGEDMOV{{ var('competencia_arquivo', '*') }}.txt', delim=';', union_by_name=true, all_varchar=true)"
         loaded_at_field: "make_date(CAST(competênciamov AS BIGINT) / 100, CAST(competênciamov AS BIGINT) % 100, 1)"
         freshness:
           # Defasagem observada de ~1 mês (ver F06/CLAUDE.MD); warn/error dão
