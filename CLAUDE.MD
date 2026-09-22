@@ -41,14 +41,22 @@ escrita em qualquer outro lugar até fechar a conexão.
     últimos 6 meses procurando faltantes
   - `backfill_caged(ano)` — execução manual via CLI
     (`python flows/ingest_caged.py backfill <ano>`), varre ano inteiro
-  - Ambos: baixam → extraem → deletam .7z → rodam dbt run + test
+  - Ambos: baixam → extraem → deletam .7z → chamam `_transformar()`, que
+    roda a staging UMA VEZ POR COMPETÊNCIA (`dbt run --select
+    stg_caged_movimentacoes --vars '{"competencia_arquivo": "AAAAMM"}'`),
+    depois materializa o mart uma vez e roda os testes (ver limitação de
+    memória abaixo)
 - `dbt/models/staging/_sources.yml` — declara `caged_raw.caged_movimentacoes`
-  como source (`meta.external_location` com `read_csv_auto(..., all_varchar=true)`),
-  com `freshness` baseada em `competencia_mov` convertida para data
+  como source; `external_location` usa `read_csv_auto(...,
+  all_varchar=true)` parametrizado com `{{ var('competencia_arquivo', '*') }}`
+  (todo YAML de projeto dbt passa pelo Jinja renderer, não só `.sql`) —
+  sem var, lê tudo via glob; com var, restringe a um arquivo. `freshness`
+  baseada em `competencia_mov` convertida para data
 - `dbt/models/staging/stg_caged_movimentacoes.sql` — materializada como
-  `table` (F09), lê do source acima (tudo VARCHAR), faz CAST explícito por
-  coluna, filtra uf=28 (SE) e municipio=280480 (N. Sra. do Socorro), deriva
-  `grupamento` e `subgrupamento`
+  `incremental` (`delete+insert`, `unique_key='competencia_mov'`), lê do
+  source acima (tudo VARCHAR), faz CAST explícito por coluna, filtra uf=28
+  (SE) e municipio=280480 (N. Sra. do Socorro), deriva `grupamento` e
+  `subgrupamento`
 - `dbt/tests/` — testes singulares: unicidade do grão do mart, coerência
   aritmética (`saldo_liquido = admissoes - desligamentos`), faixa plausível
   de salário (o teste que teria pego o bug de F05)
@@ -69,9 +77,16 @@ docker compose run --rm pipeline python flows/ingest_caged.py backfill 2026
 # Disparar o ingest_caged do deployment agendado manualmente (sem esperar o cron)
 docker compose exec pipeline prefect deployment run 'ingest-caged/caged-ingest-daily'
 
-# Rodar dbt isoladamente
-docker compose run --rm pipeline dbt run --project-dir /dbt --profiles-dir /dbt
+# Rodar dbt isoladamente — staging é incremental, uma competência por vez
+docker compose run --rm pipeline dbt run --select stg_caged_movimentacoes \
+  --vars '{"competencia_arquivo": "202608"}' --project-dir /dbt --profiles-dir /dbt
+docker compose run --rm pipeline dbt run --select mart_caged_mensal_grupamento \
+  --project-dir /dbt --profiles-dir /dbt
 docker compose run --rm pipeline dbt test --project-dir /dbt --profiles-dir /dbt
+
+# dbt run sem --select nem --vars roda a staging inteira via glob (*) — só
+# use em dev/debug com poucas competências; nunca em produção (ver limitação
+# de memória abaixo)
 
 # Ver histórico de deployments no Prefect
 curl -s http://localhost:4200/api/deployments/filter -X POST -H 'Content-Type: application/json' \
@@ -90,6 +105,10 @@ curl -s http://localhost:4200/api/deployments/filter -X POST -H 'Content-Type: a
   - Métricas de salário filtram só mensal (`unidade_salario_codigo = 5`)
   - Usam `valor_salario_fixo`, não `salario` genérico
   - Excluem valores ≤ 0 (significam "não informado" no CAGED declaratório)
+  - Códigos observados em dados reais (202601-202607): 1,2,4,5,7,99 — 7 e 99
+    não estão documentados no layout conhecido (1-6), mas aparecem nos dados
+    (7 sempre valor=0; 99 majoritariamente 0, raramente não-zero). Não afetam
+    o mart (filtra só código 5). Ver `_staging.yml` para accepted_values atual.
 
 ## Segredos
 Tudo em `.env` (nunca commitado). Hoje só `PREFECT_HOST` (IP Tailscale).
@@ -98,13 +117,25 @@ Tudo em `.env` (nunca commitado). Hoje só `PREFECT_HOST` (IP Tailscale).
 O cron do `ingest_caged` é `"0 3 * * *"` — 3h UTC, meia-noite em Brasília.
 Definido em `prefect.yaml` com `timezone: "America/Maceio"` para clareza.
 
+## Limitação de memória — staging incremental é obrigatória, não opcional
+Cada `.txt` bruto tem ~450-500MB (Brasil inteiro; filtramos ~1.500-2.000
+linhas de N. Sra. do Socorro). Ler todas as competências de uma vez via
+glob (`*.txt`) estoura memória — validado em runtime: só funcionava com
+`mem_limit >= 3g`. O **servidor real de produção tem 830MB RAM total**
+(~484MB disponível, ver D02) — nunca caberia processar tudo de uma vez.
+Por isso a staging é `incremental`, processada uma competência por vez
+pelo flow (pico de memória ~500MB, não ~3GB). **Não reverta para
+`materialized='table'` com leitura via glob** sem resolver esse
+dimensionamento primeiro.
+
 ## Retenção de dados brutos
 Política D06: apagar dados regeneráveis da fonte (FTP).
 - `.7z` original: **deletado imediatamente** após extração bem-sucedida
   - Não será reutilizado, economia imediata (~50% espaço)
-- `.txt` extraído: staging já materializa como TABLE (F09), então não há
-  mais dependência técnica que impeça deletar o `.txt` — mas a deleção em
-  si (F07 fase 2) ainda não foi implementada. Pendente.
+- `.txt` extraído: staging já materializa incrementalmente (F09), lendo um
+  arquivo por vez — tecnicamente já não depende mais do `.txt` após aquela
+  execução específica processá-lo. Mas a deleção em si (F07 fase 2) ainda
+  não foi implementada. Pendente.
 - FTP é fonte de verdade pública: re-download é sempre possível (minutos)
 
 ## Permissões e containers
