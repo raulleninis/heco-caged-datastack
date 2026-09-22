@@ -32,34 +32,39 @@ def competencia_alvo() -> str:
     return f"{ano}{mes:02d}"
 
 
-@task(log_prints=True)
-def competencias_faltantes(meses_para_tras: int = 6) -> list[str]:
-    """Retorna competências dos últimos N meses que estão no FTP mas ainda não foram ingeridas."""
-    logger = get_run_logger()
+def meses_candidatos(meses_para_tras: int = 6) -> list[str]:
+    """Últimos N meses (AAAAMM) contados a partir do mês atual, do mais antigo ao mais recente."""
     hoje = date.today()
-    extraido_dir = RAW_DIR / "extraido"
-
-    competencias_no_ftp = []
+    candidatos = []
     for i in range(meses_para_tras):
         ano, mes = hoje.year, hoje.month - i
         if mes <= 0:
             mes += 12
             ano -= 1
-        comp = f"{ano}{mes:02d}"
-        if arquivo_existe_no_ftp(comp):
-            competencias_no_ftp.append(comp)
+        candidatos.append(f"{ano}{mes:02d}")
+    return sorted(candidatos)
 
-    competencias_ingeridas = set()
+
+@task(log_prints=True)
+def competencias_ja_ingeridas() -> set[str]:
+    """Competências (AAAAMM) que já têm .txt extraído em disco.
+
+    Depende de F07 ainda não ter passado a deletar o .txt (só o .7z é
+    deletado hoje). Quando F09 materializar a staging como table e F07
+    passar a deletar o .txt também, este critério de detecção precisa
+    mudar para consultar o warehouse (.duckdb), não o filesystem — senão
+    toda execução vai achar que nada foi ingerido e re-baixar tudo.
+    """
+    logger = get_run_logger()
+    extraido_dir = RAW_DIR / "extraido"
+
+    ingeridas = set()
     if extraido_dir.exists():
         for txt_file in extraido_dir.glob("CAGEDMOV*.txt"):
-            comp = txt_file.stem.replace("CAGEDMOV", "")
-            competencias_ingeridas.add(comp)
+            ingeridas.add(txt_file.stem.replace("CAGEDMOV", ""))
 
-    faltantes = sorted([comp for comp in competencias_no_ftp if comp not in competencias_ingeridas])
-    logger.info(f"Competências no FTP (últimos {meses_para_tras} meses): {competencias_no_ftp}")
-    logger.info(f"Competências já ingeridas: {sorted(competencias_ingeridas)}")
-    logger.info(f"Faltantes: {faltantes}")
-    return faltantes
+    logger.info(f"Competências já ingeridas: {sorted(ingeridas)}")
+    return ingeridas
 
 
 def competencias_do_ano(ano: int) -> list[str]:
@@ -160,7 +165,10 @@ def run_dbt(comando: list[str]) -> None:
 @flow(name="ingest-caged", log_prints=True)
 def ingest_caged():
     logger = get_run_logger()
-    faltantes = competencias_faltantes(meses_para_tras=6)
+    candidatos = meses_candidatos(meses_para_tras=6)
+    ingeridas = competencias_ja_ingeridas()
+
+    faltantes = [c for c in candidatos if c not in ingeridas and arquivo_existe_no_ftp(c)]
 
     if not faltantes:
         logger.info("Nenhuma competência faltante nos últimos 6 meses. Encerrando.")
