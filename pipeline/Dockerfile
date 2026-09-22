@@ -1,4 +1,8 @@
-FROM python:3.11-slim
+# Pinada por tag de versão (não ":slim" solto, que muda sob os pés).
+# Para travar por digest também (reprodutibilidade máxima): faça o primeiro
+# build, rode `docker inspect --format='{{index .RepoDigests 0}}' <image>`
+# e substitua a tag abaixo por "python:3.11.10-slim-bookworm@sha256:<digest>".
+FROM python:3.11.10-slim-bookworm
 
 WORKDIR /app
 
@@ -7,7 +11,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --no-compile -r requirements.txt
 
 COPY flows/ /app/flows/
 COPY prefect.yaml /app/prefect.yaml

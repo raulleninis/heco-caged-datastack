@@ -2,6 +2,8 @@ name: 'caged_analytics'
 version: '1.0.0'
 config-version: 2
 
+require-dbt-version: ">=1.10.0"
+
 profile: 'caged_analytics'
 
 model-paths: ["models"]

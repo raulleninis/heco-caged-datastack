@@ -1,7 +1,10 @@
 services:
 
   prefect-server:
-    image: prefecthq/prefect:3-latest
+    # Pinada por versão exata, coerente com o client (prefect==3.8.0 no
+    # requirements.txt do pipeline) — mismatch de versão entre server/client
+    # do Prefect pode quebrar a API. ":3-latest" muda sob os pés.
+    image: prefecthq/prefect:3.8.0-python3.11
     container_name: prefect-server
     restart: unless-stopped
     command: prefect server start --host 0.0.0.0 --port 4200
