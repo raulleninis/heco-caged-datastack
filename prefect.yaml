@@ -1,0 +1,16 @@
+# Prefect deployment configuration for CAGED Analytics pipeline
+# Defines flow deployments, schedules, and work pool configuration
+
+deployments:
+  - name: caged-ingest-daily
+    entrypoint: flows/ingest_caged.py:ingest_caged
+    tags:
+      - production
+      - daily
+    schedule:
+      cron: "0 3 * * *"
+      timezone: "America/Maceio"
+    work_pool:
+      name: default
+      type: process
+    work_queue_name: default

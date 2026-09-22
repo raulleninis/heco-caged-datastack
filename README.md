@@ -100,12 +100,12 @@ Todas as variáveis têm valores padrão. `PREFECT_HOST` só precisa ser editada
 acessa a UI do Prefect por outra máquina via Tailscale — sem ele, o padrão é
 `localhost` e o clone sobe sem Tailscale.
 
-> O container `pipeline` reinicia em loop até a [F03](docs/fatias/F03-agendamento-real.md)
-> ser feita — o `Dockerfile` ainda não tem `CMD`. Prefect Server sobe normalmente.
+O container `pipeline` roda contínuo, serving the `ingest_caged` flow com schedule cron diário às 3h UTC
+(meia-noite em Brasília). Deployments persistem em SQLite.
 
-Backfill de um ano inteiro:
+Backfill manual de um ano inteiro:
 ```bash
-docker compose run --rm pipeline python -c "from flows.ingest_caged import backfill_caged; backfill_caged(2026)"
+docker compose run --rm pipeline python flows/ingest_caged.py backfill 2026
 ```
 
 ## Estrutura do repositório

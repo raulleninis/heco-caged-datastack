@@ -50,6 +50,10 @@ docker compose run --rm pipeline python -c "from flows.ingest_caged import backf
 ## Segredos
 Tudo em `.env` (nunca commitado). Hoje só `PREFECT_HOST` (IP Tailscale).
 
+## Fuso horário
+O cron do `ingest_caged` é `"0 3 * * *"` — 3h UTC, meia-noite em Brasília.
+Definido em `prefect.yaml` com `timezone: "America/Maceio"` para clareza.
+
 ## Próximos passos (não implementado ainda)
 Relatório mensal em PDF via CrewAI (múltiplos agentes: análise dos dados,
 pesquisa de contexto na web, redação, revisão factual) + renderização
