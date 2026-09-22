@@ -10,7 +10,8 @@ de Nossa Senhora do Socorro/SE, a partir dos microdados do Novo CAGED (PDET).
 - Docker Compose (plugin v2, comando `docker compose`, sem hífen)
 - DuckDB — único armazenamento de dado (staging + mart no mesmo arquivo .duckdb)
 - dbt-core + dbt-duckdb — transformação e testes de qualidade
-- Prefect 3.x — orquestração, backend SQLite (sem Postgres)
+- Prefect 3.x — orquestração, backend SQLite com volume nomeado para persistência
+- Pipeline executa em container não-root (UID 1000)
 
 ## Decisão de arquitetura importante
 Postgres e Metabase foram removidos deliberadamente. Não recomendar
@@ -25,27 +26,51 @@ escrita em qualquer outro lugar até fechar a conexão.
 
 ## Estrutura
 - `docker-compose.yml` — 2 serviços: prefect-server, pipeline
-- `pipeline/flows/ingest_caged.py` — flows `ingest_caged` (cron diário) e
-  `backfill_caged(ano)` (manual)
+- `prefect.yaml` — deployment declarativo (cron schedule, work pool)
+- `pipeline/flows/ingest_caged.py` — flows com varredura de lacunas:
+  - `ingest_caged()` — roda via cron diário, varre últimos 6 meses procurando faltantes
+  - `backfill_caged(ano)` — execução manual, varre ano inteiro
+  - Ambos: baixam → extraem → deletam .7z → rodam dbt run + test
 - `dbt/models/staging/stg_caged_movimentacoes.sql` — lê .txt bruto, filtra
   uf=28 (SE) e municipio=280480 (N. Sra. do Socorro), deriva `grupamento`
-- `dbt/models/marts/mart_caged_mensal_grupamento.sql` — admissões/desligamentos/
-  saldo por competência e grupamento
+- `dbt/models/marts/mart_caged_mensal_grupamento.sql` — métricas por competência + grupamento:
+  - `admissoes`, `desligamentos`, `saldo_liquido` (contagens)
+  - `admissoes_com_salario_valido` (base do cálculo de salários)
+  - `salario_mediano_admissao` (métrica robusta — referência)
+  - `salario_medio_admissao` (para comparação com mediana)
+  - `palma_index_admissao` (desigualdade: top 10% / bottom 40%)
 
 ## Comandos comuns
+# Iniciar stack (Prefect Server + pipeline com agendamento)
 docker compose up -d
+
+# Rodar ingest diário (varredura de 6 meses)
+docker compose run --rm pipeline python flows/ingest_caged.py
+
+# Backfill de um ano inteiro (manual)
+docker compose run --rm pipeline python flows/ingest_caged.py backfill 2026
+
+# Rodar dbt isoladamente
 docker compose run --rm pipeline dbt run --project-dir /dbt --profiles-dir /dbt
 docker compose run --rm pipeline dbt test --project-dir /dbt --profiles-dir /dbt
-docker compose run --rm pipeline python -c "from flows.ingest_caged import backfill_caged; backfill_caged(2026)"
+
+# Ver histórico de deployments no Prefect
+curl -s http://localhost:4200/api/deployments/filter -X POST -H 'Content-Type: application/json' \
+  -d '{"limit":10}' | python3 -m json.tool
 
 ## Gotchas da fonte de dados (PDET/Novo CAGED)
 - Distribuído via FTP (ftp.mtps.gov.br), arquivo `.7z` (não `.zip`)
-- Divulgação com 1 mês de defasagem, sem dia fixo — o flow checa existência
-  no FTP antes de assumir que a competência não saiu
+- Divulgação com ~1 mês de defasagem, sem dia fixo
+  - Flow não assume data fixa: varre últimos 6 meses, procura lacunas
+  - Se agosto atrasar (publicado em setembro), será ingerido no próximo run
 - Colunas originais vêm acentuadas (ex. `salário`) — renomeadas para
   snake_case sem acento na staging
 - `salario`, `valor_salario_fixo`, `horas_contratuais` usam vírgula decimal
   no arquivo bruto — precisam de `REPLACE(',', '.')` + `CAST` explícito
+- Unidade de salário é heterogênea (hora, dia, semana, mês, etc)
+  - Métricas de salário filtram só mensal (`unidade_salario_codigo = 5`)
+  - Usam `valor_salario_fixo`, não `salario` genérico
+  - Excluem valores ≤ 0 (significam "não informado" no CAGED declaratório)
 
 ## Segredos
 Tudo em `.env` (nunca commitado). Hoje só `PREFECT_HOST` (IP Tailscale).
@@ -53,6 +78,38 @@ Tudo em `.env` (nunca commitado). Hoje só `PREFECT_HOST` (IP Tailscale).
 ## Fuso horário
 O cron do `ingest_caged` é `"0 3 * * *"` — 3h UTC, meia-noite em Brasília.
 Definido em `prefect.yaml` com `timezone: "America/Maceio"` para clareza.
+
+## Retenção de dados brutos
+Política D06: apagar dados regeneráveis da fonte (FTP).
+- `.7z` original: **deletado imediatamente** após extração bem-sucedida
+  - Não será reutilizado, economia imediata (~50% espaço)
+- `.txt` extraído: **deletado após `dbt run`** quando staging for TABLE (F09)
+  - Hoje staging é VIEW (lê .txt por glob) — .txt permanece
+  - Após F09: staging materializada como TABLE — .txt será deletado
+- FTP é fonte de verdade pública: re-download é sempre possível (minutos)
+
+## Permissões e containers
+- Container roda como usuário `caged` (UID 1000), não root
+- Arquivos em `data/raw/` são `caged:caged`, usuário host consegue deletar
+- Se dados antigos estão `root:root`: `sudo chown -R $USER:$USER data/`
+
+## Métricas de salário
+Mart publica 4 métricas de salário (todas em admissões):
+1. **`salario_mediano_admissao`** (PERCENTILE_DISC)
+   - Métrica de referência, robusta a outlier
+   - Padrão IBGE/PDET para estudos de mercado de trabalho
+2. **`salario_medio_admissao`** (AVG)
+   - Para comparação, mostra divergência (indicador de concentração)
+3. **`palma_index_admissao`** (razão)
+   - Desigualdade: média dos top 10% ÷ média dos bottom 40%
+   - Interpretação: Palma > 1.5 indica desigualdade pronunciada
+4. **`admissoes_com_salario_valido`** (contagem)
+   - Base do cálculo: quantos registros entraram nas métricas
+   - Contexto: NULL quando nenhum registro válido
+
+Todas filtram:
+- `unidade_salario_codigo = 5` (mensal, não hora/dia/semana)
+- `valor_salario_fixo > 0` (excluem "não informado")
 
 ## Próximos passos (não implementado ainda)
 Relatório mensal em PDF via CrewAI (múltiplos agentes: análise dos dados,
