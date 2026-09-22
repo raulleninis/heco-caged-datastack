@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: mart_caged_mensal_grupamento
-    description: "Admissões, desligamentos e saldo líquido do CAGED por competência e grupamento."
+    description: "Admissões, desligamentos, saldo líquido e métricas de salário mensal do CAGED por competência e grupamento."
     columns:
       - name: competencia_mov
         tests:
@@ -10,6 +10,21 @@ models:
       - name: grupamento
         tests:
           - not_null
-      - name: saldo_liquido
+      - name: admissoes
+        description: "Contagem de admissões (saldo_movimentacao = 1)"
         tests:
           - not_null
+      - name: desligamentos
+        description: "Contagem de desligamentos (saldo_movimentacao = -1)"
+        tests:
+          - not_null
+      - name: saldo_liquido
+        description: "Admissões menos desligamentos"
+        tests:
+          - not_null
+      - name: admissoes_com_salario_valido
+        description: "Base do cálculo: admissões com unidade_salario_codigo=5 (mensal) e valor > 0"
+      - name: salario_mediano_admissao
+        description: "Salário mensal mediano na admissão (métrica robusta a outlier). NULL se 0 registros com salário válido."
+      - name: salario_medio_admissao
+        description: "Salário mensal médio na admissão (para comparação com mediana, mostra concentração). NULL se 0 registros com salário válido."
