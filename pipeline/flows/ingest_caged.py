@@ -143,4 +143,10 @@ def backfill_caged(ano: int = 2026):
 
 
 if __name__ == "__main__":
-    ingest_caged.serve(name="caged-pipeline", cron="0 3 * * *")
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "backfill":
+        ano = int(sys.argv[2]) if len(sys.argv) > 2 else 2026
+        backfill_caged(ano)
+    else:
+        ingest_caged.serve(name="caged-pipeline", cron="0 3 * * *")
