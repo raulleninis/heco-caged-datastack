@@ -34,11 +34,16 @@ Quando o mês vira, o alvo muda e a competência anterior **nunca mais é solici
 **202606 e 202607 estão disponíveis e são inalcançáveis pelo flow diário.**
 Em outubro o alvo vira 202609, e a lacuna só cresce.
 
-### A causa de fundo é uma premissa errada
+### A causa de fundo é uma janela fixa incompatível com variação
 
-O `CLAUDE.MD` afirma defasagem de *"1 mês"*. A defasagem **real observada** é de
-**1,5 a 2 meses** — hoje é 21 de setembro e a competência de agosto não saiu.
-Uma janela de exatamente 1 mês é estruturalmente incompatível com essa fonte.
+O `CLAUDE.MD` afirma corretamente defasagem de **~1 mês** — a competência é publicada
+tipicamente 28-31 dias após seu fechamento. O problema **não é a defasagem em si**,
+mas que `competencia_alvo()` assume uma janela rígida ("mês anterior") que não tolera
+variação de *quando* o FTP publica.
+
+Se a competência for publicada um dia além da data esperada (antes do mês virar),
+a competência fica inacessível ao flow diário até o mês seguinte — e quando chega,
+já foi "perdida" por ter sido pulada.
 
 ## Escopo
 
