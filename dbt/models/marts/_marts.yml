@@ -28,3 +28,5 @@ models:
         description: "Salário mensal mediano na admissão (métrica robusta a outlier). NULL se 0 registros com salário válido."
       - name: salario_medio_admissao
         description: "Salário mensal médio na admissão (para comparação com mediana, mostra concentração). NULL se 0 registros com salário válido."
+      - name: palma_index_admissao
+        description: "Índice de desigualdade: média dos salários do top 10% dividida pela média dos salários do bottom 40%. Interpretação: Palma > 1 indica desigualdade (10% mais ricos ganham mais que os 40% mais pobres). NULL se insuficientes registros."
