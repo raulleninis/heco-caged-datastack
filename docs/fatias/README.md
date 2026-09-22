@@ -54,7 +54,7 @@ flowchart TD
 | [F06](F06-janela-resiliente.md) | Janela resiliente de competências | M | pré-prod | E | F04 |
 | [F07](F07-retencao-e-permissoes.md) | Retenção do raw + não-root | S | pré-prod | G, I | F04 |
 | [F08](F08-reprodutibilidade.md) | Reprodutibilidade do ambiente | S | pré-prod | J, K, L | F01 |
-| [F08b](F08b-validar-reprodutibilidade-docker.md) | Validar com Docker real (F08 + F09 + revisão) | S | pré-prod | — | F08, F09 |
+| [F08b](F08b-validar-reprodutibilidade-docker.md) ✅ | Validar com Docker real (F08 + F09 + revisão) | S | pré-prod | — | F08, F09 |
 | [F09](F09-testes-de-qualidade.md) | Testes de qualidade ampliados | M | pré-prod | D, F | F05 |
 | [F10](F10-camada-analitica.md) | Camada analítica visível | L | vitrine | (portfólio) | F09 |
 | [F11](F11-observabilidade.md) | Observabilidade e alerta | M | produção | B | F06 |

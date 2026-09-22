@@ -2,10 +2,48 @@
 
 | | |
 |---|---|
+| **Status** | ✅ Concluída (22/09/2026) |
 | **Esforço** | S (menos de 1 h) |
 | **Fase** | pré-produção |
 | **Depende de** | [F08](F08-reprodutibilidade.md), [F09](F09-testes-de-qualidade.md) |
 | **Resolve** | Validação dos critérios de aceite de F08 e F09, e das correções de F03/F05/F07 feitas na revisão de código — nada disso rodou com Docker de verdade |
+
+## Resultado
+
+Todos os 8 itens do escopo foram executados com Docker Desktop real (backfill
+de 202601-202607, 3.1GB de dados brutos do FTP público). **4 bugs reais**
+foram encontrados — nenhum visível por leitura de código — e corrigidos
+reabrindo as fatias originais, conforme "fora de escopo" previa:
+
+1. **CRÍTICO** — `/data/warehouse` não existia; `dbt run` falhava com "No
+   such file or directory" num clone limpo. Corrigido em
+   `docker-entrypoint.sh` (F07).
+2. **CRÍTICO** — staging lendo todas as competências via glob estourava
+   memória (só funcionava com `mem_limit >= 3g`; servidor real tem 830MB
+   RAM total). Staging convertida para `incremental`, processada uma
+   competência por vez (F09).
+3. `mart_caged_mensal_grupamento.sql` — `avg(case when x >= max(p90)...)`:
+   DuckDB não permite agregação aninhada. Bug introduzido na correção do
+   bug crítico de F05 nesta mesma sessão; só apareceu na execução, não no
+   parse. Corrigido com JOIN por linha antes da agregação (F05).
+4. `test_faixa_salario_plausivel.sql` — teto de R$20.000 não pegava o caso
+   de referência (R$7.265,68, o próprio bug histórico de F05) — só
+   descoberto fazendo o "teste do teste" do item 8 abaixo. Teto corrigido
+   para R$6.000, validado contra a faixa real observada (F09).
+
+Também corrigido, sem ser bug: `accepted_values` de `unidade_salario_codigo`
+estava incompleto (dados reais têm códigos 7 e 99, não documentados no
+layout de 1-6 conhecido).
+
+**Digest travado**: `python:3.11.10-slim-bookworm@sha256:840e180e...` e
+`prefecthq/prefect:3.8.0-python3.11@sha256:336db9a1...` (capturados via
+`docker inspect`, commitados no Dockerfile e docker-compose.yml).
+
+**Validação end-to-end**: deployment disparado via `prefect deployment run`
+rodou através do worker real do container, `competencias_ja_ingeridas()`
+detectou as 7 competências corretamente, checou 202608/202609 no FTP
+(nenhuma publicada) e encerrou limpo — F03 e F06 confirmadas em produção
+real, não só em teoria. 21/21 `dbt test` passam.
 
 ## Problema
 
