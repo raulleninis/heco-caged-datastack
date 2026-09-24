@@ -14,7 +14,7 @@ clean-targets:
 
 models:
   caged_analytics:
-    staging:
-      +materialized: view
+    # staging: materialização definida por modelo via config() (a
+    # stg_caged_movimentacoes é incremental — limite de memória em produção).
     marts:
       +materialized: table

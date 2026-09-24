@@ -25,9 +25,17 @@ sources:
           # {{ var(...) }} é resolvido porque todo YAML de projeto dbt passa
           # pelo Jinja renderer antes do parse — não é exclusivo de .sql.
           external_location: "read_csv_auto('/data/raw/extraido/CAGEDMOV{{ var('competencia_arquivo', '*') }}.txt', delim=';', union_by_name=true, all_varchar=true)"
-        loaded_at_field: "make_date(CAST(competênciamov AS BIGINT) / 100, CAST(competênciamov AS BIGINT) % 100, 1)"
+        # Referência = ÚLTIMO dia do mês da competência (não o dia 1): o PDET
+        # publica ~28-31 dias após o fechamento (ver F06), então medir a
+        # idade a partir do dia 1 somaria um mês inteiro de defasagem
+        # "normal" e faria a freshness alarmar em regime saudável.
+        # "//" (divisão inteira): no DuckDB "/" devolve sempre DOUBLE, e
+        # make_date(DOUBLE, ...) não existe — dava Binder Error. O dbt também
+        # exige TIMESTAMP (não DATE) neste campo, daí o CAST final.
+        loaded_at_field: "CAST(make_date(CAST(competênciamov AS BIGINT) // 100, CAST(competênciamov AS BIGINT) % 100, 1) + INTERVAL 1 MONTH - INTERVAL 1 DAY AS TIMESTAMP)"
         freshness:
-          # Defasagem observada de ~1 mês (ver F06/CLAUDE.MD); warn/error dão
-          # margem para a variação normal de data de publicação do PDET.
+          # Idade medida desde o fim da competência; publicação normal em
+          # 28-31 dias (ver F06/CLAUDE.MD). warn/error dão margem para a
+          # variação de data de publicação do PDET.
           warn_after: {count: 45, period: day}
           error_after: {count: 60, period: day}
