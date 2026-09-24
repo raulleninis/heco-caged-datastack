@@ -134,10 +134,14 @@ dimensionamento primeiro.
 Política D06: apagar dados regeneráveis da fonte (FTP).
 - `.7z` original: **deletado imediatamente** após extração bem-sucedida
   - Não será reutilizado, economia imediata (~50% espaço)
-- `.txt` extraído: staging já materializa incrementalmente (F09), lendo um
-  arquivo por vez — tecnicamente já não depende mais do `.txt` após aquela
-  execução específica processá-lo. Mas a deleção em si (F07 fase 2) ainda
-  não foi implementada. Pendente.
+- `.txt` extraído: **deletado** ao fim de `_transformar`, só depois de staging
+  + mart + `dbt test` passarem (F07 fase 2). Se algo falhar, os `.txt` ficam
+  em disco para diagnóstico
+- Detecção de competência já ingerida (`competencias_ja_ingeridas`) consulta
+  `stg_caged_movimentacoes` no warehouse, não o filesystem — o `.txt` some do
+  disco de propósito, então a presença dele não diz nada. Consequência: uma
+  competência cujo dbt falhou NÃO conta como ingerida e é rebaixada na
+  próxima execução
 - FTP é fonte de verdade pública: re-download é sempre possível (minutos)
 
 ## Permissões e containers

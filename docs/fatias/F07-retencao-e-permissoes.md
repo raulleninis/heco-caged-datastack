@@ -2,6 +2,7 @@
 
 | | |
 |---|---|
+| **Status** | ✅ Concluída (fase 1: 22/09/2026; fase 2: 24/09/2026) |
 | **Esforço** | S (menos de 1 h) |
 | **Fase** | pré-produção |
 | **Depende de** | [F04](F04-religar-dbt-no-flow.md) |
@@ -78,3 +79,17 @@ docker run --rm datastack-pipeline:latest id   # -> uid != 0
 ls -la data/raw/extraido/ # -> arquivos com o dono do host, não root
 du -sh data/raw           # -> estável entre competências, não crescente
 ```
+
+## Fase 2 (24/09/2026): deleção do `.txt`
+
+`_transformar` apaga o `.txt` de cada competência **depois** de staging, mart e
+`dbt test` passarem (task `deletar_txt_extraido`). Se qualquer etapa falhar, nada é
+apagado.
+
+Como o `.txt` some de propósito, `competencias_ja_ingeridas()` deixou de olhar o
+filesystem e passou a consultar `stg_caged_movimentacoes` no `.duckdb`. Efeito
+colateral bom: uma competência que baixou mas cujo dbt falhou agora **não** conta como
+ingerida e é rebaixada na execução seguinte (antes, o `.txt` órfão a marcava como feita).
+
+Validado com dbt real e dados reais (202605): 23/23 testes, 431,9 MB liberados,
+detecção pelo warehouse correta. Com falha simulada em `dbt test`, o `.txt` permanece.

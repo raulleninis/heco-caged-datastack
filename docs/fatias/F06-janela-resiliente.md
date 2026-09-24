@@ -71,6 +71,8 @@ dois flows (e o buraco do `backfill` que nunca chama o dbt).
 # um run do flow diário deve ingerir 202606 E 202607
 ```
 
-E o teste de regressão que importa: **remova** `CAGEDMOV202603.txt` de
-`data/raw/extraido/`, rode o flow, e confirme que ele **rebaixa a competência que falta** —
-não só a mais recente.
+E o teste de regressão que importa: remova a competência 202603 da staging
+(`delete from stg_caged_movimentacoes where competencia_mov = 202603`), rode o flow, e
+confirme que ele **rebaixa a competência que falta** — não só a mais recente.
+(Originalmente o critério era remover o `.txt`; desde a F07 fase 2 o `.txt` é deletado
+de propósito e a detecção consulta o warehouse.)

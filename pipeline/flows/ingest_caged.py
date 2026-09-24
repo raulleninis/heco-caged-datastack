@@ -15,12 +15,14 @@ from ftplib import FTP
 from pathlib import Path
 from datetime import date
 
+import duckdb
 import py7zr
 from prefect import flow, task, get_run_logger
 
 FTP_HOST = "ftp.mtps.gov.br"
 RAW_DIR = Path("/data/raw")
 DBT_PROJECT_DIR = Path("/dbt")
+WAREHOUSE_PATH = Path("/data/warehouse/caged.duckdb")
 
 
 def competencia_alvo() -> str:
@@ -47,21 +49,27 @@ def meses_candidatos(meses_para_tras: int = 6) -> list[str]:
 
 @task(log_prints=True)
 def competencias_ja_ingeridas() -> set[str]:
-    """Competências (AAAAMM) que já têm .txt extraído em disco.
+    """Competências (AAAAMM) que já estão na staging do warehouse.
 
-    Staging já materializa como table (F09), mas o .txt ainda não é
-    deletado após dbt run — só o .7z é (F07 fase 1). Quando F07 fase 2
-    passar a deletar o .txt também, este critério de detecção precisa
-    mudar para consultar o warehouse (.duckdb) em vez do filesystem —
-    senão toda execução vai achar que nada foi ingerido e re-baixar tudo.
+    Consulta o .duckdb, não o filesystem: o .txt extraído é deletado depois
+    que a competência foi transformada e testada (F07 fase 2), então a
+    presença dele em disco não diz mais nada. Warehouse ou tabela
+    inexistente (primeira execução) significa "nada ingerido ainda".
     """
     logger = get_run_logger()
-    extraido_dir = RAW_DIR / "extraido"
 
-    ingeridas = set()
-    if extraido_dir.exists():
-        for txt_file in extraido_dir.glob("CAGEDMOV*.txt"):
-            ingeridas.add(txt_file.stem.replace("CAGEDMOV", ""))
+    ingeridas: set[str] = set()
+    if WAREHOUSE_PATH.exists():
+        con = duckdb.connect(str(WAREHOUSE_PATH), read_only=True)
+        try:
+            rows = con.execute(
+                "select distinct competencia_mov from stg_caged_movimentacoes"
+            ).fetchall()
+            ingeridas = {str(r[0]) for r in rows}
+        except duckdb.CatalogException:
+            logger.info("Tabela stg_caged_movimentacoes ainda não existe no warehouse.")
+        finally:
+            con.close()
 
     logger.info(f"Competências já ingeridas: {sorted(ingeridas)}")
     return ingeridas
@@ -149,6 +157,24 @@ def deletar_arquivo_7z(caminho_arquivo: Path) -> None:
 
 
 @task(log_prints=True)
+def deletar_txt_extraido(competencia: str) -> None:
+    """Apaga o .txt extraído (~450MB, Brasil inteiro) de uma competência.
+
+    Só deve ser chamada depois de staging + testes terem passado: a partir
+    daí o dado do município já está no warehouse e o FTP público continua
+    sendo a fonte de verdade caso seja preciso reprocessar (política D06).
+    """
+    logger = get_run_logger()
+    caminho = RAW_DIR / "extraido" / f"CAGEDMOV{competencia}.txt"
+    try:
+        tamanho_mb = caminho.stat().st_size / 1_048_576
+        caminho.unlink()
+        logger.info(f"Arquivo .txt deletado: {caminho} ({tamanho_mb:.1f} MB liberados)")
+    except FileNotFoundError:
+        logger.warning(f"Arquivo .txt não encontrado (pode já ter sido deletado): {caminho}")
+
+
+@task(log_prints=True)
 def run_dbt(comando: list[str], dbt_vars: dict | None = None) -> None:
     import json
     import subprocess
@@ -169,7 +195,9 @@ def _transformar(baixadas: list[str]) -> None:
     """Roda a staging incrementalmente (uma competência por vez, ~500MB de
     pico por execução, não ~3GB de uma vez — ver comentário em
     stg_caged_movimentacoes.sql) e depois materializa o mart (pequeno,
-    processa tudo de uma vez sem risco de memória) e os testes."""
+    processa tudo de uma vez sem risco de memória) e os testes. Só depois
+    que os testes passam os .txt são deletados (F07 fase 2): se algo
+    falhar, os arquivos ficam em disco para diagnóstico."""
     logger = get_run_logger()
     for competencia in baixadas:
         logger.info(f"Transformando staging para {competencia}...")
@@ -181,6 +209,9 @@ def _transformar(baixadas: list[str]) -> None:
     logger.info("Materializando mart...")
     run_dbt(["run", "--select", "mart_caged_mensal_grupamento"])
     run_dbt(["test"])
+
+    for competencia in baixadas:
+        deletar_txt_extraido(competencia)
 
 
 @flow(name="ingest-caged", log_prints=True)

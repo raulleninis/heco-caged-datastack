@@ -52,7 +52,7 @@ flowchart TD
 | [F04](F04-religar-dbt-no-flow.md) | Religar o dbt no flow | S | agora | (run_dbt comentado) | F03 |
 | [F05](F05-corrigir-salario-medio.md) | Corrigir `salario_medio_admissao` | S | agora | D | F02 |
 | [F06](F06-janela-resiliente.md) | Janela resiliente de competências | M | pré-prod | E | F04 |
-| [F07](F07-retencao-e-permissoes.md) | Retenção do raw + não-root | S | pré-prod | G, I | F04 |
+| [F07](F07-retencao-e-permissoes.md) ✅ | Retenção do raw + não-root | S | pré-prod | G, I | F04 |
 | [F08](F08-reprodutibilidade.md) | Reprodutibilidade do ambiente | S | pré-prod | J, K, L | F01 |
 | [F08b](F08b-validar-reprodutibilidade-docker.md) ✅ | Validar com Docker real (F08 + F09 + revisão) | S | pré-prod | — | F08, F09 |
 | [F09](F09-testes-de-qualidade.md) | Testes de qualidade ampliados | M | pré-prod | D, F | F05 |

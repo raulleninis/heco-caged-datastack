@@ -125,10 +125,11 @@ mesmo que o usuário do host não seja UID 1000.
 ### Limpeza de dados
 
 Arquivos baixados do FTP são armazenados em `data/raw/`. O pipeline **automaticamente deleta
-os `.7z` originais após extração**, conservando os `.txt` extraídos. A staging materializa
-incrementalmente (`delete+insert`, uma competência por vez) — o `.txt` ainda não é deletado
-(isso é a fase 2 de F07, pendente), mas cada arquivo já é dispensável tecnicamente assim que
-a execução que o processou termina.
+os `.7z` originais após extração** e, depois que staging, mart e `dbt test` passam, também
+o `.txt` extraído (~450 MB por competência). Se algo falhar, os `.txt` ficam em disco para
+diagnóstico. A staging materializa incrementalmente (`delete+insert`, uma competência por vez),
+e a detecção de "já ingerida" consulta o warehouse — não o filesystem. O FTP público continua
+sendo a fonte de verdade para reprocessar.
 
 ### Por que incremental, não `table`
 
