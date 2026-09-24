@@ -87,11 +87,19 @@ def _linhas_por_competencia() -> dict[str, int]:
         return {}
     con = duckdb.connect(str(WAREHOUSE_PATH), read_only=True)
     try:
+        # Só tabela física conta. Versões antigas do projeto criaram a staging
+        # como VIEW sobre os .txt (F09 mudou para incremental): consultá-la
+        # varreria todos os .txt brutos (GBs) e estouraria memória, e uma view
+        # não guarda dado nenhum — não prova que nada foi ingerido.
+        tipo = con.execute(
+            "select table_type from information_schema.tables "
+            "where table_name = 'stg_caged_movimentacoes'"
+        ).fetchone()
+        if not tipo or tipo[0] != "BASE TABLE":
+            return {}
         rows = con.execute(
             "select competencia_mov, count(*) from stg_caged_movimentacoes group by 1"
         ).fetchall()
-    except duckdb.CatalogException:
-        return {}
     finally:
         con.close()
     return {str(c): n for c, n in rows}
