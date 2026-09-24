@@ -31,6 +31,7 @@ flowchart TD
     F04 --> F15["F15 · Entrega por e-mail<br/>e arquivo autenticado · L"]
     F06 --> F15
     F12 --> F16["F16 · Estoque a partir<br/>do marco zero · L"]
+    F11 --> F17["F17 · Teste de<br/>silêncio · XS"]
 
     classDef agora fill:#fde8e8,stroke:#c0392b,color:#7b241c
     classDef pre fill:#fef5e7,stroke:#b9770e,color:#7e5109
@@ -38,7 +39,7 @@ flowchart TD
     classDef vitrine fill:#eafaf1,stroke:#1e8449,color:#145a32
     class F01,F02,F03,F04,F05 agora
     class F06,F07,F08,F08b,F09 pre
-    class F11,F12,F13,F15,F16 prod
+    class F11,F12,F13,F15,F16,F17 prod
     class F10,F14 vitrine
 ```
 
@@ -63,6 +64,7 @@ flowchart TD
 | [F14](F14-narrativa-do-repositorio.md) | Narrativa do repositório | M | vitrine | (portfólio) | F10 |
 | [F15](F15-entrega-por-email-e-arquivo.md) | Entrega por e-mail e arquivo autenticado | L | produção | (objetivo de produção) | F04, F06 |
 | [F16](F16-estoque-a-partir-do-marco-zero.md) | Estoque a partir do marco zero | L | produção | (D11) | F12, F09 |
+| [F17](F17-teste-de-silencio.md) | Teste de silêncio: provar que o alerta chega | XS (+ espera) | produção | (validação de F11) | F11 |
 
 ## Se você só tiver um fim de semana
 

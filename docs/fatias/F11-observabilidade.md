@@ -115,4 +115,4 @@ WARN → detectado, alerta enviado, dado carregado e `.txt` apagado.
 **Não validado** (dependem de você):
 - envio a um ntfy/healthchecks **reais**: configure `NTFY_URL` e `HEARTBEAT_URL` no `.env`;
 - no healthchecks.io, período de 1 dia + tolerância (o cron é diário, 03:00);
-- o "teste honesto" do critério de aceite (desligar o agendador por uma semana).
+- o "teste honesto" do critério de aceite (desligar o agendador por uma semana): virou a fatia [F17](F17-teste-de-silencio.md).
