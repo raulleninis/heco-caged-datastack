@@ -39,6 +39,16 @@ done
 mkdir -p /data/warehouse /data/raw
 chown -R caged:caged /data/warehouse /data/raw
 
+# O bloco de UID/GID no topo só olha o dono do mount point. Um /dbt já
+# pertencente ao usuário do host pode conter arquivos herdados de dono root
+# (dbt/logs, dbt/target, .user.yml criados por containers antigos que
+# rodavam como root) — dbt run então falha com "PermissionError:
+# /dbt/logs/dbt.log" (visto na F17, num clone com histórico de runs antigos).
+# Só toca o que o dbt escreve; os models/tests versionados ficam como estão.
+mkdir -p /dbt/logs /dbt/target
+chown -R caged:caged /dbt/logs /dbt/target
+[ -f /dbt/.user.yml ] && chown caged:caged /dbt/.user.yml
+
 chown -R caged:caged /app
 
 exec gosu caged "$@"

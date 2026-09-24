@@ -2,6 +2,7 @@
 
 | | |
 |---|---|
+| **Status** | 🟡 Em andamento (24/09/2026): itens 1 e 2 executados, aguardando confirmação no celular; item 3 (container parado) ainda não iniciado |
 | **Esforço** | XS de trabalho ativo (~30 min) + tempo de espera (26 h a 1 semana) |
 | **Fase** | produção |
 | **Depende de** | [F11](F11-observabilidade.md) |
@@ -94,3 +95,36 @@ voltar a **Up**.
 3. Com o container parado, o alerta de ausência chega em até ~26 h.
 4. Você registra aqui, ao concluir, a data/hora de cada etapa e o canal em que o alerta
    apareceu — sem isso a fatia não está concluída.
+
+## Registro de execução (24/09/2026, horários em UTC; Maceió = UTC-3)
+
+Stack subida com `docker compose up -d --build` a partir de um warehouse herdado de
+versão antiga (só uma VIEW `stg_caged_movimentacoes`, sem tabela física).
+
+| hora | evento | resultado |
+|---|---|---|
+| 05:51 | `docker compose up -d --build` | `prefect-server` e `pipeline` no ar; deployment criado por `prefect deploy`; `./data` já com o dono do host (F08b item 4 ok) |
+| 05:5x | smoke test: alerta "CAGED: teste F17" + ping | `notificar` e `ping_heartbeat` devolveram `True` (HTTP aceito) |
+| 05:55 | run real via `prefect deployment run` | **falhou** em `dbt run` (`PermissionError: /dbt/logs/dbt.log`); hook enviou alerta "CAGED pipeline: Failed" e `/fail` |
+| 06:00 | run manual reexecutado (após corrigir) | **verde**: ingeriu 202604-202607, 23/23 testes, 4 `.txt` apagados (1,7 GB), defasagem 55 dias, heartbeat de sucesso |
+| 06:02 | run do cron das 03:00 (Maceió) sobreposto ao manual | **falhou**: `No files found ... CAGEDMOV202605.txt`; segundo alerta + `/fail` |
+| 06:0x | duas execuções simultâneas após a correção | uma esperou (`AwaitingConcurrencySlot`), ambas verdes |
+
+**Achados (todos corrigidos, reabrindo as fatias de origem):**
+
+1. **`/dbt/logs/dbt.log` root-owned** (F07): o entrypoint só ajustava o dono do mount
+   point; arquivos root herdados de containers antigos dentro de `dbt/` derrubavam o
+   `dbt run`. Agora `docker-entrypoint.sh` faz `chown` de `dbt/logs`, `dbt/target` e
+   `.user.yml`.
+2. **Corrida entre dois runs** (F03/F07): sem limite de concorrência, um run apagava o
+   `.txt` (`deletar_txt_extraido`) que o outro ia processar. `prefect.yaml` ganhou
+   `concurrency_limit: 1` com `ENQUEUE`; `_transformar` também limpa `.txt` órfãos de
+   competências já no warehouse.
+3. **View legada da staging** (F11): consultada por `competencias_ja_ingeridas`, varreria
+   GBs de `.txt`. Só tabela física conta agora (commit `ab3da37`).
+
+O alerta de falha (item 2 do escopo) foi exercitado **duas vezes por falhas reais**, não
+por simulação, e o heartbeat `/fail` acompanhou as duas.
+
+**Pendente:** confirmar no celular/healthchecks os eventos acima (smoke test às 05:5x,
+alertas "Failed" às 05:55 e 06:02; check Down e depois Up) e executar o item 3.

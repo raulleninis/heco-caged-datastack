@@ -7,6 +7,15 @@ deployments:
     tags:
       - production
       - daily
+    # Um run por vez: sem isso, um run manual (ou um run longo) sobreposto ao
+    # cron diário processava as mesmas competências em paralelo, e o
+    # deletar_txt_extraido de um run apagava o .txt que o outro ia processar
+    # (visto na F17: "No files found that match ... CAGEDMOV202605.txt").
+    # ENQUEUE: o segundo run espera o primeiro e, ao começar, já encontra tudo
+    # ingerido e encerra sem fazer nada.
+    concurrency_limit:
+      limit: 1
+      collision_strategy: ENQUEUE
     schedule:
       cron: "0 3 * * *"
       timezone: "America/Maceio"

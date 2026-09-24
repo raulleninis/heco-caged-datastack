@@ -307,7 +307,14 @@ def _transformar(baixadas: list[str]) -> None:
             "O dado foi carregado, mas está suspeito:\n" + "\n".join(avisos),
         )
 
-    for competencia in baixadas:
+    # Além das deste run: .txt órfãos de competências que já estão no
+    # warehouse (sobras de um run anterior que falhou nos testes — os testes
+    # acabaram de passar, então o dado está validado).
+    orfaos = {
+        p.stem.replace("CAGEDMOV", "")
+        for p in (RAW_DIR / "extraido").glob("CAGEDMOV*.txt")
+    } & set(_linhas_por_competencia())
+    for competencia in sorted(set(baixadas) | orfaos):
         deletar_txt_extraido(competencia)
 
 

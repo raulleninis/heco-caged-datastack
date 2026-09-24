@@ -152,6 +152,12 @@ pelo flow (pico de memória ~500MB, não ~3GB). **Não reverta para
 `materialized='table'` com leitura via glob** sem resolver esse
 dimensionamento primeiro.
 
+## Concorrência
+`prefect.yaml` limita o deployment a 1 run por vez (`ENQUEUE`). Sem isso, um run
+manual sobreposto ao cron apagava o `.txt` que o outro ia processar. O
+`backfill_caged` (CLI) NÃO é coberto pelo limite: não rode enquanto o flow diário
+estiver ativo.
+
 ## Retenção de dados brutos
 Política D06: apagar dados regeneráveis da fonte (FTP).
 - `.7z` original: **deletado imediatamente** após extração bem-sucedida
