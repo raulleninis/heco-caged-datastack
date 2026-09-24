@@ -46,6 +46,9 @@ suspeito.**
 > **Porquê:** é o recurso do dbt para isso, não exige código no flow e força a classificar
 > cada teste. Regra: `error` se o número publicado fica errado; `warn` se fica suspeito.
 
+> **Implementado (24/09/2026, F11):** os três testes de plausibilidade de salário
+> têm `severity: warn`; o flow detecta `WARN` na saída do `dbt test` e alerta.
+
 **O que muda** *(a implementar na [F04](../fatias/F04-religar-dbt-no-flow.md))*: hoje
 `run_dbt` levanta erro em qualquer `returncode != 0` e loga só o `stderr`. Depois: testes
 estruturais reprovados derrubam o flow (e, com a [F15](../fatias/F15-entrega-por-email-e-arquivo.md),

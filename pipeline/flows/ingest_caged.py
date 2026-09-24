@@ -9,20 +9,46 @@ Dois flows neste arquivo:
 - backfill_caged: roda sob demanda (CLI: `python flows/ingest_caged.py
   backfill <ano>`), busca todas as competências de um ano até a mais
   recente já publicada. Transforma uma vez no final.
+
+Observabilidade (F11): falha de qualquer flow dispara alerta (alertas.py);
+o flow diário ainda verifica defasagem (falha se a competência mais recente
+no warehouse estiver velha demais), registra métricas do run como artifact
+do Prefect e dá o ping de heartbeat externo ao terminar bem.
 """
 
+import re
+import statistics
+import time
 from ftplib import FTP
 from pathlib import Path
-from datetime import date
+from datetime import date, timedelta
 
 import duckdb
 import py7zr
 from prefect import flow, task, get_run_logger
+from prefect.artifacts import create_markdown_artifact
+
+from alertas import alerta_falha, notificar, ping_heartbeat
 
 FTP_HOST = "ftp.mtps.gov.br"
 RAW_DIR = Path("/data/raw")
 DBT_PROJECT_DIR = Path("/dbt")
 WAREHOUSE_PATH = Path("/data/warehouse/caged.duckdb")
+
+# O PDET publica ~28-31 dias após o fechamento da competência (ver F06).
+# 60 dias sem a competência seguinte = ~1 mês de folga sobre o normal: ou o
+# PDET parou de publicar, ou a ingestão parou de funcionar. Nos dois casos
+# alguém precisa olhar.
+LIMITE_DEFASAGEM_DIAS = 60
+
+# Competência com menos que esta fração da mediana das demais é suspeita
+# (fonte truncada, filtro quebrado). Só avalia com >= 3 competências de
+# comparação.
+FRACAO_MINIMA_LINHAS = 0.5
+
+
+class DefasagemExcedida(RuntimeError):
+    """Competência mais recente no warehouse está velha demais (F11)."""
 
 
 def competencia_alvo() -> str:
@@ -47,6 +73,30 @@ def meses_candidatos(meses_para_tras: int = 6) -> list[str]:
     return sorted(candidatos)
 
 
+def fim_da_competencia(competencia: str) -> date:
+    """Último dia do mês da competência (AAAAMM)."""
+    ano, mes = int(competencia[:4]), int(competencia[4:])
+    primeiro_do_proximo = date(ano + (mes == 12), mes % 12 + 1, 1)
+    return primeiro_do_proximo - timedelta(days=1)
+
+
+def _linhas_por_competencia() -> dict[str, int]:
+    """Linhas da staging por competência (AAAAMM). Vazio se o warehouse ou a
+    tabela ainda não existem (primeira execução)."""
+    if not WAREHOUSE_PATH.exists():
+        return {}
+    con = duckdb.connect(str(WAREHOUSE_PATH), read_only=True)
+    try:
+        rows = con.execute(
+            "select competencia_mov, count(*) from stg_caged_movimentacoes group by 1"
+        ).fetchall()
+    except duckdb.CatalogException:
+        return {}
+    finally:
+        con.close()
+    return {str(c): n for c, n in rows}
+
+
 @task(log_prints=True)
 def competencias_ja_ingeridas() -> set[str]:
     """Competências (AAAAMM) que já estão na staging do warehouse.
@@ -57,20 +107,7 @@ def competencias_ja_ingeridas() -> set[str]:
     inexistente (primeira execução) significa "nada ingerido ainda".
     """
     logger = get_run_logger()
-
-    ingeridas: set[str] = set()
-    if WAREHOUSE_PATH.exists():
-        con = duckdb.connect(str(WAREHOUSE_PATH), read_only=True)
-        try:
-            rows = con.execute(
-                "select distinct competencia_mov from stg_caged_movimentacoes"
-            ).fetchall()
-            ingeridas = {str(r[0]) for r in rows}
-        except duckdb.CatalogException:
-            logger.info("Tabela stg_caged_movimentacoes ainda não existe no warehouse.")
-        finally:
-            con.close()
-
+    ingeridas = set(_linhas_por_competencia())
     logger.info(f"Competências já ingeridas: {sorted(ingeridas)}")
     return ingeridas
 
@@ -175,7 +212,7 @@ def deletar_txt_extraido(competencia: str) -> None:
 
 
 @task(log_prints=True)
-def run_dbt(comando: list[str], dbt_vars: dict | None = None) -> None:
+def run_dbt(comando: list[str], dbt_vars: dict | None = None) -> str:
     import json
     import subprocess
     logger = get_run_logger()
@@ -189,6 +226,50 @@ def run_dbt(comando: list[str], dbt_vars: dict | None = None) -> None:
         logger.error(f"stdout:\n{result.stdout}")
         logger.error(f"stderr:\n{result.stderr}")
         raise RuntimeError(f"dbt {' '.join(comando)} falhou")
+    return result.stdout
+
+
+def _testes_em_warn(saida_dbt: str) -> list[str]:
+    """Linhas de resultado dbt com status WARN (testes de plausibilidade que
+    reprovaram com severity=warn — D04). Devolve [] se nenhum."""
+    limpo = re.sub(r"\x1b\[[0-9;]*m", "", saida_dbt)
+    return [
+        re.sub(r"^\d\d:\d\d:\d\d\s+", "", linha).strip()
+        for linha in limpo.splitlines()
+        if re.search(r"\bWARN\b", linha) and "START" not in linha and "Done." not in linha
+    ]
+
+
+def _competencias_com_volume_suspeito(
+    linhas: dict[str, int], processadas: list[str]
+) -> list[str]:
+    """Competências processadas neste run com menos linhas que
+    FRACAO_MINIMA_LINHAS x a mediana das demais no warehouse."""
+    suspeitas = []
+    for competencia in processadas:
+        outras = [n for c, n in linhas.items() if c != competencia]
+        if len(outras) < 3 or competencia not in linhas:
+            continue
+        mediana = statistics.median(outras)
+        if linhas[competencia] < FRACAO_MINIMA_LINHAS * mediana:
+            suspeitas.append(
+                f"{competencia}: {linhas[competencia]} linhas vs mediana {mediana:.0f} das demais"
+            )
+    return suspeitas
+
+
+def _baixar_e_extrair(competencia: str) -> dict:
+    """Baixa, extrai e apaga o .7z. Devolve métricas do download."""
+    inicio = time.monotonic()
+    arquivo = baixar_arquivo(competencia)
+    mb = arquivo.stat().st_size / 1_048_576
+    extrair_7z(arquivo)
+    deletar_arquivo_7z(arquivo)
+    return {
+        "competencia": competencia,
+        "mb_baixados": round(mb, 1),
+        "segundos": round(time.monotonic() - inicio),
+    }
 
 
 def _transformar(baixadas: list[str]) -> None:
@@ -208,53 +289,117 @@ def _transformar(baixadas: list[str]) -> None:
 
     logger.info("Materializando mart...")
     run_dbt(["run", "--select", "mart_caged_mensal_grupamento"])
-    run_dbt(["test"])
+    saida_testes = run_dbt(["test"])
+
+    avisos = _testes_em_warn(saida_testes)
+    if avisos:
+        logger.warning(f"{len(avisos)} teste(s) dbt em WARN: {avisos}")
+        notificar(
+            "CAGED: testes de plausibilidade em WARN",
+            "O dado foi carregado, mas está suspeito:\n" + "\n".join(avisos),
+        )
 
     for competencia in baixadas:
         deletar_txt_extraido(competencia)
 
 
-@flow(name="ingest-caged", log_prints=True)
+@task(log_prints=True)
+def verificar_defasagem(hoje: date | None = None) -> None:
+    """Falha se a competência mais recente no warehouse fechou há mais de
+    LIMITE_DEFASAGEM_DIAS. É o alerta de SILÊNCIO: distingue "PDET ainda não
+    publicou" (normal, ~30 dias) de "está quebrado há meses" — que antes
+    produziam o mesmo sinal, um run verde."""
+    logger = get_run_logger()
+    hoje = hoje or date.today()
+    ingeridas = set(_linhas_por_competencia())
+    if not ingeridas:
+        raise DefasagemExcedida("Nenhuma competência no warehouse: nada foi ingerido ainda.")
+
+    ultima = max(ingeridas)
+    idade = (hoje - fim_da_competencia(ultima)).days
+    if idade > LIMITE_DEFASAGEM_DIAS:
+        raise DefasagemExcedida(
+            f"Competência mais recente no warehouse: {ultima}, fechada há {idade} dias "
+            f"(limite {LIMITE_DEFASAGEM_DIAS}). O PDET não publicou a seguinte ou a "
+            "ingestão parou de funcionar."
+        )
+    logger.info(f"Defasagem ok: última competência {ultima}, fechada há {idade} dias.")
+
+
+@task(log_prints=True)
+def registrar_metricas(metricas: list[dict], inicio: float) -> None:
+    """Artifact do Prefect com métricas do run + alerta de volume suspeito.
+    Com metricas vazio, registra que nada novo foi publicado (estado normal,
+    verde, mas registrado)."""
+    logger = get_run_logger()
+    duracao = round(time.monotonic() - inicio)
+    linhas = _linhas_por_competencia()
+    ultima = max(linhas) if linhas else "—"
+
+    if not metricas:
+        md = (
+            f"Nenhuma competência nova publicada no PDET (estado normal).\n\n"
+            f"- Última no warehouse: **{ultima}**\n- Duração: {duracao}s\n"
+        )
+    else:
+        md = "| competência | MB baixados | linhas (município) | download+extração (s) |\n|---|---|---|---|\n"
+        for m in metricas:
+            md += (
+                f"| {m['competencia']} | {m['mb_baixados']} | "
+                f"{linhas.get(m['competencia'], 0)} | {m['segundos']} |\n"
+            )
+        md += f"\nDuração total do run: {duracao}s. Última no warehouse: **{ultima}**.\n"
+    logger.info(md)
+    create_markdown_artifact(key="metricas-ingestao", markdown=md, description="Métricas do último run")
+
+    suspeitas = _competencias_com_volume_suspeito(linhas, [m["competencia"] for m in metricas])
+    if suspeitas:
+        logger.warning(f"Volume suspeito: {suspeitas}")
+        notificar(
+            "CAGED: volume de linhas suspeito",
+            "Competência com muito menos linhas que as anteriores:\n" + "\n".join(suspeitas),
+        )
+
+
+@flow(name="ingest-caged", log_prints=True, on_failure=[alerta_falha], on_crashed=[alerta_falha])
 def ingest_caged():
     logger = get_run_logger()
+    inicio = time.monotonic()
     candidatos = meses_candidatos(meses_para_tras=6)
     ingeridas = competencias_ja_ingeridas()
 
     faltantes = [c for c in candidatos if c not in ingeridas and arquivo_existe_no_ftp(c)]
 
-    if not faltantes:
-        logger.info("Nenhuma competência faltante nos últimos 6 meses. Encerrando.")
-        return
+    metricas = []
+    if faltantes:
+        logger.info(f"Competências faltantes (últimos 6 meses): {faltantes}")
+        for competencia in faltantes:
+            logger.info(f"Processando competência {competencia}...")
+            metricas.append(_baixar_e_extrair(competencia))
+        logger.info(f"Ingestão concluída. Competências baixadas: {faltantes}")
+        _transformar(faltantes)
+    else:
+        logger.info("Nenhuma competência nova publicada nos últimos 6 meses (estado normal).")
 
-    logger.info(f"Competências faltantes (últimos 6 meses): {faltantes}")
-
-    baixadas = []
-    for competencia in faltantes:
-        logger.info(f"Processando competência {competencia}...")
-        arquivo = baixar_arquivo(competencia)
-        extrair_7z(arquivo)
-        deletar_arquivo_7z(arquivo)
-        baixadas.append(competencia)
-
-    logger.info(f"Ingestão concluída. Competências baixadas: {baixadas}")
-    _transformar(baixadas)
+    registrar_metricas(metricas, inicio)
+    verificar_defasagem()
+    ping_heartbeat()
 
 
-@flow(name="backfill-caged", log_prints=True)
+@flow(name="backfill-caged", log_prints=True, on_failure=[alerta_falha], on_crashed=[alerta_falha])
 def backfill_caged(ano: int = 2026):
     logger = get_run_logger()
+    inicio = time.monotonic()
     competencias = competencias_do_ano(ano)
     logger.info(f"Competências candidatas para {ano}: {competencias}")
 
-    baixadas = []
+    metricas = []
     for competencia in competencias:
         if not arquivo_existe_no_ftp(competencia):
             continue
-        arquivo = baixar_arquivo(competencia)
-        extrair_7z(arquivo)
-        deletar_arquivo_7z(arquivo)
-        baixadas.append(competencia)
+        metricas.append(_baixar_e_extrair(competencia))
 
+    baixadas = [m["competencia"] for m in metricas]
     logger.info(f"Backfill concluído. Competências efetivamente baixadas: {baixadas}")
 
     if baixadas:
@@ -262,6 +407,7 @@ def backfill_caged(ano: int = 2026):
         _transformar(baixadas)
     else:
         logger.info("Nenhuma competência foi baixada, pulando dbt.")
+    registrar_metricas(metricas, inicio)
 
 
 if __name__ == "__main__":

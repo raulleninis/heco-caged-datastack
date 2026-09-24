@@ -57,7 +57,7 @@ flowchart TD
 | [F08b](F08b-validar-reprodutibilidade-docker.md) ✅ | Validar com Docker real (F08 + F09 + revisão) | S | pré-prod | — | F08, F09 |
 | [F09](F09-testes-de-qualidade.md) | Testes de qualidade ampliados | M | pré-prod | D, F | F05 |
 | [F10](F10-camada-analitica.md) | Camada analítica visível | L | vitrine | (portfólio) | F09 |
-| [F11](F11-observabilidade.md) | Observabilidade e alerta | M | produção | B | F06 |
+| [F11](F11-observabilidade.md) ✅ | Observabilidade e alerta | M | produção | B | F06 |
 | [F12](F12-for-exc-reconciliacao.md) | Ingestão FOR/EXC + reconciliação | L | produção | H | F09 |
 | [F13](F13-migracao-nuvem.md) | Migração para nuvem | L | produção | — | F11 |
 | [F14](F14-narrativa-do-repositorio.md) | Narrativa do repositório | M | vitrine | (portfólio) | F10 |

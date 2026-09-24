@@ -2,6 +2,7 @@
 
 | | |
 |---|---|
+| **Status** | ✅ Implementada (24/09/2026) — falta configurar `NTFY_URL`/`HEARTBEAT_URL` e o teste de uma semana (ver "Resultado") |
 | **Esforço** | M (meio dia) |
 | **Fase** | produção |
 | **Depende de** | [F06](F06-janela-resiliente.md) |
@@ -89,3 +90,29 @@ Simule os três cenários e confirme que **só o terceiro** gera alerta:
 3. pipeline parado por mais que o limite → **alerta recebido no canal**.
 
 E o teste honesto: **desligue o agendador por uma semana** e veja se você fica sabendo.
+
+## Resultado (24/09/2026)
+
+| Escopo | Como ficou |
+|---|---|
+| 1. Alerta de falha | hooks `on_failure`/`on_crashed` nos dois flows ([alertas.py](../../pipeline/flows/alertas.py)) enviam ao **ntfy** (`NTFY_URL`). Feito em código, não em Automations do Prefect: não depende de blocos com segredo no banco do Prefect |
+| 2. Alerta de silêncio | `verificar_defasagem()` (limite 60 dias) roda em **todo** run, inclusive sem nada novo. Escolhi checar no flow, não em teste dbt: o teste só roda quando há ingestão, e o caso a pegar é justamente o run sem nada novo. Além disso, **heartbeat externo** (`HEARTBEAT_URL`, healthchecks.io ou similar): ping em run verde, `/fail` em falha, alerta pela ausência |
+| 3. Três estados | não publicada → verde + registrado (artifact e log); ingerida → verde; defasada → run vermelho + alerta |
+| 4. Métricas | artifact markdown `metricas-ingestao` por run (MB baixados, linhas do município, tempos) + alerta se uma competência tiver < 50% da mediana das demais |
+
+Também: testes dbt de plausibilidade viraram `severity: warn` (D04) e o flow
+alerta quando reprovam; a `freshness` do source foi removida (incompatível com o
+`.txt` apagado).
+
+**Validado** (dbt real, dados reais 202601-202605, servidor HTTP local no lugar do
+ntfy/healthchecks): carga do flow pelo mesmo caminho do worker (`flows/ingest_caged.py`
+a partir de `/app`); defasagem 30 e 60 dias passa, 62 falha; ntfy recebe o JSON
+esperado; heartbeat `/ping` e `/ping/fail`; sem variável = no-op sem erro; canal fora do
+ar não derruba o flow; run sem novidade e defasado → vermelho + 1 alerta + só `/fail`;
+run sem novidade e em dia → verde + só ping de sucesso, zero alertas; teste dbt em
+WARN → detectado, alerta enviado, dado carregado e `.txt` apagado.
+
+**Não validado** (dependem de você):
+- envio a um ntfy/healthchecks **reais**: configure `NTFY_URL` e `HEARTBEAT_URL` no `.env`;
+- no healthchecks.io, período de 1 dia + tolerância (o cron é diário, 03:00);
+- o "teste honesto" do critério de aceite (desligar o agendador por uma semana).

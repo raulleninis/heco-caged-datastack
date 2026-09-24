@@ -33,6 +33,8 @@ escrita em qualquer outro lugar até fechar a conexão.
 - `pipeline/prefect.yaml` — deployment declarativo (cron schedule, work pool `default`)
 - `pipeline/start.sh` — CMD do container: aguarda Prefect Server, aplica
   `prefect deploy --all`, inicia `prefect worker start --pool default`
+- `pipeline/flows/alertas.py` — alerta ativo (`NTFY_URL`) e heartbeat externo
+  (`HEARTBEAT_URL`), ambos opcionais; hook `alerta_falha` ligado aos dois flows
 - `pipeline/docker-entrypoint.sh` — ENTRYPOINT: alinha UID/GID do usuário
   `caged` com o dono real de `/data` e `/dbt` (bind mounts) antes de rodar
   qualquer comando, depois dropa privilégio via `gosu`
@@ -50,8 +52,9 @@ escrita em qualquer outro lugar até fechar a conexão.
   como source; `external_location` usa `read_csv_auto(...,
   all_varchar=true)` parametrizado com `{{ var('competencia_arquivo', '*') }}`
   (todo YAML de projeto dbt passa pelo Jinja renderer, não só `.sql`) —
-  sem var, lê tudo via glob; com var, restringe a um arquivo. `freshness`
-  baseada em `competencia_mov` convertida para data
+  sem var, lê tudo via glob; com var, restringe a um arquivo. SEM `freshness`
+  de propósito: `dbt source freshness` lê o `.txt`, que é apagado após a
+  transformação — a checagem de defasagem é `verificar_defasagem()` (F11)
 - `dbt/models/staging/stg_caged_movimentacoes.sql` — materializada como
   `incremental` (`delete+insert`, `unique_key='competencia_mov'`), lê do
   source acima (tudo VARCHAR), faz CAST explícito por coluna, filtra uf=28
@@ -113,7 +116,26 @@ curl -s http://localhost:4200/api/deployments/filter -X POST -H 'Content-Type: a
     o mart (filtra só código 5). Ver `_staging.yml` para accepted_values atual.
 
 ## Segredos
-Tudo em `.env` (nunca commitado). Hoje só `PREFECT_HOST` (IP Tailscale).
+Tudo em `.env` (nunca commitado). `PREFECT_HOST` (IP Tailscale) e, opcionais,
+`NTFY_URL` e `HEARTBEAT_URL` (F11). O nome do tópico ntfy funciona como senha.
+
+## Observabilidade e alertas (F11)
+Três estados que antes davam o mesmo sinal (run verde) agora se distinguem:
+- **Competência ainda não publicada** — verde, mas registrada (artifact
+  `metricas-ingestao` no Prefect diz "nenhuma nova; última no warehouse: X")
+- **Publicada e ingerida** — verde; artifact com MB baixados, linhas do
+  município, tempos
+- **Silêncio**: `verificar_defasagem()` roda em TODO run (inclusive sem nada
+  novo) e levanta `DefasagemExcedida` se a competência mais recente no
+  warehouse fechou há mais de 60 dias → run vermelho + alerta
+Alertas ativos (ntfy): falha/crash de qualquer flow, defasagem, testes dbt em
+WARN, volume de linhas < 50% da mediana das demais competências.
+Heartbeat (dead-man's-switch, ex. healthchecks.io): ping ao fim de todo run
+verde, `/fail` em falha. É o único alerta externo — o que avisa se o Prefect
+ou a máquina inteira pararem. Sem as variáveis, o pipeline roda igual e loga
+aviso. Testes dbt de plausibilidade (faixa, salário individual, média vs
+mediana) são `severity: warn` (D04): não derrubam o flow nem bloqueiam a
+deleção do `.txt`, mas geram alerta.
 
 ## Fuso horário
 O cron do `ingest_caged` é `"0 3 * * *"` — 3h UTC, meia-noite em Brasília.

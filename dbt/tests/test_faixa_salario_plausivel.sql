@@ -16,6 +16,11 @@
 -- Ajuste os limites se o mercado local mudar de patamar de forma legítima
 -- (ex.: reajuste de salário mínimo, novo grande empregador no município).
 
+-- severity=warn (D04): teste de PLAUSIBILIDADE — o número fica suspeito, não
+-- errado. Reprova sem derrubar o flow nem bloquear a deleção do .txt, mas o
+-- flow alerta (ver _transformar / F11).
+{{ config(severity='warn') }}
+
 select
     competencia_mov,
     grupamento,

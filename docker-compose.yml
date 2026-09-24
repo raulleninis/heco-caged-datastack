@@ -25,6 +25,9 @@ services:
     restart: unless-stopped
     environment:
       PREFECT_API_URL: http://prefect-server:4200/api
+      # Alertas (F11) — opcionais; vazio = sem alerta (o flow avisa no log).
+      NTFY_URL: ${NTFY_URL:-}
+      HEARTBEAT_URL: ${HEARTBEAT_URL:-}
     volumes:
       - ./data:/data
       - ./dbt:/dbt

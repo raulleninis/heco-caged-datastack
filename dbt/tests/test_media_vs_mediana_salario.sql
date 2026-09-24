@@ -10,6 +10,11 @@
 -- R$ 356.620 isolado (defeito da F05) estoura os dois. Grupos com menos de
 -- 30 ficam de fora: amostra pequena tem razão naturalmente volátil.
 
+-- severity=warn (D04): teste de PLAUSIBILIDADE — o número fica suspeito, não
+-- errado. Reprova sem derrubar o flow nem bloquear a deleção do .txt, mas o
+-- flow alerta (ver _transformar / F11).
+{{ config(severity='warn') }}
+
 select
     competencia_mov,
     grupamento,

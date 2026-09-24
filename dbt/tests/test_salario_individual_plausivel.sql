@@ -12,6 +12,11 @@
 -- mensais): maior salário legítimo observado = R$ 28.000. Teto de 50.000
 -- dá ~1,8x de margem. Ajuste se o mercado local mudar de patamar.
 
+-- severity=warn (D04): teste de PLAUSIBILIDADE — o número fica suspeito, não
+-- errado. Reprova sem derrubar o flow nem bloquear a deleção do .txt, mas o
+-- flow alerta (ver _transformar / F11).
+{{ config(severity='warn') }}
+
 select
     competencia_mov,
     grupamento,
