@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | ✅ Implementada (24/09/2026) — falta configurar `NTFY_URL`/`HEARTBEAT_URL` e o teste de uma semana (ver "Resultado") |
+| **Status** | ✅ Concluída (24/09/2026) — canais reais validados na F17 |
 | **Esforço** | M (meio dia) |
 | **Fase** | produção |
 | **Depende de** | [F06](F06-janela-resiliente.md) |

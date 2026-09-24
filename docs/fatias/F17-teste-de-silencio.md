@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | 🟡 Em andamento (24/09/2026): itens 1 e 2 concluídos e confirmados no celular; item 3 (container parado) iniciado, aguardando o alerta de ausência |
+| **Status** | ✅ Concluída (24/09/2026) |
 | **Esforço** | XS de trabalho ativo (~30 min) + tempo de espera (26 h a 1 semana) |
 | **Fase** | produção |
 | **Depende de** | [F11](F11-observabilidade.md) |
@@ -142,6 +142,16 @@ chegaram ao celular. Itens 1 e 2 concluídos.
 ping de sucesso foi enviado às **~06:20:35 UTC** e o `pipeline` foi parado novamente às
 **06:20:36 UTC**. O prazo de espera passa a contar desse ping.
 
-**Ao receber o alerta, registrar aqui:** hora em que chegou e em que canal.
+**Resultado (24/09/2026):** o alerta de ausência chegou e o usuário confirmou que
+"funcionou perfeitamente". Com o check encurtado para o teste, o mecanismo foi provado; os
+tempos foram revertidos para 1 dia + 1 h (configuração real). O `pipeline` foi religado às
+06:28 UTC e um run manual (`married-mule`, estado normal: nenhuma competência nova,
+defasagem de 55 dias) enviou o ping que devolve o check a **Up**.
+
+**Não executado:** o teste de uma semana com o agendador desligado do critério original
+da F11. O mecanismo foi provado; a semana inteira só acrescentaria confirmar que o alerta
+reitera, e fica opcional.
+
+**Instrução original (mantida para referência) — ao receber o alerta, registrar aqui:** hora em que chegou e em que canal.
 Se passar de ~08:00 UTC de 25/09 sem alerta, o teste **falhou**: verifique a integração
 do healthchecks (onde ele envia) antes de suspeitar do projeto.

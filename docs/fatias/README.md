@@ -64,7 +64,7 @@ flowchart TD
 | [F14](F14-narrativa-do-repositorio.md) | Narrativa do repositório | M | vitrine | (portfólio) | F10 |
 | [F15](F15-entrega-por-email-e-arquivo.md) | Entrega por e-mail e arquivo autenticado | L | produção | (objetivo de produção) | F04, F06 |
 | [F16](F16-estoque-a-partir-do-marco-zero.md) | Estoque a partir do marco zero | L | produção | (D11) | F12, F09 |
-| [F17](F17-teste-de-silencio.md) | Teste de silêncio: provar que o alerta chega | XS (+ espera) | produção | (validação de F11) | F11 |
+| [F17](F17-teste-de-silencio.md) ✅ | Teste de silêncio: provar que o alerta chega | XS (+ espera) | produção | (validação de F11) | F11 |
 
 ## Se você só tiver um fim de semana
 
