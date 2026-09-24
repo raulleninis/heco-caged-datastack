@@ -138,6 +138,10 @@ chegaram ao celular. Itens 1 e 2 concluídos.
 - Para encerrar o teste: `docker compose start pipeline`. O primeiro run verde volta a
   mandar ping e o check retorna a **Up**.
 
+**Reexecução do item 3 (24/09/2026):** a pedido do usuário, o container foi religado, um
+ping de sucesso foi enviado às **~06:20:35 UTC** e o `pipeline` foi parado novamente às
+**06:20:36 UTC**. O prazo de espera passa a contar desse ping.
+
 **Ao receber o alerta, registrar aqui:** hora em que chegou e em que canal.
 Se passar de ~08:00 UTC de 25/09 sem alerta, o teste **falhou**: verifique a integração
 do healthchecks (onde ele envia) antes de suspeitar do projeto.
