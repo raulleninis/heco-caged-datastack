@@ -59,7 +59,9 @@ escrita em qualquer outro lugar até fechar a conexão.
   `subgrupamento`
 - `dbt/tests/` — testes singulares: unicidade do grão do mart, coerência
   aritmética (`saldo_liquido = admissoes - desligamentos`), faixa plausível
-  de salário (o teste que teria pego o bug de F05)
+  de salário (o teste que teria pego o bug de F05), salário individual
+  (teto R$ 50.000 por admissão, pega outlier isolado na origem) e razão
+  média/mediana (pega distorção moderada que a faixa absoluta deixa passar)
 - `dbt/models/marts/mart_caged_mensal_grupamento.sql` — métricas por competência + grupamento:
   - `admissoes`, `desligamentos`, `saldo_liquido` (contagens)
   - `admissoes_com_salario_valido` (base do cálculo de salários)

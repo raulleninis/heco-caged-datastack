@@ -156,7 +156,9 @@ mantendo o pico de memória em ~500MB.
     ├── tests/
     │   ├── test_unicidade_grao_mart.sql
     │   ├── test_coerencia_saldo_liquido.sql
-    │   └── test_faixa_salario_plausivel.sql
+    │   ├── test_faixa_salario_plausivel.sql
+    │   ├── test_salario_individual_plausivel.sql
+    │   └── test_media_vs_mediana_salario.sql
     └── models/
         ├── staging/
         │   ├── stg_caged_movimentacoes.sql

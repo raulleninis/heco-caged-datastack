@@ -88,3 +88,17 @@ E o teste do teste — **injete o defeito e confirme que ele é pego**:
 ```
 
 Um conjunto de testes que nunca falhou não é um conjunto de testes, é decoração.
+
+## Reaberta em 24/09/2026 (achados da revisão pós-F08b)
+
+- **Freshness do `source` (item 7) não funcionava**: ver F08b, bug 5. Agora
+  executa e reporta a idade da última competência (`dbt source freshness`).
+- **Teste de faixa era frágil para outlier moderado**: um R$ 60.000 isolado
+  num grupo de ~67 admissões move a média a ~R$ 2.900 e passava. Adicionados
+  `test_salario_individual_plausivel` (teto R$ 50.000 por admissão mensal,
+  maior legítimo observado R$ 28.000) e `test_media_vs_mediana_salario`
+  (razão máx. observada 1,40; limite 1,75, grupos com >= 30 admissões).
+  Teste do teste: R$ 60.000 -> falha o individual; R$ 356.620 -> falham os
+  três de salário; R$ 30.000 (legítimo) -> passa. 23/23 testes passam.
+- `dbt_project.yml` deixou de declarar `staging: +materialized: view`
+  (contradizia o `incremental` do modelo).

@@ -31,9 +31,21 @@ reabrindo as fatias originais, conforme "fora de escopo" previa:
    descoberto fazendo o "teste do teste" do item 8 abaixo. Teto corrigido
    para R$6.000, validado contra a faixa real observada (F09).
 
+5. `dbt source freshness` nunca tinha sido executado e falhava (achado em
+   24/09/2026, reabrindo F09): `make_date(DOUBLE, ...)` porque `/` no DuckDB
+   devolve DOUBLE (corrigido com `//`), depois o dbt exigia TIMESTAMP e não
+   DATE, e a referência de idade era o dia 1 da competência (somava ~1 mês
+   de defasagem normal) — passou a ser o último dia do mês.
+
 Também corrigido, sem ser bug: `accepted_values` de `unidade_salario_codigo`
 estava incompleto (dados reais têm códigos 7 e 99, não documentados no
 layout de 1-6 conhecido).
+
+**Item 1 do escopo (24/09/2026)**: `docker build --no-cache` a partir do
+Dockerfile com digest travado concluiu sem erro. `pip list` na imagem:
+prefect 3.8.0, dbt-core 1.12.0, dbt-duckdb 1.10.1, duckdb 1.5.5, py7zr
+0.22.0; pandas ausente. Tamanho **892 MB** (antes da F08: 1,19 GB). O
+container roda como uid 1000 (`caged`), não root.
 
 **Digest travado**: `python:3.11.10-slim-bookworm@sha256:840e180e...` e
 `prefecthq/prefect:3.8.0-python3.11@sha256:336db9a1...` (capturados via
