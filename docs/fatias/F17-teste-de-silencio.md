@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | 🟡 Em andamento (24/09/2026): itens 1 e 2 executados, aguardando confirmação no celular; item 3 (container parado) ainda não iniciado |
+| **Status** | 🟡 Em andamento (24/09/2026): itens 1 e 2 concluídos e confirmados no celular; item 3 (container parado) iniciado, aguardando o alerta de ausência |
 | **Esforço** | XS de trabalho ativo (~30 min) + tempo de espera (26 h a 1 semana) |
 | **Fase** | produção |
 | **Depende de** | [F11](F11-observabilidade.md) |
@@ -126,5 +126,18 @@ versão antiga (só uma VIEW `stg_caged_movimentacoes`, sem tabela física).
 O alerta de falha (item 2 do escopo) foi exercitado **duas vezes por falhas reais**, não
 por simulação, e o heartbeat `/fail` acompanhou as duas.
 
-**Pendente:** confirmar no celular/healthchecks os eventos acima (smoke test às 05:5x,
-alertas "Failed" às 05:55 e 06:02; check Down e depois Up) e executar o item 3.
+**Confirmado pelo usuário (24/09/2026):** os alertas do smoke test e das duas falhas
+chegaram ao celular. Itens 1 e 2 concluídos.
+
+### Item 3 — container parado
+
+- Último ping de sucesso: **06:04:06 UTC** (run `casual-swallow`, 24/09).
+- `docker compose stop pipeline`: **06:13:55 UTC** (24/09). O `prefect-server` seguiu no ar.
+- Alerta de ausência esperado: último ping + 1 dia + 1 h de tolerância =
+  **~07:04 UTC de 25/09 (~04:04 em Maceió)**, pelo healthchecks, no canal configurado nele.
+- Para encerrar o teste: `docker compose start pipeline`. O primeiro run verde volta a
+  mandar ping e o check retorna a **Up**.
+
+**Ao receber o alerta, registrar aqui:** hora em que chegou e em que canal.
+Se passar de ~08:00 UTC de 25/09 sem alerta, o teste **falhou**: verifique a integração
+do healthchecks (onde ele envia) antes de suspeitar do projeto.
