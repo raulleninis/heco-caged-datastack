@@ -1,0 +1,17 @@
+[build]
+  command = "npm run build"
+  publish = "public"
+
+[build.environment]
+  # @netlify/identity 2.x exige Node >= 22.12
+  NODE_VERSION = "22"
+
+# Cabeçalhos: NÃO são proteção — só evitam indexação e cache caso a URL vaze.
+# A proteção é a edge function (netlify/edge-functions/gate.ts).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Referrer-Policy = "no-referrer"
+    X-Content-Type-Options = "nosniff"
+    Cache-Control = "private, no-store"

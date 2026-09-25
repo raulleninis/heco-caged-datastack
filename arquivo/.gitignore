@@ -1,0 +1,4 @@
+node_modules/
+# gerado pelo build do Netlify (npm run build)
+public/assets/
+.netlify/

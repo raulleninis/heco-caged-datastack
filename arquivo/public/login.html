@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Arquivo de boletins — entrar</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f4f5f7; margin: 0; display: grid; place-items: center; min-height: 100vh; }
+    main { background: #fff; padding: 2rem; border-radius: 8px; width: min(22rem, 92vw); box-shadow: 0 1px 4px #0002; }
+    h1 { font-size: 1.15rem; margin-top: 0; }
+    label { display: block; margin: .8rem 0 .2rem; font-size: .9rem; }
+    input, button { width: 100%; box-sizing: border-box; padding: .55rem; font-size: 1rem; }
+    button { margin-top: 1rem; cursor: pointer; }
+    .link { background: none; border: 0; color: #1a5fb4; text-decoration: underline; width: auto; padding: 0; margin-top: .8rem; font-size: .9rem; }
+    #msg { min-height: 1.2rem; margin-top: .8rem; font-size: .9rem; color: #a51d2d; }
+    #msg.ok { color: #26663a; }
+    [hidden] { display: none; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Arquivo de boletins CAGED</h1>
+
+  <form id="f-login">
+    <label for="email">E-mail</label>
+    <input id="email" type="email" autocomplete="username" required>
+    <label for="senha">Senha</label>
+    <input id="senha" type="password" autocomplete="current-password" required>
+    <button type="submit">Entrar</button>
+    <button type="button" class="link" id="esqueci">Esqueci a senha</button>
+  </form>
+
+  <!-- Convite aceito ou recuperação de senha: define a senha nova -->
+  <form id="f-senha" hidden>
+    <p id="f-senha-txt"></p>
+    <label for="nova">Nova senha</label>
+    <input id="nova" type="password" autocomplete="new-password" minlength="12" required>
+    <button type="submit">Salvar senha</button>
+  </form>
+
+  <p id="msg" role="status"></p>
+</main>
+<script type="module" src="/assets/login.js"></script>
+</body>
+</html>
