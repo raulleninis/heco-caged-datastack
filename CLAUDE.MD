@@ -48,6 +48,10 @@ escrita em qualquer outro lugar até fechar a conexão.
     stg_caged_movimentacoes --vars '{"competencia_arquivo": "AAAAMM"}'`),
     depois materializa o mart uma vez e roda os testes (ver limitação de
     memória abaixo)
+- `pipeline/flows/boletim.py`, `arquivo.py`, `entrega.py` — entrega por e-mail (F15):
+  gera boletim (PDF) e planilha (XLSX) **do mart**, arquiva no repositório privado do
+  arquivo (`arquivo/` aqui é o esqueleto dele, com o bloqueio do Netlify) e envia por SMTP,
+  um e-mail por destinatário. Ver "Entrega por e-mail" abaixo
 - `dbt/models/staging/_sources.yml` — declara `caged_raw.caged_movimentacoes`
   como source; `external_location` usa `read_csv_auto(...,
   all_varchar=true)` parametrizado com `{{ var('competencia_arquivo', '*') }}`
@@ -118,6 +122,8 @@ curl -s http://localhost:4200/api/deployments/filter -X POST -H 'Content-Type: a
 ## Segredos
 Tudo em `.env` (nunca commitado). `PREFECT_HOST` (IP Tailscale) e, opcionais,
 `NTFY_URL` e `HEARTBEAT_URL` (F11). O nome do tópico ntfy funciona como senha.
+Entrega (F15): `SMTP_*`, `EMAIL_*`, `ARQUIVO_*` (ver `.env.example`); deploy key e
+lista de destinatários em `./secrets/` (montado em `/secrets`, somente leitura).
 
 ## Observabilidade e alertas (F11)
 Três estados que antes davam o mesmo sinal (run verde) agora se distinguem:
@@ -136,6 +142,23 @@ ou a máquina inteira pararem. Sem as variáveis, o pipeline roda igual e loga
 aviso. Testes dbt de plausibilidade (faixa, salário individual, média vs
 mediana) são `severity: warn` (D04): não derrubam o flow nem bloqueiam a
 deleção do `.txt`, mas geram alerta.
+
+## Entrega por e-mail e arquivo (F15)
+Desligada por padrão (`ENTREGA_HABILITADA=false`); o flow diário só a chama se ligada.
+Ordem: `gera → arquiva → grava enviando → envia → grava enviado`, cada gravação é
+commit + push no repositório privado do arquivo. Regras que não são óbvias:
+- O estado (`envios.json`) vive no repositório do arquivo, **não no warehouse** (D03):
+  apagar o `.duckdb` não reenvia nada. Sem conseguir ler esse estado, não envia.
+- `enviando` que não virou `enviado` é **órfão**: nunca reenviar sozinho; alerta a cada
+  run e a resolução é manual (ver `arquivo/README.md`). Duplicar e-mail é pior que atrasar.
+- O que se anexa são os bytes **arquivados**, não uma regeneração (o CAGED revisa meses
+  passados, ver F12). Só a competência mais recente do mart dispara envio automático.
+- A lista de destinatários é dado pessoal (LGPD): `secrets/destinatarios.txt`, fora do
+  git, assim como a deploy key (`secrets/arquivo_deploy_key`). Nunca logar endereços.
+- Manual: `python flows/entrega.py teste [AAAAMM]` (só para `EMAIL_TESTE`, não registra
+  nada) e `python flows/entrega.py enviar AAAAMM`. Testes: `pipeline/tests/`.
+- O DuckDB continua com um único escritor: o `teste`/`enviar` manual abre o warehouse
+  só para leitura, mas não rode enquanto o flow diário estiver processando.
 
 ## Fuso horário
 O cron do `ingest_caged` é `"0 3 * * *"` — 3h UTC, meia-noite em Brasília.

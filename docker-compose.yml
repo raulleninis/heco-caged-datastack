@@ -28,9 +28,25 @@ services:
       # Alertas (F11) — opcionais; vazio = sem alerta (o flow avisa no log).
       NTFY_URL: ${NTFY_URL:-}
       HEARTBEAT_URL: ${HEARTBEAT_URL:-}
+      # Entrega por e-mail + arquivo autenticado (F15) — desligada por padrão.
+      ENTREGA_HABILITADA: ${ENTREGA_HABILITADA:-false}
+      ARQUIVO_REPO_URL: ${ARQUIVO_REPO_URL:-}
+      ARQUIVO_BRANCH: ${ARQUIVO_BRANCH:-main}
+      ARQUIVO_SITE_URL: ${ARQUIVO_SITE_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_REMETENTE: ${EMAIL_REMETENTE:-}
+      EMAIL_SAIR_DA_LISTA: ${EMAIL_SAIR_DA_LISTA:-}
+      EMAIL_RESPONDER_PARA: ${EMAIL_RESPONDER_PARA:-}
+      EMAIL_TESTE: ${EMAIL_TESTE:-}
     volumes:
       - ./data:/data
       - ./dbt:/dbt
+      # Deploy key do repositório do arquivo e lista de destinatários (dado
+      # pessoal, LGPD): fora do git, somente leitura. Ver README, "Entrega".
+      - ./secrets:/secrets:ro
     depends_on:
       - prefect-server
     mem_limit: 1.5g

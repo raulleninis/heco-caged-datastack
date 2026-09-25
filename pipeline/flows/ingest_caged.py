@@ -14,6 +14,10 @@ Observabilidade (F11): falha de qualquer flow dispara alerta (alertas.py);
 o flow diário ainda verifica defasagem (falha se a competência mais recente
 no warehouse estiver velha demais), registra métricas do run como artifact
 do Prefect e dá o ping de heartbeat externo ao terminar bem.
+
+Entrega (F15): com ENTREGA_HABILITADA=true, o flow diário também envia por
+e-mail o boletim da competência mais recente e o arquiva (entrega.py). O
+backfill nunca envia e-mail.
 """
 
 import re
@@ -29,6 +33,7 @@ from prefect import flow, task, get_run_logger
 from prefect.artifacts import create_markdown_artifact
 
 from alertas import alerta_falha, notificar, ping_heartbeat
+from entrega import entrega_habilitada, entregar_boletim_pendente
 
 FTP_HOST = "ftp.mtps.gov.br"
 RAW_DIR = Path("/data/raw")
@@ -398,6 +403,11 @@ def ingest_caged():
 
     registrar_metricas(metricas, inicio)
     verificar_defasagem()
+    # F15: e-mail + arquivo. Desligado por padrão (ENTREGA_HABILITADA). Vem
+    # depois da defasagem e antes do heartbeat: uma entrega que falha deixa o
+    # run vermelho e o heartbeat em /fail, em vez de passar por verde.
+    if entrega_habilitada():
+        entregar_boletim_pendente()
     ping_heartbeat()
 
 

@@ -150,7 +150,9 @@ mantendo o pico de memória em ~500MB.
 │   ├── docker-entrypoint.sh
 │   ├── start.sh
 │   ├── prefect.yaml
-│   └── flows/ingest_caged.py
+│   ├── flows/                # ingest_caged, alertas, boletim, arquivo, entrega
+│   └── tests/test_entrega.py
+├── arquivo/                  # esqueleto do repositório privado do arquivo (Netlify)
 └── dbt/
     ├── dbt_project.yml
     ├── profiles.yml
@@ -166,6 +168,28 @@ mantendo o pico de memória em ~500MB.
         │   └── _sources.yml
         └── marts/mart_caged_mensal_grupamento.sql
 ```
+
+## Entrega por e-mail e arquivo (F15)
+
+Desligada por padrão. Quando ligada, o run diário que encontra uma competência nova gera o
+boletim (PDF) e a planilha (XLSX) **a partir do mart**, guarda os dois num repositório
+privado (publicado no Netlify atrás de login) e envia um e-mail por destinatário. O que foi
+enviado fica arquivado e **não se regenera**: o CAGED revisa meses passados.
+
+Para ligar, nesta ordem (detalhes em [F15](docs/fatias/F15-entrega-por-email-e-arquivo.md)
+e [arquivo/README.md](arquivo/README.md)):
+
+1. Publicar o esqueleto de [arquivo/](arquivo/) num repositório **privado** + Netlify e passar
+   em `arquivo/scripts/verificar-bloqueio.sh` — antes de qualquer boletim real.
+2. Preencher `SMTP_*`, `EMAIL_*` e `ARQUIVO_*` no `.env`; criar `secrets/arquivo_deploy_key`
+   e `secrets/destinatarios.txt` (um e-mail por linha; dado pessoal, fora do git).
+3. `docker compose up -d --build` e `docker compose exec pipeline python flows/entrega.py teste`
+   (envia só para `EMAIL_TESTE`, sem registrar nada).
+4. Só então `ENTREGA_HABILITADA=true`.
+
+Envio idempotente: o estado (`envios.json`) vive no repositório do arquivo, então apagar o
+warehouse não reenvia nada. Um envio interrompido vira `enviando` órfão, gera alerta e
+**nunca** é reenviado sozinho.
 
 ## Nota sobre a consolidação do Novo CAGED
 
@@ -193,6 +217,7 @@ referentes a ela — isso ainda não está implementado (ver Roadmap).
 - [x] Ajustes finais de consolidação da migração (revisão de materializações, configs e testes do dbt já 100% DuckDB)
 - [ ] Ingestão de `CAGEDFORAAAAMM` (fora do prazo) e `CAGEDEXCAAAAMM` (exclusões)
 - [ ] Modelo de reconciliação: mart que combina movimentações + fora do prazo − exclusões, por competência de movimentação
+- [ ] Entrega por e-mail e arquivo autenticado (F15): código e testes prontos; falta o aceite real (Netlify + SMTP)
 - [ ] Relatório mensal em PDF via CrewAI
   - [ ] Configuração do CrewAI e definição dos agentes (Analista de Dados, Pesquisador de Contexto, Redator, Revisor)
   - [ ] Integração via OpenRouter (modelo a definir)

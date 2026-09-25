@@ -2,6 +2,7 @@
 
 | | |
 |---|---|
+| **Status** | 🟡 **Código pronto e testado localmente (25/09/2026); aceite real pendente** — ver "Registro de implementação" |
 | **Esforço** | L (1 a 3 dias) — pode ser cortada em duas (ver ordem de entrega) |
 | **Fase** | produção |
 | **Depende de** | [F04](F04-religar-dbt-no-flow.md), [F06](F06-janela-resiliente.md) |
@@ -26,7 +27,8 @@ Nada disto existe hoje: os docs só citam e-mail como canal de *alerta* (F11).
 | Publicação | **Repositório privado dedicado** conectado ao Netlify | sem Node na VM; o histórico do git é o backup do que foi enviado |
 | Acesso à UI do Prefect | túnel SSH, portas em `127.0.0.1` | Tailscale não é necessário em produção; a única porta pública é a do SSH |
 
-**Ainda aberta:** provedor de e-mail (seção "Envio do e-mail").
+**Ainda aberta:** o *provedor* de e-mail (conta e domínio). O código fala SMTP puro, então
+qualquer provedor serve — ver "Envio do e-mail".
 
 ## Ordem de entrega
 
@@ -292,3 +294,110 @@ curl -sI https://SEU-SITE.netlify.app/2026-06/planilha-202606.xlsx # nunca 200
 
 12. Clonar o repositório do arquivo do zero e conferir os `sha256` contra o `envios.json`.
 13. **Apagar o `.duckdb` e reconstruí-lo:** nenhum e-mail é reenviado.
+
+---
+
+## Registro de implementação (25/09/2026)
+
+Implementada nas duas partes sugeridas em "Ordem de entrega". **Nada foi publicado no
+Netlify, nenhum e-mail real foi enviado e o pipeline em execução continua com a imagem
+antiga** (a entrega vem desligada: `ENTREGA_HABILITADA=false`).
+
+### Parte A — arquivo protegido (`arquivo/`)
+
+Esqueleto do repositório privado: `netlify.toml`, edge function `gate.ts` (nega por
+padrão; erro interno vira 503) com a regra em `netlify/lib/decisao.ts` (fora de
+`edge-functions/`: o Netlify empacota como função todo arquivo daquela pasta e o primeiro
+deploy falhou por isso, corrigido em seguida), página de login headless sobre
+`@netlify/identity` (convite, recuperação de senha, sair), `robots.txt`, arquivos-isca em
+`public/_teste/` e `scripts/verificar-bloqueio.sh`. Passo a passo e tabela de aceite manual
+em [arquivo/README.md](../../arquivo/README.md).
+
+Validado na documentação atual (25/09/2026): `getUser()` sem argumentos, devolve `User`
+com `roles` ou `null` e nunca lança; registro *somente convite* existe; o Identity está nos
+planos gratuitos; o JWT dura 1 h por padrão e, no servidor, `getUser()` **não** renova
+sozinho — por isso o `gate.ts` chama `refreshSession()` antes. `@netlify/identity` 2.x exige
+Node ≥ 22.12 (`NODE_VERSION` no `netlify.toml`).
+
+Desvios do esboço do doc: (a) a allow-list inclui `/assets/login.js` e `/robots.txt`
+(sem o primeiro o login não funciona; o segundo torna o `Disallow` legível); (b) a
+"segunda camada" de redirect por papel **não** foi adotada — o esboço bloquearia o próprio
+`/login.html` e a edge function já cobre tudo; (c) tentei pular o deploy quando só o `envios.json` muda
+(`ignore` no `netlify.toml`), mas ela cancelou o primeiro build: sem cache `$CACHED_COMMIT_REF`
+é vazio, some do comando e o `git diff --quiet` devolve 0 ("Canceled build due to no content
+change"). A regra foi removida; cada competência gera ~3 deploys, a conferir contra os créditos
+do plano.
+
+### Parte B — gerar, arquivar e enviar (`pipeline/flows/`)
+
+| arquivo | papel |
+|---|---|
+| `boletim.py` | lê o **mart** (não o raw) e gera `boletim-AAAAMM.pdf` (fpdf2) e `planilha-AAAAMM.xlsx` (xlsxwriter) |
+| `arquivo.py` | clone/sync do repositório do arquivo, `envios.json`, índice, commit + push |
+| `entrega.py` | orquestra `gera → arquiva → enviando → envia → enviado`; SMTP; CLI `teste` / `enviar` |
+| `tests/test_entrega.py` | 15 testes com remoto git local e SMTP dublê |
+
+Decisões tomadas na implementação (revisáveis):
+
+- **SMTP genérico** (587 STARTTLS / 465 TLS), sem SDK de provedor: mantém a escolha do
+  provedor aberta. A porta 25 não é usada.
+- **Só a competência mais recente do mart** é candidata a envio automático. Sem isso, o
+  primeiro run com a entrega ligada mandaria 4–6 boletins antigos à lista, e reconstruir o
+  warehouse poderia disparar reenvios. Uma antiga só sai pelo comando manual `enviar`.
+- **Sem `ENTREGA_HABILITADA=true` nada acontece.** O comando `teste` funciona sem ela.
+- **Órfão não bloqueia a competência seguinte**, mas alerta (ntfy, prioridade alta) a cada
+  run até alguém resolver — ver "Resolver um envio órfão" no README do arquivo.
+- Se o `enviado` não conseguir subir ao remoto, o estado que vale é `enviando` (o clone
+  local é descartado no próximo run): erra para o lado de **não** duplicar.
+- O corpo do e-mail **não traz números**: os números estão nos anexos, e reler o mart ali
+  poderia divergir dos bytes arquivados.
+- O boletim declara que só entra o `CAGEDMOV` no prazo (F12 ainda não existe).
+
+### O que foi verificado e o que não foi
+
+| item do aceite | estado |
+|---|---|
+| 1 (bloqueio, 3 × não-200) | script validado contra servidores simulados (falha no aberto, passa no fechado). **Contra o Netlify real: pendente** |
+| 2–7 (login, papel, remoção, recuperação, deploy antigo, busca) | **pendentes** — dependem do Netlify real (tabela em `arquivo/README.md`) |
+| 8 (modo de teste) | lógica e anexos testados; **envio a um SMTP real e a caixa de entrada/spam: pendentes** |
+| 9 (rodar 2× = 1 envio) | ✅ teste automatizado |
+| 10 (queda do SMTP → órfão, sem reenvio, alerta) | ✅ teste automatizado; o alerta ntfy real não foi exercitado |
+| 11 (sem competência nova: silêncio) | ✅ teste automatizado |
+| 12 (clone do zero confere os sha256) | ✅ teste automatizado (com remoto git local) |
+| 13 (apagar o `.duckdb` não reenvia) | ✅ teste automatizado |
+
+Rodar os testes: `docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -m unittest discover -s /app/tests -v`
+(a suíte de decisão do bloqueio: `cd arquivo && npm test`).
+
+### Para concluir a fatia
+
+1. Criar o repositório privado, o site no Netlify e a deploy key; passar no aceite do bloqueio.
+2. Escolher o provedor SMTP; preencher `.env` e `secrets/` (deploy key, `destinatarios.txt`).
+3. `docker compose up -d --build`; `docker compose exec pipeline python flows/entrega.py teste`.
+4. Só então `ENTREGA_HABILITADA=true`. Registrar aqui as datas e os resultados reais.
+
+### Registro de execução real (25/09/2026)
+
+Repositório privado `datastack_netlify` criado; site `observacaged.netlify.app` no Netlify;
+Identity em *somente convite*; deploy key própria (só esse repositório) testada pelo pipeline
+(clone e sync a partir da imagem nova).
+
+| item | resultado |
+|---|---|
+| 1 (bloqueio, não-200) | ✅ `verificar-bloqueio.sh` contra o Netlify real: `/`, `/index.html`, `_teste/teste.pdf`, `_teste/teste.xlsx` e `sitemap.xml` redirecionam ao login (302); `login.html` e `robots.txt` = 200. **Prova que a edge function intercepta estáticos** |
+| 2 (login com papel `leitor`) | ✅ login e navegação funcionando (confirmado pelo usuário). Download do PDF de teste: a confirmar |
+| 8 (modo de teste) | ✅ o e-mail chegou pelo SMTP do Resend (`onboarding@resend.dev`, só para a conta do usuário). Anexos e spam: a confirmar. Domínio próprio ainda não verificado |
+| 3, 4, 5, 6, 7 | pendentes (ver tabela em `arquivo/README.md`) |
+
+**Três defeitos meus que só apareceram no Netlify real** (os testes locais não os pegavam):
+
+1. `decisao.ts` dentro de `netlify/edge-functions/`: o Netlify empacota todo arquivo daquela
+   pasta como função e exige `export default`. O 1º deploy falhou. Movido para `netlify/lib/`.
+2. Regra `ignore` no `netlify.toml`: cancelou o build ("no content change"). Sem cache,
+   `$CACHED_COMMIT_REF` é vazio, some do comando e o `git diff --quiet` devolve 0. Removida.
+3. O bloqueio negava por padrão **a própria API do Identity** (`/.netlify/identity/*`), então
+   o login chamava `/token`, era redirecionado ao HTML do login e nunca completava (a tela só
+   piscava). Liberado esse prefixo, e só ele, com testes de escape por `..` e `%2e%2e`.
+
+Lição registrada: o teste de aceite do bloqueio (item 1) só olha o lado de quem **não** tem
+login. Um bloqueio "fechado demais" passa nele; só o login real revela.

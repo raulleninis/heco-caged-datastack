@@ -7,7 +7,7 @@ FROM python:3.11.10-slim-bookworm@sha256:840e180ebcc6e5c8efab209c43f5e40fd2af98c
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gosu curl \
+    && apt-get install -y --no-install-recommends gosu curl git openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

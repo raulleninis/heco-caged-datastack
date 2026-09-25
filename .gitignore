@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Deploy key do arquivo (F15) e lista de destinatários (dado pessoal, LGPD)
+secrets/
+
 # Dados -- grandes, regeneráveis pelo pipeline, não são "código"
 data/
 
