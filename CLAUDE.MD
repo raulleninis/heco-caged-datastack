@@ -159,7 +159,10 @@ commit + push no repositório privado do arquivo. Regras que não são óbvias:
   é `boletim@boletim.obsnss.space` via Resend e `contato@obsnss.space` é só encaminhamento para o Gmail).
   Os registros do Resend no DNS têm de ficar em "somente DNS" (sem proxy da Cloudflare).
 - Manual: `python flows/entrega.py teste [AAAAMM]` (só para `EMAIL_TESTE`, não registra
-  nada) e `python flows/entrega.py enviar AAAAMM`. Testes: `pipeline/tests/`.
+  nada), `python flows/entrega.py enviar AAAAMM` (e-mail real, idempotente) e
+  `python flows/entrega.py arquivar 202001..202606 [202607 ...]` (só gera e arquiva, **sem e-mail
+  e sem estado de envio**; um commit para o lote todo; não sobrescreve o que já está arquivado;
+  no índice aparece como "arquivado", não "enviado em"). Testes: `pipeline/tests/`.
 - O DuckDB continua com um único escritor: o `teste`/`enviar` manual abre o warehouse
   só para leitura, mas não rode enquanto o flow diário estiver processando.
 

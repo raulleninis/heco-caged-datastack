@@ -27,6 +27,8 @@ lista de destinatários (dado pessoal — LGPD) ficam fora do git.
 Uso manual:
     python flows/entrega.py teste [AAAAMM]   # só para EMAIL_TESTE; não arquiva nem registra
     python flows/entrega.py enviar AAAAMM    # envio real (idempotente)
+    python flows/entrega.py arquivar 202001..202606 [202607 ...]
+                                             # só gera e arquiva, sem e-mail nem estado de envio
 """
 
 import os
@@ -315,6 +317,66 @@ def entregar(competencia: str, *, teste: bool = False, cfg: Config | None = None
     return "enviado"
 
 
+def expandir_competencias(args: list[str]) -> list[str]:
+    """['202001..202003', '202607'] -> ['202001', '202002', '202003', '202607'], sem repetir."""
+    def valida(c: str) -> str:
+        if not (re.fullmatch(r"\d{6}", c) and 1 <= int(c[4:]) <= 12):
+            raise ValueError(f"Competência inválida: {c!r} (use AAAAMM, ex.: 202607)")
+        return c
+
+    saida: list[str] = []
+    for a in args:
+        if ".." in a:
+            ini, fim = (valida(x) for x in a.split("..", 1))
+            c = ini
+            while c <= fim:
+                saida.append(c)
+                c = boletim.competencia_deslocada(c, 1)
+        else:
+            saida.append(valida(a))
+    return list(dict.fromkeys(saida))
+
+
+def arquivar_competencias(competencias: list[str], *, cfg: Config | None = None) -> dict[str, str]:
+    """Gera e ARQUIVA o boletim e a planilha de cada competência, sem enviar e-mail e sem
+    mexer no envios.json. Serve para constituir o histórico do arquivo.
+
+    Desfecho por competência: 'arquivada' | 'ja_arquivada' | 'sem_dados'.
+    - Não sobrescreve nada: o que já está arquivado (enviado ou não) fica como está, porque
+      o arquivo guarda o que foi gerado e os sha256 do envios.json descrevem esses bytes.
+    - Sai UM commit para o lote inteiro (um deploy do Netlify, não um por competência).
+    - O que foi gerado agora reflete o mart de hoje, não "o que foi enviado": no índice
+      aparece como "arquivado", não como "enviado em ...".
+    """
+    log = _logger()
+    cfg = cfg or Config.do_ambiente()
+    if cfg.arquivo is None:
+        raise ConfigIncompleta("Variáveis de ambiente ausentes: ARQUIVO_REPO_URL")
+    arquivo = cfg.arquivo
+    arquivo.sincronizar()
+    envios = arquivo.envios()
+
+    resultado: dict[str, str] = {}
+    itens = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for c in competencias:
+            if c in envios or arquivo.arquivos_da(c):
+                resultado[c] = "ja_arquivada"
+                continue
+            try:
+                pdf, xlsx = boletim.gerar(cfg.warehouse, c, Path(tmp) / c)
+            except ValueError:
+                resultado[c] = "sem_dados"
+                continue
+            itens.append((c, pdf, xlsx))
+            resultado[c] = "arquivada"
+        if itens:
+            novas = ", ".join(c for c, _, _ in itens)
+            arquivo.arquivar_lote(itens, f"arquivo: {len(itens)} competência(s) arquivada(s) sem envio ({novas})")
+    log.info(f"Arquivamento sem envio: {resultado}")
+    return resultado
+
+
 @task(log_prints=True)
 def entregar_boletim_pendente() -> str:
     """Chamada ao fim do flow diário: entrega a competência mais recente do
@@ -340,6 +402,12 @@ if __name__ == "__main__":
         print(entregar(alvo, teste=True))
     elif comando == "enviar" and len(args) == 2:
         print(entregar(args[1]))
+    elif comando == "arquivar" and len(args) >= 2:
+        res = arquivar_competencias(expandir_competencias(args[1:]))
+        for desfecho in ("arquivada", "ja_arquivada", "sem_dados"):
+            cs = [c for c, d in res.items() if d == desfecho]
+            if cs:
+                print(f"{desfecho}: {len(cs)} ({cs[0]}..{cs[-1]})" if len(cs) > 3 else f"{desfecho}: {cs}")
     else:
         print(__doc__.split("Uso manual:")[1].rstrip())
         sys.exit(1)

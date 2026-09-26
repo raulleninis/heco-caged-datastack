@@ -110,16 +110,22 @@ class Arquivo:
     def arquivar(self, competencia: str, pdf: Path, xlsx: Path) -> tuple[Path, Path]:
         """Copia os arquivos para public/AAAA-MM/, regenera o índice e dá push.
         Devolve os caminhos DENTRO do arquivo: são esses bytes que se anexam."""
+        self.arquivar_lote(
+            [(competencia, pdf, xlsx)], f"arquivo: boletim e planilha de {competencia}"
+        )
         pasta = self._pasta(competencia)
-        pasta.mkdir(parents=True, exist_ok=True)
-        destinos = []
-        for origem in (pdf, xlsx):
-            destino = pasta / origem.name
-            shutil.copyfile(origem, destino)
-            destinos.append(destino)
+        return pasta / pdf.name, pasta / xlsx.name
+
+    def arquivar_lote(self, itens: list[tuple[str, Path, Path]], mensagem: str) -> None:
+        """Vários (competência, pdf, xlsx) num único commit e push: muitas competências
+        de uma vez não podem virar um deploy do Netlify cada. Não toca no envios.json."""
+        for competencia, pdf, xlsx in itens:
+            pasta = self._pasta(competencia)
+            pasta.mkdir(parents=True, exist_ok=True)
+            for origem in (pdf, xlsx):
+                shutil.copyfile(origem, pasta / origem.name)
         self._gravar_indice()
-        self._commit_push(f"arquivo: boletim e planilha de {competencia}")
-        return destinos[0], destinos[1]
+        self._commit_push(mensagem)
 
     def gravar_estado(self, competencia: str, **campos) -> dict:
         """Atualiza a entrada da competência em envios.json, regenera o índice

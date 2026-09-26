@@ -269,6 +269,52 @@ class EntregaTest(unittest.TestCase):
         self.assertEqual(len(smtp.enviadas), n)
         self.assertEqual(self.alertas, [])
 
+    # ---- arquivar sem enviar -----------------------------------------------------
+    def commits_no_remoto(self) -> int:
+        out = subprocess.run(["git", "rev-list", "--count", "main"], cwd=self.remoto, capture_output=True, text=True)
+        return int(out.stdout)
+
+    def test_arquivar_sem_enviar_num_unico_commit_e_sem_estado(self):
+        antes = self.commits_no_remoto()
+        res = entrega.arquivar_competencias(["202605", "202606", "202607"], cfg=self.cfg)
+        self.assertEqual(res, {"202605": "arquivada", "202606": "arquivada", "202607": "arquivada"})
+        self.assertEqual(self.commits_no_remoto(), antes + 1)  # 3 competências, 1 commit
+        self.assertEqual(self.envios_no_remoto(), {})  # nada de estado de envio
+        clone = self.tmp / "inspecao"
+        for c in ("2026-05", "2026-06", "2026-07"):
+            self.assertTrue((clone / "public" / c).is_dir(), c)
+        indice = (clone / "public/index.html").read_text()
+        self.assertIn("arquivado", indice)
+        self.assertNotIn("enviado em", indice)  # não finge que foi enviado
+
+    def test_arquivar_nao_sobrescreve_nem_o_arquivado_nem_o_enviado(self):
+        smtp = SMTPFalso()
+        entrega.entregar("202607", cfg=self.cfg, smtp_factory=smtp)  # enviada
+        entrega.arquivar_competencias(["202606"], cfg=self.cfg)      # só arquivada
+        antes = self.commits_no_remoto()
+        res = entrega.arquivar_competencias(["202606", "202607"], cfg=self.cfg)
+        self.assertEqual(res, {"202606": "ja_arquivada", "202607": "ja_arquivada"})
+        self.assertEqual(self.commits_no_remoto(), antes)  # nada mudou, nenhum commit
+
+    def test_arquivar_competencia_fora_do_mart_e_sem_dados(self):
+        res = entrega.arquivar_competencias(["201901", "202606"], cfg=self.cfg)
+        self.assertEqual(res, {"201901": "sem_dados", "202606": "arquivada"})
+
+    def test_enviar_depois_de_arquivar_reaproveita_os_mesmos_bytes(self):
+        entrega.arquivar_competencias(["202606"], cfg=self.cfg)
+        clone = self.tmp / "inspecao"
+        self.envios_no_remoto()
+        sha = hashlib.sha256((clone / "public/2026-06/boletim-202606.pdf").read_bytes()).hexdigest()
+        entrega.entregar("202606", cfg=self.cfg, smtp_factory=SMTPFalso())
+        self.assertEqual(self.envios_no_remoto()["202606"]["sha256_boletim"], sha)
+
+    def test_expandir_competencias(self):
+        self.assertEqual(entrega.expandir_competencias(["202511..202602", "202601", "202607"]),
+                         ["202511", "202512", "202601", "202602", "202607"])
+        for ruim in ("2026", "202613", "202600", "abc", "202601..x"):
+            with self.assertRaises(ValueError):
+                entrega.expandir_competencias([ruim])
+
     def test_configuracao_incompleta_falha_com_nomes_das_variaveis(self):
         cfg = self.config()
         cfg.smtp_host = ""

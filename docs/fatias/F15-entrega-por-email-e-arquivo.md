@@ -481,3 +481,16 @@ Estado em produção: `ENTREGA_HABILITADA` continua desligada até o usuário li
 com envio regular; se persistir por semanas, considerar HTML no e-mail e IP dedicado (plano pago do
 Resend). Ver também [F12](F12-for-exc-reconciliacao.md): o boletim declara que só entra o `CAGEDMOV`
 no prazo.
+
+### Comandos manuais (acrescentado depois do fechamento)
+
+| comando | faz | e-mail | `envios.json` |
+|---|---|---|---|
+| `entrega.py teste [AAAAMM]` | gera e manda só para `EMAIL_TESTE` | 1, para o dono | não |
+| `entrega.py enviar AAAAMM` | gera (ou reaproveita o arquivado), arquiva e envia à lista | sim | sim |
+| `entrega.py arquivar AAAAMM..AAAAMM [AAAAMM ...]` | gera e **só arquiva** | **não** | **não** |
+
+O `arquivar` serve para constituir o histórico no arquivo sem avisar ninguém: não sobrescreve o que já
+está arquivado (enviado ou não), faz um único commit para o lote (um deploy do Netlify) e o índice o
+mostra como "arquivado", não "enviado em". O que ele gera reflete o mart **de hoje**, não o que foi
+enviado na época, e por isso não conta como envio; um `enviar` posterior reaproveita esses mesmos bytes.
