@@ -443,7 +443,7 @@ login. Um bloqueio "fechado demais" passa nele; só o login real revela.
 
 | item | resultado |
 |---|---|
-| 8 (envio) | ✅ 2 de 2 enviados, 0 recusados. Chegaram nas duas caixas, com os dois anexos abrindo, gráfico de 12 meses, comparação com o mesmo mês do ano anterior, link do arquivo e `Reply-To` para `contato@obsnss.space` (confirmado pelo usuário) |
+| 8 (envio) | ✅ 2 de 2 enviados, 0 recusados. Chegaram nas duas caixas, com os dois anexos abrindo, gráfico de 12 meses, link do arquivo e `Reply-To` para `contato@obsnss.space` (confirmado pelo usuário). **Correção (26/09/2026):** este boletim diz "comparação com o mesmo mês do ano anterior: indisponível (competência fora do warehouse)", ao contrário do que esta linha afirmava. Defeito meu: a busca usava só a janela de 12 meses do gráfico, e o mesmo mês do ano anterior está a 13. Corrigido na F12 (com teste); o boletim de 202607 continua como foi enviado, porque o arquivo não se regenera |
 | 9 (rodar 2× = 1 envio) | ✅ a 2ª execução respondeu `ja_enviado`, sem commit novo e sem e-mail |
 | 12 (clone do zero × `sha256`) | ✅ boletim e planilha conferem com o `envios.json` |
 | bloqueio com o arquivo real | ✅ `BLOQUEIO OK` incluindo `/2026-07/boletim-202607.pdf`, `planilha-202607.xlsx` e `index.html`; logado, o índice lista julho/2026 e os arquivos abrem |

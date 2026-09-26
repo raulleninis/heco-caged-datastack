@@ -41,13 +41,16 @@ escrita em qualquer outro lugar até fechar a conexão.
 - `pipeline/flows/ingest_caged.py` — flows com varredura de lacunas:
   - `ingest_caged()` — consumido pelo worker via deployment agendado, varre
     últimos 6 meses procurando faltantes
-  - `backfill_caged(ano)` — execução manual via CLI
-    (`python flows/ingest_caged.py backfill <ano>`), varre ano inteiro
-  - Ambos: baixam → extraem → deletam .7z → chamam `_transformar()`, que
-    roda a staging UMA VEZ POR COMPETÊNCIA (`dbt run --select
-    stg_caged_movimentacoes --vars '{"competencia_arquivo": "AAAAMM"}'`),
-    depois materializa o mart uma vez e roda os testes (ver limitação de
-    memória abaixo)
+  - `backfill_caged(ano, tipos, refazer)` — execução manual via CLI
+    (`python flows/ingest_caged.py backfill <ano | ano..ano> [--tipos MOV,FOR,EXC]
+    [--refazer]`), varre o ano; pula o que já está carregado (`--refazer` reprocessa)
+  - Ambos tratam **arquivos (tipo, competência)**, não só competências (F12): o PDET publica
+    `CAGEDMOV` (dentro do prazo), `CAGEDFOR` (fora do prazo, soma) e `CAGEDEXC` (exclusões,
+    subtrai) por competência de DECLARAÇÃO. Baixam → extraem → deletam .7z → `_transformar()`,
+    que roda a staging UMA VEZ POR ARQUIVO (`dbt run --select stg_caged_<tipo> --vars
+    '{"competencia_arquivo": "AAAAMM"}'`), registra o arquivo em `ingestao_arquivos`, depois
+    materializa os marts (`path:models/marts`) uma vez e roda os testes (ver limitação de
+    memória abaixo). FOR e EXC são pequenos (~1 MB / 0,1 MB o .7z); só o MOV pesa (~45 MB)
 - `pipeline/flows/boletim.py`, `arquivo.py`, `entrega.py` — entrega por e-mail (F15):
   gera boletim (PDF) e planilha (XLSX) **do mart**, arquiva no repositório privado do
   arquivo (`arquivo/` aqui é o esqueleto dele, com o bloqueio do Netlify) e envia por SMTP,
@@ -166,6 +169,22 @@ commit + push no repositório privado do arquivo. Regras que não são óbvias:
 - O DuckDB continua com um único escritor: o `teste`/`enviar` manual abre o warehouse
   só para leitura, mas não rode enquanto o flow diário estiver processando.
 
+## Reconciliação FOR/EXC (F12)
+- `dbt/macros/caged.sql` — colunas, CAST e grupamento compartilhados pelas três staging
+  (`stg_caged_movimentacoes`, `stg_caged_fora_do_prazo`, `stg_caged_exclusoes`). FOR/EXC são
+  incrementais por ARQUIVO (`unique_key='competencia_arquivo'`, vinda do nome via
+  `filename=true`), porque um arquivo traz movimentações de VÁRIAS competências anteriores.
+  Cada fonte tem padrão com prefixo (`CAGEDFOR*.txt`), então os tipos não se misturam na mesma pasta
+- `mart_caged_reconciliado` (competência de movimentação × grupamento): `saldo_mov`,
+  `saldo_fora_prazo`, `saldo_exclusoes` (JÁ com o efeito: o EXC preserva o sinal do evento
+  excluído, então o efeito é o inverso) e `saldo_consolidado`, mais `situacao`
+  (provisório se defasagem < `meses_para_consolidar`, padrão 12 = o máximo de atraso do FOR
+  medido). "Consolidado" NÃO é imutável: o EXC retroage até 68 meses. Salários ficam só no mart do MOV
+- Testes que travam as premissas: `test_exc_preserva_sinal_do_evento`, `test_coerencia_reconciliado`,
+  `test_continuidade_mov` (erro) e `test_continuidade_for_exc` (warn: o PDET pode publicar FOR/EXC
+  depois do MOV). O boletim (F15) usa o mart reconciliado e cai no só-MOV se ele não existir
+- Filtro territorial continua `município = 280480` na staging (a F16 o generaliza)
+
 ## Fuso horário
 O cron do `ingest_caged` é `"0 3 * * *"` — 3h UTC, meia-noite em Brasília.
 Definido em `prefect.yaml` com `timezone: "America/Maceio"` para clareza.
@@ -194,11 +213,12 @@ Política D06: apagar dados regeneráveis da fonte (FTP).
 - `.txt` extraído: **deletado** ao fim de `_transformar`, só depois de staging
   + mart + `dbt test` passarem (F07 fase 2). Se algo falhar, os `.txt` ficam
   em disco para diagnóstico
-- Detecção de competência já ingerida (`competencias_ja_ingeridas`) consulta
-  `stg_caged_movimentacoes` no warehouse, não o filesystem — o `.txt` some do
-  disco de propósito, então a presença dele não diz nada. Consequência: uma
-  competência cujo dbt falhou NÃO conta como ingerida e é rebaixada na
-  próxima execução
+- Detecção de arquivo já ingerido (`_arquivos_ingeridos`): FOR e EXC vêm da tabela
+  `ingestao_arquivos` do warehouse (tipo, competência do arquivo, linhas do município), que o
+  flow grava depois de cada staging. Não dá para usar "tem linha na staging": 11 arquivos EXC
+  têm ZERO linhas de Socorro e seriam rebaixados todo dia. O MOV também soma as competências da
+  staging (é o que valia antes do registro). Nunca o filesystem: o `.txt` some de propósito.
+  Uma competência cujo dbt falhou NÃO conta como ingerida e é rebaixada na próxima execução
 - FTP é fonte de verdade pública: re-download é sempre possível (minutos)
 
 ## Permissões e containers

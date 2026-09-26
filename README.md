@@ -201,12 +201,18 @@ competência de **declaração**:
 - `CAGEDFORAAAAMM` — movimentações declaradas **fora do prazo**
 - `CAGEDEXCAAAAMM` — declarações anteriores que foram **excluídas/retificadas**
 
-O pipeline atual ingere **só o `CAGEDMOV`** — ou seja, o saldo calculado hoje
-reflete apenas o que foi declarado dentro do prazo, e tende a subestimar
-levemente o valor real de competências recentes. Para chegar ao número
-definitivo de uma competência de movimentação, é preciso, nos meses
-seguintes, somar as declarações fora do prazo e subtrair as exclusões
-referentes a ela — isso ainda não está implementado (ver Roadmap).
+O pipeline ingere os **três** (F12) e reconcilia: `mart_caged_reconciliado` traz, por
+competência de movimentação e grupamento, o saldo só-MOV, o efeito do fora do prazo, o efeito das
+exclusões e o **saldo consolidado** (MOV + FOR − EXC). Cada competência é marcada como
+**provisória** (menos de 12 meses: ainda pode receber declarações fora do prazo; nos dados, nenhuma
+chegou com mais de 12 meses de atraso) ou **consolidada** (só exclusões tardias podem alterá-la:
+elas retroagem até 5 anos). As métricas de salário continuam só no mart do MOV.
+
+Para carregar o histórico dos arquivos pequenos (FOR e EXC de 2020 em diante):
+
+```bash
+docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged.py backfill 2020..2026 --tipos FOR,EXC
+```
 
 ## Roadmap
 
@@ -215,8 +221,8 @@ referentes a ela — isso ainda não está implementado (ver Roadmap).
 - [x] Agendamento via Prefect
 - [x] Simplificação da arquitetura: remoção do Postgres e do Metabase — DuckDB passa a ser a única camada de dado
 - [x] Ajustes finais de consolidação da migração (revisão de materializações, configs e testes do dbt já 100% DuckDB)
-- [ ] Ingestão de `CAGEDFORAAAAMM` (fora do prazo) e `CAGEDEXCAAAAMM` (exclusões)
-- [ ] Modelo de reconciliação: mart que combina movimentações + fora do prazo − exclusões, por competência de movimentação
+- [x] Ingestão de `CAGEDFORAAAAMM` (fora do prazo) e `CAGEDEXCAAAAMM` (exclusões) — F12
+- [x] Modelo de reconciliação: mart que combina movimentações + fora do prazo − exclusões, por competência de movimentação — F12 (falta validar contra o painel do PDET)
 - [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
 - [ ] Relatório mensal em PDF via CrewAI
   - [ ] Configuração do CrewAI e definição dos agentes (Analista de Dados, Pesquisador de Contexto, Redator, Revisor)

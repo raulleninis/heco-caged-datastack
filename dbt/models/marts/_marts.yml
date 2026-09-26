@@ -34,3 +34,34 @@ models:
         description: "Salário mensal médio na admissão (para comparação com mediana, mostra concentração). NULL se 0 registros com salário válido."
       - name: palma_index_admissao
         description: "Índice de desigualdade: média dos salários do top 10% dividida pela média dos salários do bottom 40%. Interpretação: Palma > 1 indica desigualdade (10% mais ricos ganham mais que os 40% mais pobres). NULL se insuficientes registros."
+
+  - name: mart_caged_reconciliado
+    description: >
+      Saldo por competência de movimentação e grupamento reconciliado: MOV + FOR (fora do prazo)
+      - EXC (exclusões). `situacao` distingue número provisório (ainda pode receber declarações
+      fora do prazo) de consolidado (só exclusões tardias podem mexer). Salários ficam no
+      mart_caged_mensal_grupamento. Ver F12 e D11.
+    columns:
+      - name: competencia_mov
+        tests:
+          - not_null
+      - name: grupamento
+        tests:
+          - not_null
+      - name: saldo_mov
+        description: "Saldo só-MOV (declarado dentro do prazo). Deve bater com mart_caged_mensal_grupamento.saldo_liquido."
+      - name: saldo_fora_prazo
+        description: "Efeito do CAGEDFOR no saldo (soma)."
+      - name: saldo_exclusoes
+        description: "Efeito do CAGEDEXC no saldo: NEGATIVO quando uma admissão é excluída (o arquivo traz +1; aqui já vem invertido)."
+      - name: saldo_consolidado
+        description: "saldo_mov + saldo_fora_prazo + saldo_exclusoes."
+      - name: defasagem_meses
+        description: "Meses entre esta competência e a última competência carregada (ultima_competencia_carregada)."
+      - name: situacao
+        description: "'provisório' se defasagem_meses < meses_para_consolidar (padrão 12); senão 'consolidado' (não é imutável: exclusões tardias)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['provisório', 'consolidado']
