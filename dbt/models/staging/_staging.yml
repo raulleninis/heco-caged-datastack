@@ -69,3 +69,76 @@ models:
                   - 'Outros serviços'
                   - 'Serviços domésticos'
                   - 'Não Identificado'
+
+  - name: stg_caged_fora_do_prazo
+    description: >
+      CAGEDFOR (F12): movimentações declaradas fora do prazo, filtradas para Nossa Senhora do Socorro/SE.
+      A unidade de carga é o arquivo (competencia_arquivo), não a competência de movimentação.
+    columns:
+      - name: competencia_arquivo
+        description: "AAAAMM do nome do arquivo (competência de declaração)."
+        tests:
+          - not_null
+      - name: competencia_mov
+        tests:
+          - not_null
+      - name: uf
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [28]
+      - name: municipio
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [280480]
+      - name: saldo_movimentacao
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, -1]
+      - name: grupamento
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Agropecuária', 'Indústria', 'Construção', 'Comércio', 'Serviços', 'Não Identificado']
+
+  - name: stg_caged_exclusoes
+    description: >
+      CAGEDEXC (F12): exclusões de eventos já declarados, filtradas para Nossa Senhora do Socorro/SE.
+      saldo_movimentacao vem COMO NO ARQUIVO, com o sinal do evento excluído; quem subtrai é o mart.
+    columns:
+      - name: competencia_arquivo
+        tests:
+          - not_null
+      - name: competencia_mov
+        tests:
+          - not_null
+      - name: uf
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [28]
+      - name: municipio
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [280480]
+      - name: saldo_movimentacao
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, -1]
+      - name: grupamento
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Agropecuária', 'Indústria', 'Construção', 'Comércio', 'Serviços', 'Não Identificado']

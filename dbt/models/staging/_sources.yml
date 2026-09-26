@@ -26,8 +26,34 @@ sources:
           # {{ var(...) }} é resolvido porque todo YAML de projeto dbt passa
           # pelo Jinja renderer antes do parse — não é exclusivo de .sql.
           external_location: "read_csv_auto('/data/raw/extraido/CAGEDMOV{{ var('competencia_arquivo', '*') }}.txt', delim=';', union_by_name=true, all_varchar=true)"
+      - name: caged_fora_do_prazo
+        description: >
+          CAGEDFOR (F12): movimentações declaradas FORA DO PRAZO, somam ao saldo. Um arquivo
+          por competência de DECLARAÇÃO, mas com movimentações de várias competências
+          anteriores. Pequeno (~8 MB extraído). O padrão do arquivo tem prefixo CAGEDFOR:
+          nunca casa com os CAGEDMOV/CAGEDEXC que dividem a mesma pasta, então não há
+          mistura silenciosa de tipos. filename=true dá a competência do arquivo.
+        meta:
+          external_location: "read_csv_auto('/data/raw/extraido/CAGEDFOR{{ var('competencia_arquivo', '*') }}.txt', delim=';', union_by_name=true, all_varchar=true, filename=true)"
+      - name: caged_exclusoes
+        description: >
+          CAGEDEXC (F12): exclusões de eventos já declarados, SUBTRAEM do saldo. A coluna
+          saldomovimentação preserva o sinal do evento excluído (ver D11). Tem 2 colunas a
+          mais que o MOV (competênciaexc e indicadordeexclusão). Muito pequeno (~1 MB).
+        meta:
+          external_location: "read_csv_auto('/data/raw/extraido/CAGEDEXC{{ var('competencia_arquivo', '*') }}.txt', delim=';', union_by_name=true, all_varchar=true, filename=true)"
         # Sem `freshness`/`loaded_at_field`: `dbt source freshness` lê o .txt,
         # e o .txt é apagado após a transformação (F07 fase 2) — o comando
         # falharia por "arquivo inexistente" em regime normal. A checagem de
         # defasagem vive em verificar_defasagem() (ingest_caged.py, F11), que
         # olha o warehouse e roda também quando não há nada novo.
+
+  - name: warehouse
+    schema: main
+    description: >
+      Tabelas do próprio warehouse que NÃO são criadas pelo dbt. `ingestao_arquivos` é escrita
+      pelo flow (ingest_caged.py) depois de cada staging: um registro por arquivo carregado
+      (tipo, competência do arquivo, linhas do município). Existe porque um FOR/EXC pode ter
+      zero linhas do município e nem por isso deixou de ser ingerido.
+    tables:
+      - name: ingestao_arquivos

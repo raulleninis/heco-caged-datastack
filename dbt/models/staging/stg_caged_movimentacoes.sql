@@ -4,42 +4,11 @@
     unique_key='competencia_mov'
 ) }}
 
-{% set columns = {
-    "competencia_mov": {"raw": "competênciamov", "cast": "BIGINT"},
-    "regiao": {"raw": "região", "cast": "BIGINT"},
-    "uf": {"raw": "uf", "cast": "BIGINT"},
-    "municipio": {"raw": "município", "cast": "BIGINT"},
-    "secao": {"raw": "seção", "cast": "VARCHAR"},
-    "subclasse": {"raw": "subclasse", "cast": "BIGINT"},
-    "saldo_movimentacao": {"raw": "saldomovimentação", "cast": "BIGINT"},
-    "cbo_2002_ocupacao": {"raw": "cbo2002ocupação", "cast": "BIGINT"},
-    "categoria": {"raw": "categoria", "cast": "BIGINT"},
-    "grau_de_instrucao": {"raw": "graudeinstrução", "cast": "BIGINT"},
-    "idade": {"raw": "idade", "cast": "BIGINT"},
-    "horas_contratuais": {"raw": "horascontratuais", "cast": "DOUBLE", "decimal": true},
-    "raca_cor": {"raw": "raçacor", "cast": "BIGINT"},
-    "sexo": {"raw": "sexo", "cast": "BIGINT"},
-    "tipo_empregador": {"raw": "tipoempregador", "cast": "BIGINT"},
-    "tipo_estabelecimento": {"raw": "tipoestabelecimento", "cast": "BIGINT"},
-    "tipo_movimentacao": {"raw": "tipomovimentação", "cast": "BIGINT"},
-    "tipo_de_deficiencia": {"raw": "tipodedeficiência", "cast": "BIGINT"},
-    "ind_trab_intermitente": {"raw": "indtrabintermitente", "cast": "BIGINT"},
-    "ind_trab_parcial": {"raw": "indtrabparcial", "cast": "BIGINT"},
-    "salario": {"raw": "salário", "cast": "DOUBLE", "decimal": true},
-    "tam_estab_jan": {"raw": "tamestabjan", "cast": "BIGINT"},
-    "indicador_aprendiz": {"raw": "indicadoraprendiz", "cast": "BIGINT"},
-    "origem_da_informacao": {"raw": "origemdainformação", "cast": "BIGINT"},
-    "competencia_dec": {"raw": "competênciadec", "cast": "BIGINT"},
-    "indicador_de_fora_do_prazo": {"raw": "indicadordeforadoprazo", "cast": "BIGINT"},
-    "unidade_salario_codigo": {"raw": "unidadesaláriocódigo", "cast": "BIGINT"},
-    "valor_salario_fixo": {"raw": "valorsaláriofixo", "cast": "DOUBLE", "decimal": true}
-} %}
+{% set columns = caged_colunas() %}
 
 {#
-    grupamento e subgrupamento seguem a Tabela 1 do MTE — "Grupamentos de Atividades
-    Econômicas para divulgação da RAIS e do CAGED" — que mapeia as seções da CNAE 2.0.
-    O agrupamento em 6 categorias (grupamento) já reproduzia essa tabela letra a letra;
-    subgrupamento acrescenta o segundo nível dela, ausente até aqui.
+    As colunas, o CAST e o grupamento/subgrupamento (Tabela 1 do MTE) vêm de
+    macros/caged.sql, compartilhadas com a staging de FOR e de EXC (F12).
 
     O source (_sources.yml) lê tudo como VARCHAR (all_varchar=true) — desativa
     a inferência de tipo por amostragem do DuckDB, que com union_by_name=true
@@ -70,13 +39,7 @@ with source as (
 casted as (
 
     select
-    {% for alias, meta in columns.items() %}
-        {% if meta.get('decimal') %}
-        CAST(REPLACE({{ meta.raw }}, ',', '.') AS {{ meta.cast }}) as {{ alias }}{{ "," if not loop.last else "" }}
-        {% else %}
-        CAST({{ meta.raw }} AS {{ meta.cast }}) as {{ alias }}{{ "," if not loop.last else "" }}
-        {% endif %}
-    {% endfor %}
+    {{ caged_cast_colunas(columns) }}
     from source
 
 ),
@@ -92,26 +55,6 @@ filtrado as (
 
 select
     *,
-    CASE
-        WHEN secao = 'A' THEN 'Agropecuária'
-        WHEN secao IN ('B','C','D','E') THEN 'Indústria'
-        WHEN secao = 'F' THEN 'Construção'
-        WHEN secao = 'G' THEN 'Comércio'
-        WHEN secao IN ('H','I','J','K','L','M','N','O','P','Q','R','S','T','U') THEN 'Serviços'
-        ELSE 'Não Identificado'
-    END as grupamento,
-    CASE
-        WHEN secao = 'A' THEN 'Agropecuária'
-        WHEN secao = 'C' THEN 'Indústrias de Transformação'
-        WHEN secao IN ('B','D','E') THEN 'Indústria geral'
-        WHEN secao = 'F' THEN 'Construção'
-        WHEN secao = 'G' THEN 'Comércio, reparação de veículos automotores e motocicletas'
-        WHEN secao = 'H' THEN 'Transporte, armazenagem e correio'
-        WHEN secao = 'I' THEN 'Alojamento e alimentação'
-        WHEN secao IN ('J','K','L','M','N') THEN 'Informação, comunicação e atividades financeiras, imobiliárias, profissionais e administrativas'
-        WHEN secao IN ('O','P','Q') THEN 'Administração pública, defesa, seguridade social, educação, saúde humana e serviços sociais'
-        WHEN secao IN ('R','S','U') THEN 'Outros serviços'
-        WHEN secao = 'T' THEN 'Serviços domésticos'
-        ELSE 'Não Identificado'
-    END as subgrupamento
+    {{ caged_grupamento('secao') }} as grupamento,
+    {{ caged_subgrupamento('secao') }} as subgrupamento
 from filtrado
