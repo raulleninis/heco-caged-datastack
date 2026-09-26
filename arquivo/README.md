@@ -57,16 +57,20 @@ estáticos**, não só rotas HTML. Repita depois de **qualquer** mudança de con
 
 Itens manuais (não têm como ser scriptados):
 
-| # | Verificação | Resultado |
+| # | Verificação | Resultado (26/09/2026) |
 |---|---|---|
-| 2 | Convidado **com** `leitor` entra e baixa o PDF de teste | ☐ |
-| 3 | Cadastrado **sem** papel recebe 403 | ☐ |
-| 4 | Usuário removido perde o acesso — **quanto tempo leva** | ☐ ___ min |
-| 5 | Recuperação de senha ponta a ponta; e-mail **não** cai em spam | ☐ |
-| 7 | O site não aparece em busca nem em `sitemap` | ☐ |
+| 2 | Convidado **com** `leitor` entra e acessa o PDF de teste | ✅ acesso confirmado; "Sair" derruba a sessão |
+| 3 | Cadastrado **sem** papel recebe 403 | ✅ `Forbidden` |
+| 4 | Usuário perde o acesso — **quanto tempo leva** | ✅ **60 min** (removido o papel às 19:23, 403 às 20:23): a duração do token |
+| 5 | Recuperação de senha ponta a ponta; e-mail **não** cai em spam | ✅ chegou fora do spam; formulário e redefinição funcionaram |
+| 6 | Deploy antigo (permalink) também bloqueado | ✅ `verificar-bloqueio.sh` = `BLOQUEIO OK` |
+| 7 | O site não aparece em busca nem em `sitemap` | ✅ `Disallow: /`, `noindex` e `sitemap.xml` bloqueado |
 
-Quando o item 4 for medido, registre o número aqui. O JWT dura ~1 h por padrão e mudança
-de papel só vale no próximo login ou renovação: esperar até ~1 h é o esperado.
+Apagar o usuário no Identity também corta o acesso (verificado com um usuário separado do
+teste de 60 min).
+
+O JWT dura ~1 h por padrão e mudança de papel só vale no próximo login ou renovação:
+**assuma até 1 h** entre remover alguém e o acesso cair.
 
 ### O que ainda não está confirmado na documentação do Netlify
 

@@ -155,6 +155,9 @@ commit + push no repositório privado do arquivo. Regras que não são óbvias:
   passados, ver F12). Só a competência mais recente do mart dispara envio automático.
 - A lista de destinatários é dado pessoal (LGPD): `secrets/destinatarios.txt`, fora do
   git, assim como a deploy key (`secrets/arquivo_deploy_key`). Nunca logar endereços.
+- O arquivo é servido em `https://caged.obsnss.space` (Netlify, DNS na Cloudflare; o remetente
+  é `boletim@boletim.obsnss.space` via Resend e `contato@obsnss.space` é só encaminhamento para o Gmail).
+  Os registros do Resend no DNS têm de ficar em "somente DNS" (sem proxy da Cloudflare).
 - Manual: `python flows/entrega.py teste [AAAAMM]` (só para `EMAIL_TESTE`, não registra
   nada) e `python flows/entrega.py enviar AAAAMM`. Testes: `pipeline/tests/`.
 - O DuckDB continua com um único escritor: o `teste`/`enviar` manual abre o warehouse

@@ -217,7 +217,7 @@ referentes a ela — isso ainda não está implementado (ver Roadmap).
 - [x] Ajustes finais de consolidação da migração (revisão de materializações, configs e testes do dbt já 100% DuckDB)
 - [ ] Ingestão de `CAGEDFORAAAAMM` (fora do prazo) e `CAGEDEXCAAAAMM` (exclusões)
 - [ ] Modelo de reconciliação: mart que combina movimentações + fora do prazo − exclusões, por competência de movimentação
-- [ ] Entrega por e-mail e arquivo autenticado (F15): código e testes prontos; falta o aceite real (Netlify + SMTP)
+- [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
 - [ ] Relatório mensal em PDF via CrewAI
   - [ ] Configuração do CrewAI e definição dos agentes (Analista de Dados, Pesquisador de Contexto, Redator, Revisor)
   - [ ] Integração via OpenRouter (modelo a definir)

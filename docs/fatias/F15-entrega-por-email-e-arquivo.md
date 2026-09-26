@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | 🟡 **Código pronto e testado localmente (25/09/2026); aceite real pendente** — ver "Registro de implementação" |
+| **Status** | ✅ **Concluída (26/09/2026)** — bloqueio aceito no Netlify real e ensaio de envio real feito; a lista de destinatários entra a partir da 202608 (ver "Fechamento") |
 | **Esforço** | L (1 a 3 dias) — pode ser cortada em duas (ver ordem de entrega) |
 | **Fase** | produção |
 | **Depende de** | [F04](F04-religar-dbt-no-flow.md), [F06](F06-janela-resiliente.md) |
@@ -299,9 +299,9 @@ curl -sI https://SEU-SITE.netlify.app/2026-06/planilha-202606.xlsx # nunca 200
 
 ## Registro de implementação (25/09/2026)
 
-Implementada nas duas partes sugeridas em "Ordem de entrega". **Nada foi publicado no
-Netlify, nenhum e-mail real foi enviado e o pipeline em execução continua com a imagem
-antiga** (a entrega vem desligada: `ENTREGA_HABILITADA=false`).
+Implementada nas duas partes sugeridas em "Ordem de entrega". *(Texto de 25/09, antes do
+Netlify e do ensaio real: os registros mais abaixo trazem o que foi de fato executado.)*
+A entrega vem desligada por padrão: `ENTREGA_HABILITADA=false`.
 
 ### Parte A — arquivo protegido (`arquivo/`)
 
@@ -369,7 +369,7 @@ Decisões tomadas na implementação (revisáveis):
 Rodar os testes: `docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -m unittest discover -s /app/tests -v`
 (a suíte de decisão do bloqueio: `cd arquivo && npm test`).
 
-### Para concluir a fatia
+### Para concluir a fatia *(superado pelo "Fechamento", no fim)*
 
 1. Criar o repositório privado, o site no Netlify e a deploy key; passar no aceite do bloqueio.
 2. Escolher o provedor SMTP; preencher `.env` e `secrets/` (deploy key, `destinatarios.txt`).
@@ -385,9 +385,13 @@ Identity em *somente convite*; deploy key própria (só esse repositório) testa
 | item | resultado |
 |---|---|
 | 1 (bloqueio, não-200) | ✅ `verificar-bloqueio.sh` contra o Netlify real: `/`, `/index.html`, `_teste/teste.pdf`, `_teste/teste.xlsx` e `sitemap.xml` redirecionam ao login (302); `login.html` e `robots.txt` = 200. **Prova que a edge function intercepta estáticos** |
-| 2 (login com papel `leitor`) | ✅ login e navegação funcionando (confirmado pelo usuário). Download do PDF de teste: a confirmar |
-| 8 (modo de teste) | ✅ o e-mail chegou pelo SMTP do Resend (`onboarding@resend.dev`, só para a conta do usuário). Anexos e spam: a confirmar. Domínio próprio ainda não verificado |
-| 3, 4, 5, 6, 7 | pendentes (ver tabela em `arquivo/README.md`) |
+| 2 (login com papel `leitor`) | ✅ login, acesso ao arquivo estático e "Sair" funcionando. O PDF-isca não abria por ser malformado (defeito meu); trocado por PDF/XLSX válidos |
+| 3 (sem papel → 403) | ✅ `Forbidden` |
+| 4 (remoção de acesso) | ✅ **60 min** entre remover o papel (19:23) e o 403 (20:23) = duração do token. Apagar o usuário no Identity também corta o acesso |
+| 5 (recuperação de senha) | ✅ e-mail fora do spam; formulário e redefinição funcionaram |
+| 6 (deploy antigo) | ✅ `BLOQUEIO OK` no permalink de um deploy antigo |
+| 7 (busca/sitemap) | ✅ `Disallow: /`, `noindex`, `sitemap.xml` bloqueado |
+| 8 (modo de teste) | ✅ SMTP do Resend com o domínio próprio verificado (`boletim.obsnss.space`): SPF, DKIM e DMARC = `pass`, os dois anexos chegaram, Gmail na caixa de entrada. **Outlook classificou como spam** (SCL 5, domínio novo): ver "Pendências" |
 
 **Três defeitos meus que só apareceram no Netlify real** (os testes locais não os pegavam):
 
@@ -401,3 +405,79 @@ Identity em *somente convite*; deploy key própria (só esse repositório) testa
 
 Lição registrada: o teste de aceite do bloqueio (item 1) só olha o lado de quem **não** tem
 login. Um bloqueio "fechado demais" passa nele; só o login real revela.
+
+**Parte A concluída:** o bloqueio está aceito no Netlify real (itens 1 a 7).
+
+### Pendências da Parte B
+- **Caixa `contato@obsnss.space` (Umbler):** o MX aponta certo, mas o servidor da Umbler
+  responde `550 5.7.1 Relaying denied` (não reconhece o domínio). Pendente no painel deles.
+  Enquanto isso, `EMAIL_SAIR_DA_LISTA` e `EMAIL_RESPONDER_PARA` ficam com um endereço pessoal.
+- **Outlook/Hotmail:** o 1º e-mail caiu em spam apesar de SPF/DKIM/DMARC `pass` (reputação de
+  domínio novo). Avisar os destinatários para adicionarem o remetente aos contatos.
+- **Ensaio de envio real** (só o dono na lista) e liberação para a lista de verdade.
+
+### Domínio próprio e DNS (26/09/2026)
+
+- **Arquivo em `https://caged.obsnss.space`** (CNAME `caged` → `observacaged.netlify.app`, "somente
+  DNS" na Cloudflare, para o Netlify emitir o certificado). Let's Encrypt válido; o Identity responde
+  (200) e o bloqueio passa (`BLOQUEIO OK`, incluindo `_teste/teste.pdf`). A sessão de login é por
+  endereço: no domínio novo é preciso entrar de novo. Os endereços `*.netlify.app` (o do site e os de
+  deploys antigos) continuam existindo e continuam bloqueados.
+- **DNS migrado do GoDaddy para a Cloudflare** (só o registro do domínio ficou no GoDaddy). Antes de
+  trocar os nameservers, os quatro registros do Resend/DMARC foram comparados byte a byte nos
+  nameservers da Cloudflare; depois da troca continuaram resolvendo nos três resolvedores públicos e o
+  boletim seguiu autenticando. Lição: os CNAMEs do Resend têm de ficar em "somente DNS".
+- **Caixa `contato@obsnss.space`:** a Umbler foi abandonada (recusava o domínio: `550 Relaying denied`
+  na entrada e `554 obsnss.space is blocked` na saída). Passou a ser um **encaminhamento do Email Routing
+  da Cloudflare para o Gmail** (só recebe; serve ao `Reply-To` e ao "sair da lista"). Verificado: o MX
+  da Cloudflare aceita `contato@` (250) e recusa endereço inexistente (550); um e-mail de teste chegou
+  com SPF, DKIM, DMARC e ARC = `pass` (caiu em spam no Gmail por ser texto sem sentido de um domínio
+  novo; resolve-se com um filtro "nunca enviar para spam" para `contato@`).
+
+### Ensaio de envio real (26/09/2026)
+
+`docker compose exec pipeline python flows/entrega.py enviar 202607`, com só o dono do projeto em
+`destinatarios.txt` (2 endereços dele). Durou ~18 s: gerou o boletim e a planilha a partir do mart
+(já com o histórico 2020–2026), arquivou no repositório privado (3 commits do pipeline: `arquivo` →
+`enviando` → `enviado`), enviou um e-mail por endereço e o Netlify publicou.
+
+| item | resultado |
+|---|---|
+| 8 (envio) | ✅ 2 de 2 enviados, 0 recusados. Chegaram nas duas caixas, com os dois anexos abrindo, gráfico de 12 meses, comparação com o mesmo mês do ano anterior, link do arquivo e `Reply-To` para `contato@obsnss.space` (confirmado pelo usuário) |
+| 9 (rodar 2× = 1 envio) | ✅ a 2ª execução respondeu `ja_enviado`, sem commit novo e sem e-mail |
+| 12 (clone do zero × `sha256`) | ✅ boletim e planilha conferem com o `envios.json` |
+| bloqueio com o arquivo real | ✅ `BLOQUEIO OK` incluindo `/2026-07/boletim-202607.pdf`, `planilha-202607.xlsx` e `index.html`; logado, o índice lista julho/2026 e os arquivos abrem |
+| LGPD | ✅ nenhum endereço de e-mail em nenhum arquivo do repositório do arquivo (o `envios.json` guarda só contagens) |
+| 10 (queda do SMTP → órfão, sem reenvio, alerta) | coberto por teste automatizado; **não** foi simulado com o SMTP real |
+| 11 (sem competência nova: silêncio) | coberto por teste automatizado; a confirmação real virá nos próximos runs diários |
+| 13 (apagar o `.duckdb` não reenvia) | coberto por teste automatizado; **não** foi feito com o warehouse real |
+
+Nota: o teste de bloqueio (`verificar-bloqueio.sh`) só prova que o caminho **não é público**; o gate
+também responde 302 para um caminho inexistente. Que o arquivo foi de fato publicado só se confirma
+logado.
+
+### Fechamento
+
+**Decisão (26/09/2026): o ensaio vale como o envio de `202607`.** A lista real recebe a partir da
+próxima competência (`202608`, quando o PDET publicar). Nada de `202607` será reenviado.
+
+Estado em produção: `ENTREGA_HABILITADA` continua desligada até o usuário ligá-la. Com ela ligada e
+`202607` já `enviado`, o flow diário não faz nada até a 202608 sair (silêncio, sem alerta).
+
+**Pendências operacionais, todas do usuário (envolvem segredos e pessoas):**
+
+1. Trocar `secrets/destinatarios.txt` pela lista real (um e-mail por linha) **antes** de ligar a entrega.
+2. Ligar `ENTREGA_HABILITADA=true` no `.env` e `docker compose up -d`.
+3. Avisar os destinatários para adicionarem `boletim@boletim.obsnss.space` aos contatos: o Outlook
+   classificou o primeiro e-mail como spam (SCL 5, reputação de domínio novo, apesar de
+   SPF/DKIM/DMARC `pass`).
+4. Quem quiser abrir o arquivo online precisa de um convite no Identity com o papel `leitor`
+   (o e-mail leva só o link). Cada convite é emitido no painel do Netlify.
+5. No Netlify, marcar `caged.obsnss.space` como domínio principal (os e-mails do Identity passam a
+   usar o endereço novo).
+6. Criar no Gmail o filtro "nunca enviar para spam" para `contato@obsnss.space`.
+
+**Fica aberto, fora do escopo desta fatia:** o `Outlook → spam` depende de reputação, que só melhora
+com envio regular; se persistir por semanas, considerar HTML no e-mail e IP dedicado (plano pago do
+Resend). Ver também [F12](F12-for-exc-reconciliacao.md): o boletim declara que só entra o `CAGEDMOV`
+no prazo.
