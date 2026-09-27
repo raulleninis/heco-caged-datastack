@@ -1,30 +1,39 @@
 # CAGED Analytics — Nossa Senhora do Socorro/SE
 
-Pipeline de dados educacional que ingere, transforma e (em breve) resume
-automaticamente os microdados do **Novo CAGED** (PDET / Ministério do
-Trabalho e Emprego), com recorte geográfico fixo em Nossa Senhora do
-Socorro/SE, rodando inteiramente num servidor caseiro headless.
+Pipeline de dados educacional que ingere, transforma, reconcilia e **entrega** os microdados do
+**Novo CAGED** (PDET / Ministério do Trabalho e Emprego), com recorte geográfico fixo em Nossa
+Senhora do Socorro/SE, rodando inteiramente num servidor caseiro headless. A cada competência nova o
+pipeline gera um **boletim (PDF) e uma planilha (XLSX)**, guarda os dois num **arquivo protegido por
+login** e pode enviá-los por **e-mail** a uma lista.
+
+**Índice:** [Arquitetura](#arquitetura-do-pipeline) · [Dados](#estrutura-dos-dados) · [Como rodar](#como-rodar) ·
+[**Referência de comandos**](#referência-de-comandos) · [Variáveis de ambiente](#variáveis-de-ambiente) ·
+[Estrutura do repositório](#estrutura-do-repositório) · [Entrega e arquivo](#entrega-por-e-mail-e-arquivo-f15) ·
+[Consolidação do CAGED](#nota-sobre-a-consolidação-do-novo-caged) · [Roadmap](#roadmap)
 
 ## Arquitetura do pipeline
 
 ```mermaid
 flowchart LR
-    FTP[("FTP público\nftp.mtps.gov.br")]
-    SCAN["Prefect\ncompetencias_faltantes<br/>últimos 6 meses"]
-    DL["baixar_arquivo()<br/>+ extrair_7z()"]
-    DEL["deletar .7z<br/>(liberando espaço)"]
-    RAW[("/data/raw/extraido<br/>.txt")]
-    RUN["dbt run<br/>+ dbt test"]
-    MART["mart_caged_mensal_grupamento<br/>(table, DuckDB)<br/>mediana, média, Palma Index"]
-    REPORT["CrewAI + PDF<br/>(planejado)"]
+    FTP[("FTP público<br/>ftp.mtps.gov.br<br/>MOV · FOR · EXC")]
+    SCAN["Prefect (cron diário)<br/>varre os últimos 6 meses<br/>por arquivo (tipo, competência)"]
+    RAW[("/data/raw/extraido<br/>.txt (apagado após os testes)")]
+    STG["dbt: 3 staging incrementais<br/>MOV · FOR · EXC<br/>+ registro de ingestão"]
+    MART1["mart_caged_mensal_grupamento<br/>fluxo + salários (só MOV)"]
+    MART2["mart_caged_reconciliado<br/>MOV + FOR − EXC<br/>provisório / consolidado"]
+    BOL["boletim.py<br/>PDF + XLSX"]
+    ARQ[("repositório privado<br/>+ Netlify (login)")]
+    MAIL["e-mail (Resend/SMTP)<br/>um por destinatário"]
 
-    FTP -->|"varre<br/>lacunas"| SCAN
-    SCAN -->|"competências<br/>faltantes"| DL
-    DL -->|"extrai"| RAW
-    RAW -->|"delete<br/>.7z"| DEL
-    RAW -->|"source, 1 arquivo<br/>por vez (all_varchar)"| RUN
-    RUN -->|"staging incremental<br/>(delete+insert)"| MART
-    MART -.->|"próxima fase"| REPORT
+    FTP -->|"baixa + extrai<br/>(apaga .7z)"| RAW
+    SCAN --> FTP
+    RAW -->|"um arquivo por vez"| STG
+    STG --> MART1
+    STG --> MART2
+    MART1 --> BOL
+    MART2 --> BOL
+    BOL -->|"arquiva (git push)"| ARQ
+    BOL -->|"envia (idempotente)"| MAIL
 ```
 
 ## Estrutura dos dados
@@ -76,8 +85,42 @@ erDiagram
         double palma_index_admissao
     }
 
+    stg_caged_fora_do_prazo {
+        bigint competencia_arquivo "AAAAMM do arquivo (declaração)"
+        bigint competencia_mov "retroage ~12 meses"
+        bigint saldo_movimentacao
+        varchar grupamento
+    }
+
+    stg_caged_exclusoes {
+        bigint competencia_arquivo "AAAAMM do arquivo (declaração)"
+        bigint competencia_mov "retroage até 68 meses"
+        bigint saldo_movimentacao "preserva o sinal do evento excluído"
+        bigint competencia_exc
+        bigint indicador_de_exclusao
+        varchar grupamento
+    }
+
+    mart_caged_reconciliado {
+        bigint competencia_mov
+        varchar grupamento
+        bigint saldo_mov
+        bigint saldo_fora_prazo
+        bigint saldo_exclusoes "já com o efeito (sinal invertido)"
+        bigint saldo_consolidado
+        bigint defasagem_meses
+        varchar situacao "provisório | consolidado"
+    }
+
     stg_caged_movimentacoes ||--o{ mart_caged_mensal_grupamento : "agregada em"
+    stg_caged_movimentacoes ||--o{ mart_caged_reconciliado : "MOV"
+    stg_caged_fora_do_prazo ||--o{ mart_caged_reconciliado : "+ FOR"
+    stg_caged_exclusoes ||--o{ mart_caged_reconciliado : "− EXC"
 ```
+
+As staging de FOR e EXC têm as mesmas colunas da de MOV (o EXC tem 2 a mais); a tabela acima mostra só as que
+importam para a reconciliação. Existe ainda a tabela `ingestao_arquivos` (tipo, competência do arquivo, linhas do
+município), escrita pelo flow: é o registro do que já foi carregado.
 
 `saldo_movimentacao` assume só dois valores: `1` (admissão) ou `-1`
 (desligamento) — é a partir dele que `admissoes`, `desligamentos` e
@@ -98,98 +141,326 @@ erDiagram
 ## Como rodar
 
 ```bash
-cp .env.example .env
-docker compose up -d
-docker compose run --rm pipeline python flows/ingest_caged.py backfill 2026
+cp .env.example .env                       # ajuste o que precisar (ver "Variáveis de ambiente")
+docker compose up -d                       # sobe o Prefect Server e o pipeline (worker + agendamento)
+docker compose run -d --rm --name backfill pipeline python flows/ingest_caged.py backfill 2020..2026
+docker logs -f backfill                    # acompanha a carga do histórico
 ```
 
-Todas as variáveis têm valores padrão. `PREFECT_HOST` só precisa ser editada se você
-acessa a UI do Prefect por outra máquina via Tailscale — sem ele, o padrão é
-`localhost` e o clone sobe sem Tailscale.
+Todas as variáveis têm valores padrão. `PREFECT_HOST` só precisa ser editada se você acessa a UI do Prefect
+por outra máquina via Tailscale (padrão: `localhost`, e o clone sobe sem Tailscale).
 
 O container `pipeline` roda contínuo: ao subir, aplica o deployment declarado em `prefect.yaml`
-(`prefect deploy --all`) e inicia um worker (`prefect worker start --pool default`) que consome
-o schedule cron diário às 3h UTC (meia-noite em Brasília).
+(`prefect deploy --all`) e inicia um worker (`prefect worker start --pool default`) que consome o schedule
+cron diário às 3h UTC (meia-noite em Brasília). A UI do Prefect fica em `http://localhost:4200` (ou no IP
+Tailscale). Só há **uma porta pública**: a do SSH.
 
-O `backfill_caged` acima baixa, extrai e transforma (dbt run + test) automaticamente. Para
-rodar dbt isoladamente (debug), veja [CLAUDE.md](CLAUDE.MD#comandos-comuns) — a staging é
-incremental, então `dbt run` sem `--select`/`--vars` lê tudo via glob (só para poucos meses
-em dev; nunca em produção, ver seção de memória abaixo).
+**Regras que valem para todos os comandos abaixo**
+
+- Comandos do projeto rodam **dentro** do container `pipeline`, que já tem o Python, o dbt e os segredos.
+- Use **`exec -u caged`** (e não só `exec`) nos comandos que escrevem em `data/`: como `root`, o clone do
+  arquivo e os arquivos do warehouse ficam com dono `root` e o flow diário passa a falhar por permissão.
+- **Um escritor por vez no DuckDB.** Não rode `backfill`, `dbt run` ou `entrega.py` enquanto o flow diário
+  (03:00 em Maceió = 06:00 UTC) estiver processando; consultas de leitura só falham se houver escritor ativo.
+- `docker compose up -d --build` **recria** o container `pipeline`: só faça isso sem nenhum flow em execução.
+
+---
+
+## Referência de comandos
+
+### 1. A stack
+
+```bash
+docker compose up -d                 # sobe (ou aplica mudanças de configuração)
+docker compose up -d --build         # idem, reconstruindo a imagem (depois de mudar pipeline/flows ou requirements)
+docker compose ps                    # estado dos containers
+docker compose logs -f pipeline      # log do worker e dos flows
+docker compose down                  # derruba (os dados em data/ ficam)
+```
+
+### 2. Ingestão do FTP (`ingest_caged.py`)
+
+O PDET publica **três arquivos por competência**: `CAGEDMOV` (dentro do prazo), `CAGEDFOR` (fora do prazo, soma) e
+`CAGEDEXC` (exclusões, subtrai). O flow decide por **arquivo (tipo, competência)** e pula o que já está carregado.
+
+**Flow diário** (`ingest-caged`): automático, varre os últimos 6 meses. Para disparar na hora, sem esperar o cron:
+
+```bash
+docker compose exec -u caged pipeline prefect deployment run 'ingest-caged/caged-ingest-daily'
+```
+
+**Backfill** (histórico, sob demanda):
+
+```bash
+python flows/ingest_caged.py backfill <ano | ano..ano> [--tipos MOV,FOR,EXC] [--refazer]
+```
+
+| opção | efeito |
+|---|---|
+| `<ano>` ou `<ano>..<ano>` | um ano, ou um intervalo de anos (cada ano é um flow run) |
+| `--tipos FOR,EXC` | só esses tipos. `FOR` e `EXC` são pequenos (~1 MB); só o `MOV` pesa (~45 MB) |
+| `--refazer` | reprocessa mesmo o que já está carregado (por padrão pula) |
+
+```bash
+# histórico inteiro dos arquivos pequenos (FOR e EXC), ~30 min, sobrevive a queda da conexão (-d)
+docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged.py backfill 2020..2026 --tipos FOR,EXC
+docker logs -f backfill-fe
+
+# só um ano, todos os tipos
+docker compose run -d --rm --name backfill pipeline python flows/ingest_caged.py backfill 2025
+
+# refazer um ano já carregado
+docker compose run -d --rm --name backfill pipeline python flows/ingest_caged.py backfill 2026 --refazer
+```
+
+Use `-d` (e `docker logs -f`) para cargas longas: sem ele, uma queda do terminal encerra o container. O backfill
+baixa e extrai **todos** os arquivos do ano antes de transformar: um ano de MOV ocupa ~5 GB temporários em disco
+(apagados depois que os testes passam).
+
+### 3. dbt (depuração)
+
+O flow já roda o dbt; estes comandos servem para depurar. A staging é **incremental, um arquivo por vez**
+(`--vars` com a competência do arquivo): nunca leia todas as competências de uma vez em produção (ver "Por que incremental").
+
+```bash
+D="--project-dir /dbt --profiles-dir /dbt"
+
+# staging de um arquivo (tipo: stg_caged_movimentacoes | stg_caged_fora_do_prazo | stg_caged_exclusoes)
+docker compose run --rm pipeline dbt run --select stg_caged_fora_do_prazo --vars '{"competencia_arquivo": "202607"}' $D
+
+# os dois marts (fluxo e reconciliado)
+docker compose run --rm pipeline dbt run --select path:models/marts $D
+
+# reconciliado com outro limite de "provisório" (padrão: 12 meses)
+docker compose run --rm pipeline dbt run --select mart_caged_reconciliado --vars '{"meses_para_consolidar": 18}' $D
+
+# todos os testes (ou um só)
+docker compose run --rm pipeline dbt test $D
+docker compose run --rm pipeline dbt test --select test_continuidade_for_exc $D
+```
+
+Testes de qualidade: os `error` derrubam o run; os de plausibilidade de salário e o de continuidade FOR/EXC são
+`warn` (D04): não derrubam, mas geram alerta.
+
+### 4. Entrega e arquivo (`entrega.py`)
+
+O boletim vem do **mart**, nunca do raw. O que foi **enviado** fica arquivado e não se regenera de forma
+silenciosa. Todos os comandos:
+
+```bash
+docker compose exec -T -u caged pipeline python flows/entrega.py <comando> ...
+```
+
+| comando | o que faz | e-mail | estado no `envios.json` |
+|---|---|---|---|
+| `teste [AAAAMM]` | gera e manda **só para `EMAIL_TESTE`**; não arquiva nem registra | 1, para o dono | não mexe |
+| `enviar AAAAMM` | gera (ou reaproveita o que já está arquivado), arquiva e envia à lista; idempotente | sim, um por destinatário | `enviando` → `enviado` |
+| `arquivar AAAAMM[..AAAAMM] ...` | gera e **só arquiva**, sem e-mail | **não** | `arquivado` (com `sha256`) |
+| `remover AAAAMM ...` | apaga do arquivo (continua no histórico do git) | não | remove a entrada |
+
+`arquivar` aceita `--refazer` (substitui o que está só arquivado) e `--incluir-enviados` (também substitui o que
+consta como enviado). `remover` aceita `--incluir-enviados`.
+
+**Estados e o que cada um permite**
+
+| estado no `envios.json` | significa | envio automático | `arquivar --refazer` | `remover` |
+|---|---|---|---|---|
+| (sem entrada) | não existe / nunca processada | envia, se for a mais recente | gera | — |
+| `arquivado` | guardada **sem** enviar | **pula** (arquivar nunca vira e-mail) | **substitui** | remove |
+| `enviando` | envio em andamento ou interrompido (órfão) | alerta, **nunca reenvia** | **nunca toca** | **nunca toca** |
+| `enviado` | foi mandada à lista | não repete | **protegida** (só com `--incluir-enviados`, e o envio anterior fica em `substitui_envio`) | protegida |
+
+**Desfecho impresso por competência:** `arquivada` (nova) · `refeita` · `ja_arquivada` (já existe e não foi pedido
+`--refazer`) · `protegida` (consta como enviada) · `em_envio` · `sem_dados` (a competência não está no mart) ·
+`removida` · `inexistente`.
+
+**Receitas**
+
+```bash
+E="docker compose exec -T -u caged pipeline python flows/entrega.py"
+
+# 1) validar o e-mail antes de qualquer envio real (chega só para EMAIL_TESTE)
+$E teste 202607
+
+# 2) guardar boletins só no arquivo, sem avisar ninguém (um commit e um deploy para o lote)
+$E arquivar 202601..202606
+$E arquivar 202601 202603 202607          # competências avulsas
+
+# 3) desenvolvimento: os boletins mudaram? Regenere tudo o que está só arquivado, antes de abrir ao público
+$E arquivar 202001..202607 --refazer
+
+# 4) substituir também o que constava como enviado (o envio anterior fica registrado em substitui_envio)
+$E arquivar 202607 --refazer --incluir-enviados
+
+# 5) apagar do arquivo (e gerar outro depois, se quiser)
+$E remover 202607
+$E arquivar 202607
+
+# 6) enviar à lista uma competência já arquivada (reaproveita os MESMOS bytes)
+$E enviar 202606
+```
+
+O **envio automático** (`ENTREGA_HABILITADA=true`) só considera a competência **mais recente** do mart; reconstruir
+o warehouse ou fazer backfill de anos antigos **nunca** dispara e-mail.
+
+**Envio órfão** (`enviando` que não virou `enviado`): o processo caiu no meio e ninguém sabe quem recebeu. Não é
+reenviado sozinho; o alerta se repete a cada run. Como resolver está em [arquivo/README.md](arquivo/README.md#resolver-um-envio-órfão).
+
+### 5. O arquivo protegido (Netlify)
+
+O esqueleto está em [`arquivo/`](arquivo/) (o repositório privado real é separado: [F15](docs/fatias/F15-entrega-por-email-e-arquivo.md)).
+
+```bash
+# teste de aceite do bloqueio: rode de FORA, sem cookie. Nenhum caminho protegido pode devolver 200
+arquivo/scripts/verificar-bloqueio.sh https://caged.obsnss.space
+arquivo/scripts/verificar-bloqueio.sh https://caged.obsnss.space /2026-07/boletim-202607.pdf   # inclui caminhos extras
+
+# testes da regra de acesso e build do login (Node 22, sem instalar nada na máquina)
+docker run --rm -u 1000:1000 -e HOME=/tmp -v "$PWD/arquivo":/w -w /w node:22-slim sh -c "npm ci && npm test && npm run build"
+```
+
+Acesso: só quem tem convite no Netlify Identity **com o papel `leitor`**. Sem papel: `403`; sem login: redirecionamento.
+Remover alguém vale em **até ~1 h** (duração do token). O script prova que os caminhos **não são públicos**; que um
+arquivo foi de fato publicado só se confirma logado.
+
+### 6. Testes do projeto
+
+```bash
+# Python: 48 testes (ingestão, reconciliação no boletim, entrega, arquivo). Sem rede e sem Prefect rodando
+docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -B -m unittest discover -s /app/tests -v
+
+# dbt: testes de qualidade sobre o warehouse real
+docker compose run --rm pipeline dbt test --project-dir /dbt --profiles-dir /dbt
+```
+
+### 7. Consultar o warehouse (somente leitura)
+
+```bash
+docker compose exec -T -u caged pipeline python -c "
+import duckdb
+c = duckdb.connect('/data/warehouse/caged.duckdb', read_only=True)
+print(c.execute('''select competencia_mov, sum(saldo_mov) mov, sum(saldo_fora_prazo) fora_prazo,
+                          sum(saldo_exclusoes) exclusoes, sum(saldo_consolidado) consolidado, any_value(situacao)
+                   from mart_caged_reconciliado where competencia_mov >= 202601 group by 1 order by 1''').fetchall())
+"
+```
+
+Falha com "lock" se algum flow estiver escrevendo: espere ele terminar.
+
+### 8. Alertas e observabilidade
+
+Sem as variáveis o pipeline roda igual e só avisa no log. Detalhes em [CLAUDE.MD](CLAUDE.MD#observabilidade-e-alertas-f11).
+
+- `NTFY_URL`: alerta ativo (falha de flow, defasagem > 60 dias, testes em WARN, volume suspeito, envio órfão/interrompido).
+- `HEARTBEAT_URL`: dead-man's-switch (healthchecks.io). Um ping ao fim de todo run verde, `/fail` em falha; o alerta vem
+  da **ausência** do ping (o único que avisa se a máquina inteira parar).
+
+```bash
+# teste rápido dos dois canais (dispara um alerta e um ping REAIS)
+docker compose exec -T -u caged pipeline python -c "
+import sys; sys.path.insert(0, '/app/flows')
+from alertas import notificar, ping_heartbeat
+print(notificar('CAGED: teste', 'canal ok'), ping_heartbeat())"
+```
+
+---
+
+## Variáveis de ambiente
+
+Tudo em `.env` (nunca commitado; `.env.example` é o modelo). Os segredos em **arquivos** ficam em `./secrets/`
+(montado somente-leitura em `/secrets`, fora do git).
+
+| variável | para quê | padrão |
+|---|---|---|
+| `PREFECT_HOST` | host da UI do Prefect (IP Tailscale, se acessar de outra máquina) | `localhost` |
+| `NTFY_URL` | tópico ntfy para alertas ativos (o nome do tópico funciona como senha) | vazio = sem alerta |
+| `HEARTBEAT_URL` | URL de ping do dead-man's-switch | vazio = sem alerta externo |
+| `ENTREGA_HABILITADA` | liga o **envio automático** e o arquivamento no flow diário | `false` |
+| `ARQUIVO_REPO_URL` | repositório **privado** do arquivo, em formato SSH (`git@github.com:usuario/repo.git`) | vazio |
+| `ARQUIVO_BRANCH` | branch do arquivo | `main` |
+| `ARQUIVO_SITE_URL` | endereço do arquivo (vai como link no e-mail) | vazio |
+| `SMTP_HOST` / `SMTP_PORT` | servidor SMTP (587 = STARTTLS, 465 = TLS direto; a 25 costuma ser bloqueada) | `587` |
+| `SMTP_USER` / `SMTP_PASSWORD` | credencial de **só envio** (Resend: usuário `resend`, senha = chave de API) | vazio |
+| `EMAIL_REMETENTE` | `Nome <endereco@dominio-verificado>` | vazio |
+| `EMAIL_RESPONDER_PARA` | cabeçalho `Reply-To` (o remetente costuma não ter caixa) | vazio = sem `Reply-To` |
+| `EMAIL_SAIR_DA_LISTA` | endereço (ou URL) para sair da lista: cabeçalho `List-Unsubscribe` e corpo | vazio |
+| `EMAIL_TESTE` | destino do comando `teste` | vazio |
+
+| arquivo em `./secrets/` | conteúdo |
+|---|---|
+| `arquivo_deploy_key` | chave SSH **com escrita**, restrita ao repositório do arquivo (`chmod 600`) |
+| `destinatarios.txt` | um e-mail por linha (`#` comenta). **Dado pessoal (LGPD)**: nunca no git, nunca em log |
 
 ### Permissões
 
-O container ajusta automaticamente o UID/GID do processo para bater com o dono de `data/`
-e `dbt/` no host (ver `pipeline/docker-entrypoint.sh`) — não é necessário `chown` manual,
-mesmo que o usuário do host não seja UID 1000.
+O container ajusta automaticamente o UID/GID do processo para bater com o dono de `data/` e `dbt/` no host (ver
+`pipeline/docker-entrypoint.sh`) e, a cada início, devolve ao `caged` o que um `docker exec` como root tenha criado
+em `data/`. Não é necessário `chown` manual, mesmo que o usuário do host não seja UID 1000.
 
 ### Limpeza de dados
 
-Arquivos baixados do FTP são armazenados em `data/raw/`. O pipeline **automaticamente deleta
-os `.7z` originais após extração** e, depois que staging, mart e `dbt test` passam, também
-o `.txt` extraído (~450 MB por competência). Se algo falhar, os `.txt` ficam em disco para
-diagnóstico. A staging materializa incrementalmente (`delete+insert`, uma competência por vez),
-e a detecção de "já ingerida" consulta o warehouse — não o filesystem. O FTP público continua
-sendo a fonte de verdade para reprocessar.
+Arquivos baixados do FTP ficam em `data/raw/`. O pipeline **apaga os `.7z` logo após extrair** e, depois que staging,
+marts e `dbt test` passam, também os `.txt` (~450 MB o do MOV). Se algo falhar, os `.txt` ficam em disco para
+diagnóstico. A detecção de "já ingerido" consulta o warehouse (tabela `ingestao_arquivos`), não o filesystem. O FTP
+público continua sendo a fonte de verdade para reprocessar.
 
 ### Por que incremental, não `table`
 
-Cada `.txt` bruto tem ~450-500MB (o Brasil inteiro; filtramos ~1.500-2.000 linhas do
-município). Ler todas as competências de uma vez via glob (`*.txt`) estoura memória — o
-servidor de produção real tem **830MB RAM total**. A staging processa uma competência por
-vez (`dbt run --select stg_caged_movimentacoes --vars '{"competencia_arquivo": "AAAAMM"}'`),
-mantendo o pico de memória em ~500MB.
+Cada `.txt` do MOV tem ~450-500 MB (o Brasil inteiro; filtramos ~2.000 linhas do município). Ler todas as competências
+de uma vez estoura memória, e o servidor de produção tem **830 MB de RAM**. A staging processa **um arquivo por vez**,
+mantendo o pico em ~500 MB. **Não reverta para `materialized='table'` com leitura por glob** sem resolver isso antes.
 
 ## Estrutura do repositório
 
 ```
 .
-├── docker-compose.yml
+├── docker-compose.yml            # 2 serviços: prefect-server, pipeline
+├── .env.example                  # modelo das variáveis (o .env real nunca é commitado)
+├── secrets/                      # (fora do git) deploy key do arquivo e destinatarios.txt
 ├── pipeline/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   ├── docker-entrypoint.sh
-│   ├── start.sh
-│   ├── prefect.yaml
-│   ├── flows/                # ingest_caged, alertas, boletim, arquivo, entrega
-│   └── tests/test_entrega.py
-├── arquivo/                  # esqueleto do repositório privado do arquivo (Netlify)
-└── dbt/
-    ├── dbt_project.yml
-    ├── profiles.yml
-    ├── tests/
-    │   ├── test_unicidade_grao_mart.sql
-    │   ├── test_coerencia_saldo_liquido.sql
-    │   ├── test_faixa_salario_plausivel.sql
-    │   ├── test_salario_individual_plausivel.sql
-    │   └── test_media_vs_mediana_salario.sql
-    └── models/
-        ├── staging/
-        │   ├── stg_caged_movimentacoes.sql
-        │   └── _sources.yml
-        └── marts/mart_caged_mensal_grupamento.sql
+│   ├── Dockerfile · requirements.txt · start.sh · prefect.yaml · docker-entrypoint.sh
+│   ├── flows/
+│   │   ├── ingest_caged.py       # flow diário + backfill: MOV/FOR/EXC, registro de ingestão
+│   │   ├── alertas.py            # ntfy e heartbeat (F11)
+│   │   ├── boletim.py            # gera o PDF e o XLSX a partir do mart (F15/F12)
+│   │   ├── arquivo.py            # clone do repositório do arquivo, envios.json, índice (git)
+│   │   └── entrega.py            # SMTP, envio idempotente e o CLI: teste/enviar/arquivar/remover
+│   └── tests/                    # 48 testes Python (ingestão, boletim, entrega/arquivo)
+├── dbt/
+│   ├── macros/caged.sql          # colunas, CAST e grupamento compartilhados pelas 3 staging
+│   ├── models/
+│   │   ├── staging/              # stg_caged_movimentacoes · _fora_do_prazo · _exclusoes (+ _sources.yml)
+│   │   └── marts/                # mart_caged_mensal_grupamento · mart_caged_reconciliado
+│   └── tests/                    # 9 testes singulares (grão, coerência, faixa de salário, sinal do EXC, continuidade…)
+├── arquivo/                      # esqueleto do repositório PRIVADO do arquivo (edge function, login, script de aceite)
+└── docs/
+    ├── fatias/                   # backlog F01…F17 com o registro do que foi feito
+    ├── decisoes/                 # D01…D11
+    └── revisao/                  # a revisão que originou o backlog
 ```
 
 ## Entrega por e-mail e arquivo (F15)
 
-Desligada por padrão. Quando ligada, o run diário que encontra uma competência nova gera o
-boletim (PDF) e a planilha (XLSX) **a partir do mart**, guarda os dois num repositório
-privado (publicado no Netlify atrás de login) e envia um e-mail por destinatário. O que foi
-enviado fica arquivado e **não se regenera**: o CAGED revisa meses passados.
+Desligada por padrão (`ENTREGA_HABILITADA=false`). Ligada, o run diário que encontra uma competência nova gera o
+boletim e a planilha **a partir do mart**, guarda os dois no repositório privado (publicado no Netlify atrás de
+login) e envia **um e-mail por destinatário**. Os comandos manuais estão na [Referência de comandos, seção 4](#4-entrega-e-arquivo-entregapy).
 
-Para ligar, nesta ordem (detalhes em [F15](docs/fatias/F15-entrega-por-email-e-arquivo.md)
-e [arquivo/README.md](arquivo/README.md)):
+- **O boletim usa o número reconciliado** (MOV + FOR − EXC), com a marcação **provisório/consolidado**; sem o mart
+  reconciliado, cai no só-MOV. Os salários são sempre só do MOV.
+- **O estado de envio (`envios.json`) vive no repositório do arquivo**, não no warehouse: apagar o `.duckdb` e
+  reconstruí-lo **não reenvia nada**. Sem conseguir ler esse estado, o pipeline não envia (falha fechado).
+- **Envio interrompido** vira `enviando` órfão: alerta a cada run e **nunca** é reenviado sozinho.
+- **Arquivar nunca envia e-mail**: o status `arquivado` é pulado pelo envio automático.
+- **A lista de destinatários é dado pessoal** (`secrets/destinatarios.txt`): fora do git e fora de qualquer log.
 
-1. Publicar o esqueleto de [arquivo/](arquivo/) num repositório **privado** + Netlify e passar
-   em `arquivo/scripts/verificar-bloqueio.sh` — antes de qualquer boletim real.
-2. Preencher `SMTP_*`, `EMAIL_*` e `ARQUIVO_*` no `.env`; criar `secrets/arquivo_deploy_key`
-   e `secrets/destinatarios.txt` (um e-mail por linha; dado pessoal, fora do git).
-3. `docker compose up -d --build` e `docker compose exec pipeline python flows/entrega.py teste`
-   (envia só para `EMAIL_TESTE`, sem registrar nada).
+Para ligar, nesta ordem (detalhes em [F15](docs/fatias/F15-entrega-por-email-e-arquivo.md) e
+[arquivo/README.md](arquivo/README.md)):
+
+1. Publicar o esqueleto de [arquivo/](arquivo/) num repositório **privado** + Netlify e passar em
+   `arquivo/scripts/verificar-bloqueio.sh`, antes de qualquer boletim real.
+2. Preencher `SMTP_*`, `EMAIL_*` e `ARQUIVO_*` no `.env`; criar `secrets/arquivo_deploy_key` e `secrets/destinatarios.txt`.
+3. `docker compose up -d --build` e `... entrega.py teste` (chega só para `EMAIL_TESTE`, sem registrar nada).
 4. Só então `ENTREGA_HABILITADA=true`.
-
-Envio idempotente: o estado (`envios.json`) vive no repositório do arquivo, então apagar o
-warehouse não reenvia nada. Um envio interrompido vira `enviando` órfão, gera alerta e
-**nunca** é reenviado sozinho.
 
 ## Nota sobre a consolidação do Novo CAGED
 
