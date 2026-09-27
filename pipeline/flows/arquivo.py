@@ -116,16 +116,56 @@ class Arquivo:
         pasta = self._pasta(competencia)
         return pasta / pdf.name, pasta / xlsx.name
 
-    def arquivar_lote(self, itens: list[tuple[str, Path, Path]], mensagem: str) -> None:
+    def arquivar_lote(
+        self, itens: list[tuple[str, Path, Path]], mensagem: str, estado_arquivado: bool = False,
+        substituindo: dict[str, dict] | None = None,
+    ) -> None:
         """Vários (competência, pdf, xlsx) num único commit e push: muitas competências
-        de uma vez não podem virar um deploy do Netlify cada. Não toca no envios.json."""
+        de uma vez não podem virar um deploy do Netlify cada.
+
+        Com estado_arquivado=True cada competência ganha em envios.json a entrada
+        status='arquivado' (com o sha256 dos bytes guardados): o envio automático PULA esse
+        status, então arquivar nunca dispara e-mail. `substituindo` guarda, por competência, o
+        registro de um envio anterior que esta versão está trocando (auditoria)."""
         for competencia, pdf, xlsx in itens:
             pasta = self._pasta(competencia)
             pasta.mkdir(parents=True, exist_ok=True)
             for origem in (pdf, xlsx):
                 shutil.copyfile(origem, pasta / origem.name)
-        self._gravar_indice()
+        envios = None
+        if estado_arquivado:
+            envios = self.envios()
+            for competencia, pdf, xlsx in itens:
+                destino = self._pasta(competencia)
+                entrada = {
+                    "competencia": competencia,
+                    "status": "arquivado",
+                    "arquivado_em": agora(),
+                    "sha256_boletim": sha256(destino / pdf.name),
+                    "sha256_planilha": sha256(destino / xlsx.name),
+                }
+                if substituindo and competencia in substituindo:
+                    entrada["substitui_envio"] = substituindo[competencia]
+                envios[competencia] = entrada
+            self._escrever_envios(envios)
+        self._gravar_indice(envios)
         self._commit_push(mensagem)
+
+    def remover_lote(self, competencias: list[str], mensagem: str) -> None:
+        """Apaga as competências do arquivo (arquivos e envios.json) num único commit. O que
+        foi apagado continua no histórico do git."""
+        envios = self.envios()
+        for competencia in competencias:
+            shutil.rmtree(self._pasta(competencia), ignore_errors=True)
+            envios.pop(competencia, None)
+        self._escrever_envios(envios)
+        self._gravar_indice(envios)
+        self._commit_push(mensagem)
+
+    def _escrever_envios(self, envios: dict) -> None:
+        (self.diretorio / ENVIOS).write_text(
+            json.dumps(envios, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
 
     def gravar_estado(self, competencia: str, **campos) -> dict:
         """Atualiza a entrada da competência em envios.json, regenera o índice
@@ -133,9 +173,7 @@ class Arquivo:
         envios = self.envios()
         entrada = {**envios.get(competencia, {"competencia": competencia}), **campos}
         envios[competencia] = entrada
-        (self.diretorio / ENVIOS).write_text(
-            json.dumps(envios, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8"
-        )
+        self._escrever_envios(envios)
         self._gravar_indice(envios)
         self._commit_push(f"envio {competencia}: {entrada.get('status', '?')}")
         return entrada

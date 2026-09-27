@@ -274,37 +274,134 @@ class EntregaTest(unittest.TestCase):
         out = subprocess.run(["git", "rev-list", "--count", "main"], cwd=self.remoto, capture_output=True, text=True)
         return int(out.stdout)
 
-    def test_arquivar_sem_enviar_num_unico_commit_e_sem_estado(self):
+    def sha_no_remoto(self, competencia: str) -> str:
+        self.envios_no_remoto()  # atualiza o clone de inspeção
+        pasta = self.tmp / "inspecao" / "public" / f"{competencia[:4]}-{competencia[4:]}"
+        return hashlib.sha256((pasta / f"boletim-{competencia}.pdf").read_bytes()).hexdigest()
+
+    def alterar_mart(self, competencia: str, admissoes: int) -> None:
+        """Muda o dado do mart: prova que uma regeneração de fato gera outro boletim."""
+        con = duckdb.connect(str(self.warehouse))
+        con.execute("update mart_caged_mensal_grupamento set admissoes = ?, saldo_liquido = ? - desligamentos "
+                    "where competencia_mov = ?", [admissoes, admissoes, int(competencia)])
+        con.close()
+
+    def test_arquivar_sem_enviar_num_unico_commit_com_estado_arquivado(self):
         antes = self.commits_no_remoto()
         res = entrega.arquivar_competencias(["202605", "202606", "202607"], cfg=self.cfg)
         self.assertEqual(res, {"202605": "arquivada", "202606": "arquivada", "202607": "arquivada"})
         self.assertEqual(self.commits_no_remoto(), antes + 1)  # 3 competências, 1 commit
-        self.assertEqual(self.envios_no_remoto(), {})  # nada de estado de envio
+        envios = self.envios_no_remoto()
+        self.assertEqual({c: e["status"] for c, e in envios.items()},
+                         {"202605": "arquivado", "202606": "arquivado", "202607": "arquivado"})
+        self.assertEqual(envios["202607"]["sha256_boletim"], self.sha_no_remoto("202607"))
         clone = self.tmp / "inspecao"
-        for c in ("2026-05", "2026-06", "2026-07"):
-            self.assertTrue((clone / "public" / c).is_dir(), c)
         indice = (clone / "public/index.html").read_text()
         self.assertIn("arquivado", indice)
         self.assertNotIn("enviado em", indice)  # não finge que foi enviado
 
-    def test_arquivar_nao_sobrescreve_nem_o_arquivado_nem_o_enviado(self):
+    def test_arquivar_nunca_envia_email(self):
         smtp = SMTPFalso()
-        entrega.entregar("202607", cfg=self.cfg, smtp_factory=smtp)  # enviada
-        entrega.arquivar_competencias(["202606"], cfg=self.cfg)      # só arquivada
+        with mock.patch.object(entrega, "abrir_smtp", side_effect=lambda cfg: smtp()):
+            entrega.arquivar_competencias(["202606", "202607"], cfg=self.cfg)
+        self.assertEqual(smtp.enviadas, [])
+
+    def test_envio_automatico_pula_o_arquivado_mas_o_manual_envia(self):
+        """O colateral: arquivar a competência mais recente não pode virar e-mail sozinho."""
+        entrega.arquivar_competencias(["202607"], cfg=self.cfg)
+        smtp = SMTPFalso()
+        with mock.patch.object(entrega, "abrir_smtp", side_effect=lambda cfg: smtp()), \
+             mock.patch.object(entrega.Config, "do_ambiente", return_value=self.cfg):
+            antes = self.commits_no_remoto()
+            self.assertEqual(entrega.entregar_boletim_pendente.fn(), "arquivado")  # diário: pula
+            self.assertEqual(smtp.enviadas, [])
+            self.assertEqual(self.commits_no_remoto(), antes)
+            # manual: envia, reaproveitando os mesmos bytes arquivados
+            sha = self.sha_no_remoto("202607")
+            self.assertEqual(entrega.entregar("202607", cfg=self.cfg, smtp_factory=smtp), "enviado")
+        self.assertEqual(len(smtp.enviadas), len(DESTINATARIOS))
+        e = self.envios_no_remoto()["202607"]
+        self.assertEqual((e["status"], e["sha256_boletim"]), ("enviado", sha))
+
+    def test_arquivar_nao_sobrescreve_sem_refazer(self):
+        entrega.arquivar_competencias(["202606"], cfg=self.cfg)
+        sha = self.sha_no_remoto("202606")
+        self.alterar_mart("202606", 999)
         antes = self.commits_no_remoto()
-        res = entrega.arquivar_competencias(["202606", "202607"], cfg=self.cfg)
-        self.assertEqual(res, {"202606": "ja_arquivada", "202607": "ja_arquivada"})
-        self.assertEqual(self.commits_no_remoto(), antes)  # nada mudou, nenhum commit
+        self.assertEqual(entrega.arquivar_competencias(["202606"], cfg=self.cfg), {"202606": "ja_arquivada"})
+        self.assertEqual(self.commits_no_remoto(), antes)
+        self.assertEqual(self.sha_no_remoto("202606"), sha)
+
+    def test_refazer_substitui_o_arquivado_por_uma_versao_nova(self):
+        entrega.arquivar_competencias(["202606"], cfg=self.cfg)
+        sha = self.sha_no_remoto("202606")
+        self.alterar_mart("202606", 999)  # o dado mudou: o boletim antigo ficou defasado
+        res = entrega.arquivar_competencias(["202606"], refazer=True, cfg=self.cfg)
+        self.assertEqual(res, {"202606": "refeita"})
+        novo = self.sha_no_remoto("202606")
+        self.assertNotEqual(novo, sha)
+        e = self.envios_no_remoto()["202606"]
+        self.assertEqual((e["status"], e["sha256_boletim"]), ("arquivado", novo))
+
+    def test_refazer_protege_o_enviado_ate_pedir_incluir_enviados(self):
+        entrega.entregar("202607", cfg=self.cfg, smtp_factory=SMTPFalso())
+        enviado = self.envios_no_remoto()["202607"]
+        self.alterar_mart("202607", 999)
+        antes = self.commits_no_remoto()
+        self.assertEqual(entrega.arquivar_competencias(["202607"], refazer=True, cfg=self.cfg), {"202607": "protegida"})
+        self.assertEqual(self.commits_no_remoto(), antes)  # nada mudou
+        self.assertEqual(self.envios_no_remoto()["202607"], enviado)
+
+        res = entrega.arquivar_competencias(["202607"], refazer=True, incluir_enviados=True, cfg=self.cfg)
+        self.assertEqual(res, {"202607": "refeita"})
+        e = self.envios_no_remoto()["202607"]
+        self.assertEqual(e["status"], "arquivado")  # deixa de constar como enviado
+        self.assertEqual(e["substitui_envio"]["sha256_boletim"], enviado["sha256_boletim"])  # e o rastro fica
+        self.assertNotEqual(e["sha256_boletim"], enviado["sha256_boletim"])
+
+    def test_envio_interrompido_nunca_e_tocado(self):
+        with self.assertRaises(entrega.EnvioInterrompido):
+            entrega.entregar("202607", cfg=self.cfg, smtp_factory=SMTPFalso(falha_no=1))
+        antes = self.commits_no_remoto()
+        for incluir in (False, True):
+            self.assertEqual(
+                entrega.arquivar_competencias(["202607"], refazer=True, incluir_enviados=incluir, cfg=self.cfg),
+                {"202607": "em_envio"})
+            self.assertEqual(entrega.remover_competencias(["202607"], incluir_enviados=incluir, cfg=self.cfg),
+                             {"202607": "em_envio"})
+        self.assertEqual(self.commits_no_remoto(), antes)
+
+    def test_remover_e_gerar_de_novo_depois(self):
+        """O fluxo de desenvolvimento: apagar, ajustar o dado/código e gerar outro."""
+        entrega.arquivar_competencias(["202605", "202606"], cfg=self.cfg)
+        antes = self.commits_no_remoto()
+        self.assertEqual(entrega.remover_competencias(["202606", "202601"], cfg=self.cfg),
+                         {"202606": "removida", "202601": "inexistente"})
+        self.assertEqual(self.commits_no_remoto(), antes + 1)
+        envios = self.envios_no_remoto()
+        self.assertEqual(list(envios), ["202605"])
+        clone = self.tmp / "inspecao"
+        self.assertFalse((clone / "public/2026-06").exists())
+        self.assertNotIn("2026-06", (clone / "public/index.html").read_text())
+        self.alterar_mart("202606", 999)
+        self.assertEqual(entrega.arquivar_competencias(["202606"], cfg=self.cfg), {"202606": "arquivada"})
+
+    def test_remover_protege_o_enviado(self):
+        entrega.entregar("202607", cfg=self.cfg, smtp_factory=SMTPFalso())
+        self.assertEqual(entrega.remover_competencias(["202607"], cfg=self.cfg), {"202607": "protegida"})
+        self.assertIn("202607", self.envios_no_remoto())
+        self.assertEqual(entrega.remover_competencias(["202607"], incluir_enviados=True, cfg=self.cfg), {"202607": "removida"})
+        self.assertNotIn("202607", self.envios_no_remoto())
 
     def test_arquivar_competencia_fora_do_mart_e_sem_dados(self):
         res = entrega.arquivar_competencias(["201901", "202606"], cfg=self.cfg)
         self.assertEqual(res, {"201901": "sem_dados", "202606": "arquivada"})
+        self.assertEqual(list(self.envios_no_remoto()), ["202606"])
 
     def test_enviar_depois_de_arquivar_reaproveita_os_mesmos_bytes(self):
         entrega.arquivar_competencias(["202606"], cfg=self.cfg)
-        clone = self.tmp / "inspecao"
-        self.envios_no_remoto()
-        sha = hashlib.sha256((clone / "public/2026-06/boletim-202606.pdf").read_bytes()).hexdigest()
+        sha = self.sha_no_remoto("202606")
+        self.alterar_mart("202606", 999)  # mesmo com o dado mudado, o que se envia é o arquivado
         entrega.entregar("202606", cfg=self.cfg, smtp_factory=SMTPFalso())
         self.assertEqual(self.envios_no_remoto()["202606"]["sha256_boletim"], sha)
 

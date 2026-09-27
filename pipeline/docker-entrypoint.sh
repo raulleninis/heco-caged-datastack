@@ -39,6 +39,13 @@ done
 mkdir -p /data/warehouse /data/raw
 chown -R caged:caged /data/warehouse /data/raw
 
+# Clone do repositório do arquivo (F15) e o known_hosts dele. Um `docker exec` manual como root
+# (ex.: entrega.py enviar) os deixa com dono root, e o flow diário, que roda como `caged`, passa
+# a falhar com "permission denied" no git. Use `docker exec -u caged ...`; isto conserta o resto.
+for f in /data/arquivo /data/arquivo_known_hosts; do
+    [ -e "$f" ] && chown -R caged:caged "$f"
+done
+
 # O bloco de UID/GID no topo só olha o dono do mount point. Um /dbt já
 # pertencente ao usuário do host pode conter arquivos herdados de dono root
 # (dbt/logs, dbt/target, .user.yml criados por containers antigos que

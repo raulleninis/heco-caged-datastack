@@ -161,11 +161,19 @@ commit + push no repositório privado do arquivo. Regras que não são óbvias:
 - O arquivo é servido em `https://caged.obsnss.space` (Netlify, DNS na Cloudflare; o remetente
   é `boletim@boletim.obsnss.space` via Resend e `contato@obsnss.space` é só encaminhamento para o Gmail).
   Os registros do Resend no DNS têm de ficar em "somente DNS" (sem proxy da Cloudflare).
-- Manual: `python flows/entrega.py teste [AAAAMM]` (só para `EMAIL_TESTE`, não registra
-  nada), `python flows/entrega.py enviar AAAAMM` (e-mail real, idempotente) e
-  `python flows/entrega.py arquivar 202001..202606 [202607 ...]` (só gera e arquiva, **sem e-mail
-  e sem estado de envio**; um commit para o lote todo; não sobrescreve o que já está arquivado;
-  no índice aparece como "arquivado", não "enviado em"). Testes: `pipeline/tests/`.
+- Manual (rode SEMPRE com `docker exec -u caged` ou `docker compose exec -u caged`: como root o clone
+  do arquivo fica com dono root e o flow diário passa a falhar no git):
+  - `python flows/entrega.py teste [AAAAMM]` — só para `EMAIL_TESTE`, não registra nada
+  - `python flows/entrega.py enviar AAAAMM` — e-mail real, idempotente; reaproveita o que já está arquivado
+  - `python flows/entrega.py arquivar 202001..202606 [--refazer] [--incluir-enviados]` — só gera e
+    arquiva, **sem e-mail**, com `status: "arquivado"` no `envios.json`. O envio AUTOMÁTICO pula esse
+    status (arquivar nunca vira e-mail); o `enviar` manual envia mesmo assim. Um commit para o lote;
+    sem `--refazer` não sobrescreve nada. `--refazer` substitui o que está só arquivado (é o que se usa
+    em desenvolvimento, para regenerar antes de abrir ao público). O que consta como ENVIADO é protegido:
+    só é substituído com `--incluir-enviados`, e o registro do envio anterior fica em `substitui_envio`.
+    Um envio `enviando` (órfão) nunca é tocado
+  - `python flows/entrega.py remover AAAAMM [...] [--incluir-enviados]` — apaga do arquivo e do
+    `envios.json` (continua no histórico do git)
 - O DuckDB continua com um único escritor: o `teste`/`enviar` manual abre o warehouse
   só para leitura, mas não rode enquanto o flow diário estiver processando.
 

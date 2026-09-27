@@ -484,13 +484,25 @@ no prazo.
 
 ### Comandos manuais (acrescentado depois do fechamento)
 
+Rodar sempre como `docker compose exec -u caged pipeline ...` (como root, o clone do arquivo fica com
+dono root e o flow diário passa a falhar no git; foi um defeito do ensaio, corrigido em 27/09/2026 com um
+`chown` no entrypoint).
+
 | comando | faz | e-mail | `envios.json` |
 |---|---|---|---|
 | `entrega.py teste [AAAAMM]` | gera e manda só para `EMAIL_TESTE` | 1, para o dono | não |
-| `entrega.py enviar AAAAMM` | gera (ou reaproveita o arquivado), arquiva e envia à lista | sim | sim |
-| `entrega.py arquivar AAAAMM..AAAAMM [AAAAMM ...]` | gera e **só arquiva** | **não** | **não** |
+| `entrega.py enviar AAAAMM` | gera (ou reaproveita o arquivado), arquiva e envia à lista | sim | `enviando` → `enviado` |
+| `entrega.py arquivar AAAAMM..AAAAMM [--refazer] [--incluir-enviados]` | gera e **só arquiva** | **não** | `arquivado` (+ `sha256`) |
+| `entrega.py remover AAAAMM [...] [--incluir-enviados]` | apaga do arquivo | não | remove a entrada |
 
-O `arquivar` serve para constituir o histórico no arquivo sem avisar ninguém: não sobrescreve o que já
-está arquivado (enviado ou não), faz um único commit para o lote (um deploy do Netlify) e o índice o
-mostra como "arquivado", não "enviado em". O que ele gera reflete o mart **de hoje**, não o que foi
-enviado na época, e por isso não conta como envio; um `enviar` posterior reaproveita esses mesmos bytes.
+**Por que existe o status `arquivado`:** o envio automático manda a competência mais recente que não
+esteja no `envios.json`. Sem esse status, arquivar (ou apagar a entrada de) a competência mais recente e
+depois ligar `ENTREGA_HABILITADA` a enviaria à lista. O automático **pula** o `arquivado`; o `enviar`
+manual envia mesmo assim, reaproveitando os mesmos arquivos.
+
+**Regenerar antes de abrir ao público:** durante o desenvolvimento os boletins mudam, então
+`entrega.py arquivar 202001..202607 --refazer` substitui, num commit e num deploy, tudo o que está só
+arquivado. O que consta como **enviado** é protegido (registra o que a lista recebeu) e só é substituído
+com `--incluir-enviados`, deixando o envio anterior em `substitui_envio`. Um `enviando` (órfão) nunca é
+tocado. Uma competência arquivada reflete o mart **do dia em que foi gerada** (no índice aparece como
+"arquivado", não "enviado em").

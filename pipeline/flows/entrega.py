@@ -27,8 +27,10 @@ lista de destinatários (dado pessoal — LGPD) ficam fora do git.
 Uso manual:
     python flows/entrega.py teste [AAAAMM]   # só para EMAIL_TESTE; não arquiva nem registra
     python flows/entrega.py enviar AAAAMM    # envio real (idempotente)
-    python flows/entrega.py arquivar 202001..202606 [202607 ...]
-                                             # só gera e arquiva, sem e-mail nem estado de envio
+    python flows/entrega.py arquivar 202001..202606 [202607 ...] [--refazer] [--incluir-enviados]
+                                             # só gera e arquiva (status 'arquivado'), sem e-mail
+    python flows/entrega.py remover 202607 [...] [--incluir-enviados]
+                                             # apaga do arquivo (continua no histórico do git)
 """
 
 import os
@@ -214,10 +216,16 @@ def ultima_competencia(warehouse: Path) -> str | None:
     return None if valor is None else str(valor)
 
 
-def entregar(competencia: str, *, teste: bool = False, cfg: Config | None = None, smtp_factory=None) -> str:
+def entregar(
+    competencia: str, *, teste: bool = False, cfg: Config | None = None, smtp_factory=None, automatico: bool = False
+) -> str:
     """Entrega o boletim de 'competencia'. Devolve o desfecho:
-    'teste' | 'enviado' | 'ja_enviado' | 'orfao'. Levanta EnvioInterrompido se
-    o envio parar no meio, ConfigIncompleta se faltar configuração."""
+    'teste' | 'enviado' | 'ja_enviado' | 'orfao' | 'arquivado'. Levanta EnvioInterrompido se
+    o envio parar no meio, ConfigIncompleta se faltar configuração.
+
+    `automatico=True` (o flow diário) NÃO envia o que foi arquivado de propósito
+    (status 'arquivado'): arquivar nunca pode virar e-mail sem alguém pedir. O comando manual
+    `enviar` envia mesmo assim, reaproveitando os arquivos já arquivados."""
     log = _logger()
     cfg = cfg or Config.do_ambiente()
     cfg.exigir(teste)
@@ -251,6 +259,10 @@ def entregar(competencia: str, *, teste: bool = False, cfg: Config | None = None
     if envios.get(competencia, {}).get("status") == "enviado":
         log.info(f"{competencia} já foi enviada em {envios[competencia].get('enviado_em')}; nada a fazer.")
         return "ja_enviado"
+
+    if automatico and envios.get(competencia, {}).get("status") == "arquivado":
+        log.info(f"{competencia} está arquivada sem envio (status 'arquivado'); o envio automático a ignora.")
+        return "arquivado"
 
     destinatarios = ler_destinatarios(cfg.destinatarios_arquivo)
 
@@ -337,16 +349,27 @@ def expandir_competencias(args: list[str]) -> list[str]:
     return list(dict.fromkeys(saida))
 
 
-def arquivar_competencias(competencias: list[str], *, cfg: Config | None = None) -> dict[str, str]:
-    """Gera e ARQUIVA o boletim e a planilha de cada competência, sem enviar e-mail e sem
-    mexer no envios.json. Serve para constituir o histórico do arquivo.
+def arquivar_competencias(
+    competencias: list[str], *, refazer: bool = False, incluir_enviados: bool = False, cfg: Config | None = None
+) -> dict[str, str]:
+    """Gera e ARQUIVA o boletim e a planilha de cada competência, sem enviar e-mail. Serve
+    para constituir (e, em desenvolvimento, refazer) o histórico do arquivo.
 
-    Desfecho por competência: 'arquivada' | 'ja_arquivada' | 'sem_dados'.
-    - Não sobrescreve nada: o que já está arquivado (enviado ou não) fica como está, porque
-      o arquivo guarda o que foi gerado e os sha256 do envios.json descrevem esses bytes.
-    - Sai UM commit para o lote inteiro (um deploy do Netlify, não um por competência).
-    - O que foi gerado agora reflete o mart de hoje, não "o que foi enviado": no índice
-      aparece como "arquivado", não como "enviado em ...".
+    Cada competência ganha em envios.json o status 'arquivado' (com o sha256), que o envio
+    automático PULA: arquivar nunca dispara e-mail.
+
+    Desfecho por competência:
+      'arquivada'      nova
+      'refeita'        já estava só arquivada (ou sem estado) e foi substituída (--refazer)
+      'ja_arquivada'   já existe e não foi pedido --refazer: nada muda
+      'protegida'      consta como ENVIADA e não foi pedido --incluir-enviados: nada muda
+      'em_envio'       envio em andamento/interrompido (`enviando`): nunca é tocada
+      'sem_dados'      a competência não está no mart
+
+    O que consta como enviado só é substituído com --incluir-enviados, porque registra o que
+    a lista de fato recebeu; nesse caso o registro do envio anterior fica em `substitui_envio`.
+    Sai UM commit para o lote inteiro (um deploy do Netlify, não um por competência). O que é
+    gerado agora reflete o mart de hoje: no índice aparece como "arquivado", não "enviado em ...".
     """
     log = _logger()
     cfg = cfg or Config.do_ambiente()
@@ -357,11 +380,20 @@ def arquivar_competencias(competencias: list[str], *, cfg: Config | None = None)
     envios = arquivo.envios()
 
     resultado: dict[str, str] = {}
-    itens = []
+    itens, substituindo = [], {}
     with tempfile.TemporaryDirectory() as tmp:
         for c in competencias:
-            if c in envios or arquivo.arquivos_da(c):
+            entrada = envios.get(c, {})
+            status = entrada.get("status")
+            existe = c in envios or arquivo.arquivos_da(c) is not None
+            if status == "enviando":
+                resultado[c] = "em_envio"
+                continue
+            if existe and not refazer:
                 resultado[c] = "ja_arquivada"
+                continue
+            if status == "enviado" and not incluir_enviados:
+                resultado[c] = "protegida"
                 continue
             try:
                 pdf, xlsx = boletim.gerar(cfg.warehouse, c, Path(tmp) / c)
@@ -369,11 +401,50 @@ def arquivar_competencias(competencias: list[str], *, cfg: Config | None = None)
                 resultado[c] = "sem_dados"
                 continue
             itens.append((c, pdf, xlsx))
-            resultado[c] = "arquivada"
+            if status == "enviado":
+                substituindo[c] = {k: entrada.get(k) for k in (
+                    "enviado_em", "sha256_boletim", "sha256_planilha", "destinatarios_enviados") if k in entrada}
+            resultado[c] = "refeita" if existe else "arquivada"
         if itens:
             novas = ", ".join(c for c, _, _ in itens)
-            arquivo.arquivar_lote(itens, f"arquivo: {len(itens)} competência(s) arquivada(s) sem envio ({novas})")
+            arquivo.arquivar_lote(
+                itens, f"arquivo: {len(itens)} competência(s) arquivada(s) sem envio ({novas})",
+                estado_arquivado=True, substituindo=substituindo,
+            )
     log.info(f"Arquivamento sem envio: {resultado}")
+    return resultado
+
+
+def remover_competencias(
+    competencias: list[str], *, incluir_enviados: bool = False, cfg: Config | None = None
+) -> dict[str, str]:
+    """Apaga competências do arquivo (arquivos, índice e envios.json) num único commit; o que
+    foi apagado continua no histórico do git. Desfecho: 'removida' | 'inexistente' |
+    'protegida' (consta como enviada, sem --incluir-enviados) | 'em_envio' (nunca é tocada)."""
+    log = _logger()
+    cfg = cfg or Config.do_ambiente()
+    if cfg.arquivo is None:
+        raise ConfigIncompleta("Variáveis de ambiente ausentes: ARQUIVO_REPO_URL")
+    arquivo = cfg.arquivo
+    arquivo.sincronizar()
+    envios = arquivo.envios()
+
+    resultado: dict[str, str] = {}
+    apagar = []
+    for c in competencias:
+        status = envios.get(c, {}).get("status")
+        if status == "enviando":
+            resultado[c] = "em_envio"
+        elif status == "enviado" and not incluir_enviados:
+            resultado[c] = "protegida"
+        elif c not in envios and arquivo.arquivos_da(c) is None:
+            resultado[c] = "inexistente"
+        else:
+            apagar.append(c)
+            resultado[c] = "removida"
+    if apagar:
+        arquivo.remover_lote(apagar, f"arquivo: {len(apagar)} competência(s) removida(s) ({', '.join(apagar)})")
+    log.info(f"Remoção: {resultado}")
     return resultado
 
 
@@ -387,7 +458,7 @@ def entregar_boletim_pendente() -> str:
     if competencia is None:
         _logger().warning("Mart vazio ou inexistente: nada a entregar.")
         return "sem_mart"
-    return entregar(competencia, cfg=cfg)
+    return entregar(competencia, cfg=cfg, automatico=True)
 
 
 def entrega_habilitada() -> bool:
@@ -402,12 +473,20 @@ if __name__ == "__main__":
         print(entregar(alvo, teste=True))
     elif comando == "enviar" and len(args) == 2:
         print(entregar(args[1]))
-    elif comando == "arquivar" and len(args) >= 2:
-        res = arquivar_competencias(expandir_competencias(args[1:]))
-        for desfecho in ("arquivada", "ja_arquivada", "sem_dados"):
+    elif comando in ("arquivar", "remover") and len(args) >= 2:
+        flags = {a for a in args[1:] if a.startswith("--")}
+        validas = {"--refazer", "--incluir-enviados"} if comando == "arquivar" else {"--incluir-enviados"}
+        if flags - validas:
+            print(f"Opção inválida para '{comando}': {sorted(flags - validas)}")
+            sys.exit(1)
+        alvos = expandir_competencias([a for a in args[1:] if not a.startswith("--")])
+        if comando == "arquivar":
+            res = arquivar_competencias(alvos, refazer="--refazer" in flags, incluir_enviados="--incluir-enviados" in flags)
+        else:
+            res = remover_competencias(alvos, incluir_enviados="--incluir-enviados" in flags)
+        for desfecho in dict.fromkeys(res.values()):
             cs = [c for c, d in res.items() if d == desfecho]
-            if cs:
-                print(f"{desfecho}: {len(cs)} ({cs[0]}..{cs[-1]})" if len(cs) > 3 else f"{desfecho}: {cs}")
+            print(f"{desfecho}: {len(cs)} ({cs[0]}..{cs[-1]})" if len(cs) > 3 else f"{desfecho}: {cs}")
     else:
         print(__doc__.split("Uso manual:")[1].rstrip())
         sys.exit(1)
