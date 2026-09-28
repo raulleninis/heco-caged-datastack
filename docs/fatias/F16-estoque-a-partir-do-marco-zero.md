@@ -15,7 +15,10 @@ mar/2020**, ver [D11](../decisoes/D11-estoque-de-emprego.md)) e das movimentaç�
 `MOV + FOR − EXC` a partir de **abr/2020**. Funciona hoje **só com Socorro** e aceita
 outros territórios depois, **apenas inserindo dados**.
 
-*Nada disto foi aplicado ao código.*
+**Estado (28/09/2026): parte 1 feita.** O marco zero, o `ajuste_marco_zero`, o `mart_estoque` e
+os testes rodam sobre a staging atual, que só guarda Socorro. O estoque bate com o painel em
+84 de 84 valores (14 competências de 202006 a 202607). Falta a parte 2 (itens 1 e 3:
+persistir `uf = 28` e criar `territorios.csv`) e a parte 3 (item 6: boletim).
 
 ## O problema de arquitetura que esta fatia resolve
 
@@ -55,7 +58,9 @@ Sergipe entram depois por uma linha, sem código novo.
 [marco-zero/estoque/](../../marco-zero/estoque/), versionado no git, com fonte e
 conferência em [marco-zero/FONTE.md](../../marco-zero/FONTE.md). Territórios: Socorro,
 Aracaju, Barra dos Coqueiros, São Cristóvão e Sergipe. O dbt lê os arquivos por glob
-(ou os une num seed); adicionar um território = adicionar um arquivo.
+(source `marco_zero.estoque`, pasta montada em `/marco-zero:ro` no container) e os
+materializa em `stg_marco_zero_estoque` ✅. Adicionar um território = adicionar um
+arquivo; `marco-zero/normalizar.py` gera os CSVs a partir dos originais do painel.
 
 | coluna | |
 |---|---|
@@ -63,6 +68,7 @@ Aracaju, Barra dos Coqueiros, São Cristóvão e Sergipe. O dbt lê os arquivos 
 | `grupamento` | mesmas seis categorias do código, incluindo "Não Identificado" |
 | `estoque` | valor do painel |
 | `data_referencia` | `2020-03-31` |
+| `retificacoes_ate` | último arquivo FOR/EXC que o painel já incorporava na coleta (`202607`) |
 | `fonte` | **obrigatória**: de onde veio o número e a metodologia |
 | `coletado_em` | data em que foi obtido |
 
@@ -97,8 +103,8 @@ O sinal da EXC está **confirmado nos dados**
 ([D11](../decisoes/D11-estoque-de-emprego.md#sinal-das-exclusões)): a coluna preserva o
 sinal do evento excluído, então o efeito é o inverso.
 
-Linhas de FOR/EXC com `competencia_mov <= 2020-03` **e** `competencia_arquivo > 202607`
-alimentam uma tabela derivada `ajuste_marco_zero` (por território × grupamento). O corte
+Linhas de FOR/EXC com `competencia_mov <= 2020-03` **e** `competencia_arquivo > retificacoes_ate`
+(202607) alimentam uma tabela derivada `ajuste_marco_zero` (por território × grupamento). O corte
 em 202607 é a última competência que o painel já incorporava na coleta. As linhas
 anteriores **já estão no marco zero**: em Socorro são 300 linhas com efeito −106, que
 seriam contadas duas vezes. Hoje a tabela sai vazia.
@@ -106,13 +112,26 @@ seriam contadas duas vezes. Hoje a tabela sai vazia.
 Linhas com `competencia_mov` entre 2020-01 e 2020-03 **não** entram no acumulado do
 estoque (continuam no fluxo).
 
+✅ Feito: a regra do efeito vive num só lugar, o macro `efeito_no_saldo()`
+([macros/estoque.sql](../../dbt/macros/estoque.sql)), usado por `ajuste_marco_zero`,
+`mart_estoque` e pelos testes. Hoje `territorio` = código do município da staging; na
+parte 2 passa a vir de `territorios.csv`.
+
 ### 5. Mart de estoque
 
-`mart_estoque`, uma linha por `(territorio, grupamento, competencia)`:
+✅ `mart_estoque`, uma linha por `(territorio, grupamento, competencia_mov)`, de 202001 à
+última competência carregada:
 
-- `saldo_consolidado` do mês (com o efeito acima);
-- `estoque = marco_zero + ajuste + acumulado do saldo`, **`NULL` se não houver marco zero**;
-- `taxa_variacao_mensal = saldo ÷ estoque do mês anterior`, `NULL` idem.
+- `saldo_consolidado` do mês (com o efeito acima; bate com `mart_caged_reconciliado`);
+- `estoque = marco_zero + ajuste + acumulado do saldo após o marco`. **`NULL` antes da
+  competência do marco e se não houver marco zero**; na competência do marco, é o próprio
+  marco;
+- `taxa_variacao_mensal = saldo ÷ estoque do mês anterior` (fração), `NULL` sem estoque
+  anterior ou com estoque 0 (caso de "Não Identificado");
+- `competencia_marco_zero`.
+
+Território ativo = o que tem movimentação na staging. Um marco zero sem movimentação
+(Aracaju hoje) é ignorado, para não virar um estoque parado.
 
 **Sem marco zero para um território, nada quebra:** ele mantém fluxo, e estoque e taxa
 ficam `NULL`.
@@ -125,15 +144,18 @@ nem o envio da [F15](F15-entrega-por-email-e-arquivo.md).
 
 ### 7. Testes
 
-| teste | severidade |
-|---|---|
-| **Continuidade:** existe `CAGEDMOV` para cada competência desde 202004, sem lacuna | `error` |
-| **Sinal da EXC:** admissões excluídas têm efeito `−1`; desligamentos excluídos, `+1` | `error` |
-| Estoque nunca negativo | `error` |
-| `ajuste_marco_zero` não vazio (FOR/EXC de competência ≤ 202003 publicado depois de 202607) | `warn` (informa que o ajuste do marco zero foi acionado) |
-| Marco zero: seis grupamentos por território, mesma `data_referencia` | `error` |
-| Território ativo sem marco zero | `warn` |
-| Unicidade de `arquivo_origem` por tipo e competência | `error` |
+| teste | severidade | estado |
+|---|---|---|
+| **Continuidade:** existe `CAGEDMOV` para cada competência desde 202004, sem lacuna | `error` | ✅ `test_continuidade_mov` (já existia; confere desde 202001) |
+| **Sinal da EXC:** admissões excluídas têm efeito `−1`; desligamentos excluídos, `+1` | `error` | ✅ `test_exc_preserva_sinal_do_evento` (já existia) + teste unitário `exclusao_de_admissao_reduz_estoque` |
+| Estoque nunca negativo | `error` | ✅ `test_estoque_nao_negativo` |
+| `ajuste_marco_zero` não vazio (FOR/EXC de competência ≤ 202003 publicado depois de 202607) | `warn` (informa que o ajuste do marco zero foi acionado) | ✅ `test_ajuste_marco_zero_acionado` + teste unitário `ajuste_ignora_o_que_o_painel_ja_incorporou` |
+| Marco zero: seis grupamentos por território, mesma `data_referencia` e mesmo `retificacoes_ate` | `error` | ✅ `test_marco_zero_completo` |
+| Território ativo sem marco zero | `warn` | ✅ `test_territorio_sem_marco_zero` |
+| Unicidade do grão de `mart_estoque` | `error` | ✅ `test_unicidade_grao_estoque` |
+| Coerência: saldo = reconciliado; estoque(t) − estoque(t−1) = saldo(t) | `error` | ✅ `test_coerencia_estoque` |
+| **Estoque confere com o painel** (`marco-zero/validacao/`), recalculado só com os arquivos até a foto do painel | `warn` | ✅ `test_estoque_confere_painel`: 84/84 em 28/09/2026 |
+| Unicidade de `arquivo_origem` por tipo e competência | `error` | parte 2 |
 
 ## Fora de escopo
 
@@ -144,13 +166,19 @@ nem o envio da [F15](F15-entrega-por-email-e-arquivo.md).
 
 ## Critério de aceite
 
-1. Com **só Socorro**, `mart_estoque` traz estoque e taxa para cada grupamento.
-2. **Ativar Aracaju** = uma linha em `territorios.csv` (o marco zero já existe em
-   `marco-zero/estoque/`). **Sem reprocessar o histórico**, Aracaju aparece.
-3. Território **sem marco zero**: fluxo presente, estoque `NULL`, boletim gerado.
-4. **Reprocessar o mesmo arquivo duas vezes** não altera o estoque.
-5. **Apagar o `.duckdb` e reconstruir** dá o mesmo estoque (o marco zero vem do git).
-6. **Fixture de exclusão:** uma exclusão de admissão reduz o estoque em 1.
-7. Comparar o **saldo mensal consolidado** e o **estoque** com o painel oficial do MTE
-   para o mesmo território e competência (por exemplo, 202512). Como o marco zero vem do
-   painel, o nível agora também pode ser validado.
+1. ✅ Com **só Socorro**, `mart_estoque` traz estoque e taxa para cada grupamento.
+2. Parte 2 · **Ativar Aracaju** = uma linha em `territorios.csv` (o marco zero já existe
+   em `marco-zero/estoque/`). **Sem reprocessar o histórico**, Aracaju aparece.
+3. Parcial · Território **sem marco zero**: fluxo presente e estoque `NULL` (regra no
+   `mart_estoque`); falta "boletim gerado" (parte 3) e um território real para exercitar.
+4. Não testado diretamente · **Reprocessar o mesmo arquivo duas vezes** não altera o
+   estoque. Depende do incremental `delete+insert` das stagings (F12), que já existia; o
+   `mart_estoque` é recalculado inteiro a cada run.
+5. Não testado diretamente · **Apagar o `.duckdb` e reconstruir** dá o mesmo estoque: o
+   marco zero vem do git e é relido a cada run, mas reconstruir exige baixar o histórico.
+6. ✅ **Fixture de exclusão:** uma exclusão de admissão reduz o estoque em 1 (teste
+   unitário `exclusao_de_admissao_reduz_estoque`).
+7. ✅ Comparar o **saldo mensal consolidado** e o **estoque** com o painel oficial do MTE:
+   saldo coincide em 70 de 72 meses de 2020–2025 (as exceções são 202001 e 202003,
+   [auditoria](../auditorias/2026-09-28-painel-vs-mart-socorro.md)); estoque coincide em
+   84 de 84 valores (14 competências de 202006 a 202607).

@@ -48,6 +48,24 @@ sources:
         # defasagem vive em verificar_defasagem() (ingest_caged.py, F11), que
         # olha o warehouse e roda também quando não há nada novo.
 
+  - name: marco_zero
+    description: >
+      Marco zero do estoque (F16/D11): estoque do painel do MTE numa competência de
+      referência, por território × grupamento. Único insumo manual do projeto, versionado
+      no git em marco-zero/ (montado em /marco-zero no container). Fonte e conferência em
+      marco-zero/FONTE.md.
+    tables:
+      - name: estoque
+        description: "Um CSV por território (marco-zero/estoque/<codigo>_<nome>.csv)."
+        meta:
+          external_location: "read_csv('{{ var('marco_zero_dir', '/marco-zero') }}/estoque/*.csv', header=true, all_varchar=true, filename=true)"
+      - name: validacao_painel
+        description: >
+          Estoque do painel em competências posteriores ao marco zero, só para conferência
+          (test_estoque_confere_painel). Não entra no cálculo.
+        meta:
+          external_location: "read_csv('{{ var('marco_zero_dir', '/marco-zero') }}/validacao/*_estoque_painel.csv', header=true, all_varchar=true)"
+
   - name: warehouse
     schema: main
     description: >

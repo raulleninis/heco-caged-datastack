@@ -97,9 +97,10 @@ ver nada sem rodar" da [F10](../fatias/F10-camada-analitica.md).
    guarda esse estado no repositório do arquivo.
 4. O `.duckdb` reconstruído leva o tempo de reprocessar todas as competências
    (~55 MB baixados e ~450 MB extraídos por mês, em média).
-5. **Nem tudo é regenerável:** o **marco zero** do estoque (31/12/2019,
-   [D11](D11-estoque-de-emprego.md)) é inserido à mão. Ele precisa viver no git (como
-   *seed* do dbt), fora do warehouse, ou a "reconstrução do zero" perde o estoque.
+5. **Nem tudo é regenerável:** o **marco zero** do estoque (estoque do painel do MTE ao
+   fim de mar/2020, [D11](D11-estoque-de-emprego.md)) é inserido à mão. Ele vive no git,
+   em [marco-zero/](../../marco-zero/FONTE.md), fora do warehouse, e o dbt o relê a cada
+   run (`stg_marco_zero_estoque`): a "reconstrução do zero" não perde o estoque.
 6. **O warehouse passa a guardar as movimentações de Sergipe** (não só o mart), porque o
    raw é apagado e o estoque é cumulativo ([F16](../fatias/F16-estoque-a-partir-do-marco-zero.md)).
    O tamanho ainda não foi medido na VM.

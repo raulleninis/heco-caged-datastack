@@ -4,8 +4,9 @@ Documentos gerados pela **revisão geral de 21/09/2026**, considerando os dois
 objetivos declarados do projeto: levá-lo a **produção em servidor nuvem**, e usá-lo
 como **vitrine profissional** para vagas de analista de dados.
 
-> ⚠️ **Nada aqui foi aplicado ao código.** São propostas para decisão posterior.
-> O projeto está exatamente como estava antes da revisão.
+> A **revisão** (`revisao/`) é o retrato de 21/09/2026 e não é atualizada. O que já foi
+> aplicado ao código está marcado em cada fatia e no [backlog](fatias/README.md) (✅ feita,
+> 🟡 em andamento).
 
 ## Por onde começar
 
@@ -20,12 +21,14 @@ docs/
 │   ├── 01-sumario-executivo.md    ← comece aqui
 │   ├── 02-achados.md              todos os achados, por dimensão
 │   └── 03-evidencias.md           como reproduzir cada achado
-├── fatias/                        16 unidades de trabalho entregáveis
+├── fatias/                        18 unidades de trabalho entregáveis
 │   ├── README.md                  backlog ordenado, com grafo de dependências
-│   └── F01..F16-*.md
-└── decisoes/                      10 escolhas que dependem de julgamento seu
-    ├── README.md
-    └── D01..D11-*.md
+│   └── F01..F17-*.md
+├── decisoes/                      11 escolhas que dependem de julgamento seu
+│   ├── README.md
+│   └── D01..D11-*.md
+└── auditorias/                    conferências dos dados com fontes externas
+    └── 2026-09-28-painel-vs-mart-socorro.md   mart × painel do MTE (origem do marco zero em mar/2020)
 ```
 
 ## Como estes documentos se relacionam

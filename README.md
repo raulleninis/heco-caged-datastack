@@ -21,6 +21,8 @@ flowchart LR
     STG["dbt: 3 staging incrementais<br/>MOV · FOR · EXC<br/>+ registro de ingestão"]
     MART1["mart_caged_mensal_grupamento<br/>fluxo + salários (só MOV)"]
     MART2["mart_caged_reconciliado<br/>MOV + FOR − EXC<br/>provisório / consolidado"]
+    MZ[("marco-zero/ (git)<br/>estoque do painel MTE<br/>em mar/2020")]
+    MART3["mart_estoque<br/>marco zero + saldos<br/>estoque e taxa"]
     BOL["boletim.py<br/>PDF + XLSX"]
     ARQ[("repositório privado<br/>+ Netlify (login)")]
     MAIL["e-mail (Resend/SMTP)<br/>um por destinatário"]
@@ -30,6 +32,8 @@ flowchart LR
     RAW -->|"um arquivo por vez"| STG
     STG --> MART1
     STG --> MART2
+    STG --> MART3
+    MZ --> MART3
     MART1 --> BOL
     MART2 --> BOL
     BOL -->|"arquiva (git push)"| ARQ
@@ -112,10 +116,29 @@ erDiagram
         varchar situacao "provisório | consolidado"
     }
 
+    stg_marco_zero_estoque {
+        varchar territorio "código IBGE de 6 dígitos (UF: 28)"
+        varchar grupamento
+        bigint estoque "painel do MTE, fim de 202003"
+        bigint competencia_marco_zero
+        bigint retificacoes_ate "FOR/EXC já no painel na coleta"
+    }
+
+    mart_estoque {
+        varchar territorio
+        varchar grupamento
+        bigint competencia_mov
+        bigint saldo_consolidado
+        bigint estoque "NULL antes do marco ou sem marco"
+        double taxa_variacao_mensal "saldo ÷ estoque anterior"
+    }
+
     stg_caged_movimentacoes ||--o{ mart_caged_mensal_grupamento : "agregada em"
     stg_caged_movimentacoes ||--o{ mart_caged_reconciliado : "MOV"
     stg_caged_fora_do_prazo ||--o{ mart_caged_reconciliado : "+ FOR"
     stg_caged_exclusoes ||--o{ mart_caged_reconciliado : "− EXC"
+    stg_marco_zero_estoque ||--o{ mart_estoque : "marco zero (+ ajuste_marco_zero)"
+    stg_caged_movimentacoes ||--o{ mart_estoque : "MOV + FOR − EXC após o marco"
 ```
 
 As staging de FOR e EXC têm as mesmas colunas da de MOV (o EXC tem 2 a mais); a tabela acima mostra só as que
@@ -329,7 +352,7 @@ arquivo foi de fato publicado só se confirma logado.
 # Python: 48 testes (ingestão, reconciliação no boletim, entrega, arquivo). Sem rede e sem Prefect rodando
 docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -B -m unittest discover -s /app/tests -v
 
-# dbt: testes de qualidade sobre o warehouse real
+# dbt: testes de qualidade sobre o warehouse real (inclui 2 testes unitários do estoque)
 docker compose run --rm pipeline dbt test --project-dir /dbt --profiles-dir /dbt
 ```
 
@@ -342,6 +365,10 @@ c = duckdb.connect('/data/warehouse/caged.duckdb', read_only=True)
 print(c.execute('''select competencia_mov, sum(saldo_mov) mov, sum(saldo_fora_prazo) fora_prazo,
                           sum(saldo_exclusoes) exclusoes, sum(saldo_consolidado) consolidado, any_value(situacao)
                    from mart_caged_reconciliado where competencia_mov >= 202601 group by 1 order by 1''').fetchall())
+# estoque e taxa (F16), total do território
+print(c.execute('''select competencia_mov, sum(saldo_consolidado) saldo, sum(estoque) estoque,
+                          round(100.0 * sum(saldo_consolidado) / lag(sum(estoque)) over (order by competencia_mov), 2) taxa_pct
+                   from mart_estoque where territorio = '280480' group by 1 order by 1 desc limit 6''').fetchall())
 "
 ```
 
@@ -428,14 +455,17 @@ mantendo o pico em ~500 MB. **Não reverta para `materialized='table'` com leitu
 │   └── tests/                    # 48 testes Python (ingestão, boletim, entrega/arquivo)
 ├── dbt/
 │   ├── macros/caged.sql          # colunas, CAST e grupamento compartilhados pelas 3 staging
+│   ├── macros/estoque.sql        # efeito no saldo (MOV +, FOR +, EXC −), usado pelo estoque (F16)
 │   ├── models/
-│   │   ├── staging/              # stg_caged_movimentacoes · _fora_do_prazo · _exclusoes (+ _sources.yml)
-│   │   └── marts/                # mart_caged_mensal_grupamento · mart_caged_reconciliado
-│   └── tests/                    # 9 testes singulares (grão, coerência, faixa de salário, sinal do EXC, continuidade…)
+│   │   ├── staging/              # stg_caged_movimentacoes · _fora_do_prazo · _exclusoes · stg_marco_zero_estoque
+│   │   └── marts/                # mart_caged_mensal_grupamento · mart_caged_reconciliado · ajuste_marco_zero · mart_estoque
+│   └── tests/                    # 16 testes singulares (grão, coerência, salário, sinal do EXC, continuidade, estoque…)
+├── marco-zero/                   # estoque do painel do MTE em mar/2020 (único insumo manual) + validação (F16); montado em /marco-zero:ro
 ├── arquivo/                      # esqueleto do repositório PRIVADO do arquivo (edge function, login, script de aceite)
 └── docs/
     ├── fatias/                   # backlog F01…F17 com o registro do que foi feito
     ├── decisoes/                 # D01…D11
+    ├── auditorias/               # conferências com fontes externas (mart × painel do MTE)
     └── revisao/                  # a revisão que originou o backlog
 ```
 
@@ -479,6 +509,15 @@ exclusões e o **saldo consolidado** (MOV + FOR − EXC). Cada competência é m
 chegou com mais de 12 meses de atraso) ou **consolidada** (só exclusões tardias podem alterá-la:
 elas retroagem até 5 anos). As métricas de salário continuam só no mart do MOV.
 
+**Estoque (F16).** `mart_estoque` traz, por território × grupamento × competência, o saldo
+consolidado, o **estoque** e a **taxa de variação mensal** (saldo ÷ estoque do mês anterior). O
+estoque parte do **marco zero**, o estoque do painel do MTE ao fim de mar/2020
+([marco-zero/](marco-zero/FONTE.md)), e soma os saldos a partir de abr/2020. Jan e mar/2020 dos
+microdados divergem do painel ([auditoria](docs/auditorias/2026-09-28-painel-vs-mart-socorro.md)) e
+ficam antes da âncora. Conferido contra o painel em 14 competências de 202006 a 202607: 84 de 84
+valores idênticos (`test_estoque_confere_painel`, warn). É uma estimativa: muda quando chegam
+retificadores de meses passados.
+
 Para carregar o histórico dos arquivos pequenos (FOR e EXC de 2020 em diante):
 
 ```bash
@@ -493,7 +532,10 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [x] Simplificação da arquitetura: remoção do Postgres e do Metabase — DuckDB passa a ser a única camada de dado
 - [x] Ajustes finais de consolidação da migração (revisão de materializações, configs e testes do dbt já 100% DuckDB)
 - [x] Ingestão de `CAGEDFORAAAAMM` (fora do prazo) e `CAGEDEXCAAAAMM` (exclusões) — F12
-- [x] Modelo de reconciliação: mart que combina movimentações + fora do prazo − exclusões, por competência de movimentação — F12 (falta validar contra o painel do PDET)
+- [x] Modelo de reconciliação: mart que combina movimentações + fora do prazo − exclusões, por competência de movimentação — F12. Conferido com o painel do MTE: 70 de 72 meses idênticos em 2020–2025 ([auditoria](docs/auditorias/2026-09-28-painel-vs-mart-socorro.md))
+- [x] Estoque e taxa de variação a partir do marco zero (painel do MTE em mar/2020) — F16 parte 1; 84 de 84 valores idênticos ao painel
+- [ ] Estoque de outros territórios (Aracaju, Barra dos Coqueiros, São Cristóvão, Sergipe): persistir `uf = 28` — F16 parte 2
+- [ ] Estoque e taxa no boletim — F16 parte 3
 - [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
 - [ ] Relatório mensal em PDF via CrewAI
   - [ ] Configuração do CrewAI e definição dos agentes (Analista de Dados, Pesquisador de Contexto, Redator, Revisor)

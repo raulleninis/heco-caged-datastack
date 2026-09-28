@@ -63,6 +63,13 @@ Para Socorro: **estoque de jan (painel) + saldo consolidado de fev (mart local) 
 Isso confirma duas coisas: o "estoque" do painel é o do **fim** da competência, e o painel inclui
 as mesmas retificações que o mart.
 
+## Validação da série (28/09/2026)
+
+O estoque de Socorro calculado a partir deste marco (`mart_estoque`) foi comparado com o do painel
+em 14 competências, de 202006 a 202607 ([validacao/](validacao/)): **84 de 84 valores idênticos**,
+nos cinco grupamentos, e o total também. O `test_estoque_confere_painel` repete essa conferência a
+cada run. Se um dia divergir, a primeira competência com diferença indica onde procurar.
+
 ## Regra de ajuste (atenção)
 
 O estoque de mar/2020 já inclui as retificações de competências até 202003 publicadas até 202607.

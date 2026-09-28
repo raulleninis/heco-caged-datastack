@@ -386,8 +386,9 @@ def _transformar(baixados: list[tuple[str, str]]) -> None:
         )
         _registrar_ingestao(tipo, competencia)
 
-    logger.info("Materializando marts...")
-    run_dbt(["run", "--select", "path:models/marts"])
+    logger.info("Materializando marco zero e marts...")
+    # O marco zero (F16) vem do git e é relido a cada run: editar o CSV basta.
+    run_dbt(["run", "--select", "stg_marco_zero_estoque", "path:models/marts"])
     saida_testes = run_dbt(["test"])
 
     avisos = _testes_em_warn(saida_testes)

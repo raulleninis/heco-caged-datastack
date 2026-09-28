@@ -8,7 +8,8 @@ O MTE migrou o CAGED para o sistema novo (eSocial), e nele **só há dados a par
 janeiro de 2020**. Movimentações dão o **fluxo**; o **estoque** (quantos vínculos
 existem) é um nível, e um nível não se reconstrói somando fluxos sem um ponto de partida.
 
-Estado hoje: o mart tem `saldo_liquido` por mês e grupamento
+Estado quando a decisão foi tomada (o estoque já existe desde 28/09/2026, no
+`mart_estoque`, [F16](../fatias/F16-estoque-a-partir-do-marco-zero.md) parte 1): o mart tinha `saldo_liquido` por mês e grupamento
 ([mart_caged_mensal_grupamento.sql](../../dbt/models/marts/mart_caged_mensal_grupamento.sql)),
 mas **nenhuma noção de nível**. Sem estoque não há taxa (`saldo ÷ estoque`), e a taxa é
 o que permite comparar territórios de tamanhos diferentes (parte C da
@@ -117,11 +118,11 @@ retificadores. Por isso a regra do ajuste do marco zero continua valendo.
 
 | # | Ponto | O que fazer |
 |---|---|---|
-| 1 | **O nível absoluto não tem validação.** Sem fonte oficial para conferir, a qualidade do estoque é a do marco zero. Um erro na base distorce toda taxa na mesma proporção. | Rotular o estoque como **estimativa**. As variações (saldo) continuam confiáveis. |
-| 2 | **O marco zero não se regenera.** | Versionar como *seed* do dbt no git, com **fonte, data de referência e data de coleta**. Único insumo que a [D03](D03-onde-guardar-os-dados.md) (sem backup) não recupera sozinho. |
+| 1 | **O nível depende do marco zero.** Um erro na base distorce toda taxa na mesma proporção. | Rotular o estoque como **estimativa**. Como o marco vem do painel, o nível passou a ser conferível: em 28/09/2026 bateu em 84 de 84 valores (14 competências de 202006 a 202607), e o `test_estoque_confere_painel` repete a conferência a cada run. |
+| 2 | **O marco zero não se regenera.** | Versionado no git em [marco-zero/](../../marco-zero/FONTE.md) (um CSV por território), com **fonte, data de referência, corte de retificações e data de coleta**. Único insumo que a [D03](D03-onde-guardar-os-dados.md) (sem backup) não recupera sozinho. |
 | 3 | **A história é revisada.** Um retificador que chega hoje muda o estoque de meses passados. | O arquivo dos boletins enviados guarda o que foi enviado ([F15](../fatias/F15-entrega-por-email-e-arquivo.md)). |
-| 4 | **O grupamento do marco zero tem que ser o mesmo do código:** A / B–E / F / G / H–U. | Documentar a regra no seed. O FTP tem um "Comunicado - Grupamento de Atividades Econômicas.pdf" na raiz; não o li. |
-| 5 | **Erro cumulativo:** um mês faltante quebra a série. | Teste de continuidade desde abr/2020 ([F16](../fatias/F16-estoque-a-partir-do-marco-zero.md)). |
+| 4 | **O grupamento do marco zero tem que ser o mesmo do código:** A / B–E / F / G / H–U. | Garantido: o painel usa o mesmo "Grande Grupamento", e `stg_marco_zero_estoque` só aceita os seis nomes do código (`accepted_values`). |
+| 5 | **Erro cumulativo:** um mês faltante quebra a série. | `test_continuidade_mov` (desde jan/2020, mais estrito que o necessário para o estoque, que começa em abr/2020). |
 | 6 | **Sem raw, reprocessar exige guardar as movimentações.** | Persistir as linhas de Sergipe já filtradas ([F16](../fatias/F16-estoque-a-partir-do-marco-zero.md)); alinha-se à [D06](D06-retencao-de-dados-brutos.md) (B). |
 
 ## Pontos abertos
@@ -136,10 +137,10 @@ retificadores. Por isso a regra do ajuste do marco zero continua valendo.
   `grupamento` do código já reproduzia a Tabela 1 do MTE letra a letra (A / B,C,D,E /
   F / G / H–U). Foi adicionado `subgrupamento`, o nível 2 dessa mesma tabela — ver
   [stg_caged_movimentacoes.sql](../../dbt/models/staging/stg_caged_movimentacoes.sql).
-  O marco zero deve usar a granularidade que fizer sentido: por `grupamento` (6
-  categorias) ou por `subgrupamento` (mais fino, mas exige mais valores manuais).
-- **A pasta `Legado`** do FTP: não a abri. Pode conter o CAGED anterior a 2020, o que
-  seria uma pista para a fonte do marco zero; o universo de vínculos pode não coincidir
-  com o do eSocial.
-- **Ampliar a amostra** dos retificadores para confirmar se aparece competência anterior
-  a 2020.
+  O marco zero ficou por `grupamento` (6 categorias), a granularidade do painel.
+- ~~A pasta `Legado` do FTP como pista para a fonte do marco zero.~~ **Dispensada:** o
+  marco veio do painel do MTE.
+- ~~Ampliar a amostra dos retificadores para confirmar se aparece competência anterior
+  a 2020.~~ **Resolvido para Socorro:** com o histórico completo de FOR/EXC carregado
+  (F12), nenhuma linha do município tem competência anterior a 202001. Com o marco em
+  mar/2020, o que importa passou a ser o corte `retificacoes_ate` (ver acima).

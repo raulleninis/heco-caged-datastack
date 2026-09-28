@@ -21,7 +21,7 @@ Cada fatia em [docs/fatias/](../fatias/) que depende de uma delas está marcada.
 | [D08](D08-gestao-de-segredos.md) | Gestão de segredos | [F13](../fatias/F13-migracao-nuvem.md) | `.env` 600, escopo mínimo | decidida · 21/09/2026 |
 | [D09](D09-claude-md-na-vitrine.md) | O que fazer com o CLAUDE.MD | [F14](../fatias/F14-narrativa-do-repositorio.md) | D com A como acabamento | decidida · 21/09/2026 |
 | [D10](D10-escopo-analitico.md) | Escopo analítico do projeto | [F10](../fatias/F10-camada-analitica.md) | B + C ancoradas por D | decidida · 21/09/2026 |
-| [D11](D11-estoque-de-emprego.md) | Como constituir o estoque de emprego | [F16](../fatias/F16-estoque-a-partir-do-marco-zero.md), [F10](../fatias/F10-camada-analitica.md) | marco zero manual (31/12/2019) por município × grupamento + movimentações MOV/FOR/EXC | decidida · revisada 22/09/2026 (pontos abertos) |
+| [D11](D11-estoque-de-emprego.md) | Como constituir o estoque de emprego | [F16](../fatias/F16-estoque-a-partir-do-marco-zero.md), [F10](../fatias/F10-camada-analitica.md) | marco zero = estoque do painel do MTE em mar/2020, por território × grupamento, + movimentações MOV/FOR/EXC desde abr/2020 | decidida · revisada 28/09/2026 · F16 parte 1 aplicada |
 
 ## Pontos que continuam abertos dentro de decisões já tomadas
 

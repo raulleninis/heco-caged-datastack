@@ -65,3 +65,96 @@ models:
           - accepted_values:
               arguments:
                 values: ['provisório', 'consolidado']
+
+  - name: ajuste_marco_zero
+    description: >
+      Ajuste calculado do marco zero (F16/D11): FOR/EXC que corrigem competências até a do
+      marco e chegaram em arquivos posteriores a `retificacoes_ate`. Vazio em regime normal.
+    columns:
+      - name: territorio
+        tests:
+          - not_null
+      - name: grupamento
+        tests:
+          - not_null
+      - name: ajuste
+        description: "Soma do efeito no saldo (FOR +saldo, EXC −saldo)."
+
+  - name: mart_estoque
+    description: >
+      Estoque de emprego (estimativa a partir do marco zero) e taxa de variação mensal por
+      território × grupamento × competência (F16/D11). Estoque e taxa ficam NULL antes do
+      marco zero e em território sem marco zero; o saldo existe sempre.
+    columns:
+      - name: territorio
+        tests:
+          - not_null
+      - name: grupamento
+        tests:
+          - not_null
+      - name: competencia_mov
+        tests:
+          - not_null
+      - name: saldo_consolidado
+        description: "MOV + FOR − EXC da competência. Coincide com mart_caged_reconciliado.saldo_consolidado."
+        tests:
+          - not_null
+      - name: estoque
+        description: "marco zero + ajuste + saldos acumulados após o marco. NULL antes do marco ou sem marco."
+      - name: taxa_variacao_mensal
+        description: "saldo_consolidado ÷ estoque do mês anterior (fração). NULL sem estoque anterior ou com estoque 0."
+      - name: competencia_marco_zero
+        description: "Competência do marco zero do território (NULL se não houver)."
+
+unit_tests:
+  - name: exclusao_de_admissao_reduz_estoque
+    description: >
+      Critério 6 da F16. Marco de 100 em 202003; em 202004 duas admissões no MOV e a
+      exclusão de uma admissão (o EXC traz +1, o efeito é −1). Sem a exclusão seriam 102.
+      A movimentação de 202003 não entra: o marco já a contém.
+    model: mart_estoque
+    given:
+      - input: ref('stg_marco_zero_estoque')
+        rows:
+          - {territorio: '280480', grupamento: 'Indústria', estoque: 100, competencia_marco_zero: 202003, retificacoes_ate: 202607}
+      - input: ref('ajuste_marco_zero')
+        rows: []
+      - input: ref('stg_caged_movimentacoes')
+        rows:
+          - {municipio: 280480, grupamento: 'Indústria', competencia_mov: 202003, saldo_movimentacao: 1}
+          - {municipio: 280480, grupamento: 'Indústria', competencia_mov: 202004, saldo_movimentacao: 1}
+          - {municipio: 280480, grupamento: 'Indústria', competencia_mov: 202004, saldo_movimentacao: 1}
+      - input: ref('stg_caged_fora_do_prazo')
+        rows: []
+      - input: ref('stg_caged_exclusoes')
+        rows:
+          - {municipio: 280480, grupamento: 'Indústria', competencia_mov: 202004, competencia_arquivo: 202605, saldo_movimentacao: 1}
+    expect:
+      rows:
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202001, saldo_consolidado: 0, estoque: null}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202002, saldo_consolidado: 0, estoque: null}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202003, saldo_consolidado: 1, estoque: 100}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202004, saldo_consolidado: 1, estoque: 101}
+
+  - name: ajuste_ignora_o_que_o_painel_ja_incorporou
+    description: >
+      Duplo ajuste (D11). Duas declarações fora do prazo para 202002: a de 202601 já estava
+      no painel quando o marco foi coletado (retificacoes_ate 202607) e não entra; a de
+      202608 chegou depois e ajusta o marco. Uma de 202004 não é ajuste (entra no fluxo).
+    model: ajuste_marco_zero
+    given:
+      - input: ref('stg_marco_zero_estoque')
+        rows:
+          - {territorio: '280480', grupamento: 'Comércio', estoque: 50, competencia_marco_zero: 202003, retificacoes_ate: 202607}
+      - input: ref('stg_caged_movimentacoes')
+        rows: []
+      - input: ref('stg_caged_fora_do_prazo')
+        rows:
+          - {municipio: 280480, grupamento: 'Comércio', competencia_mov: 202002, competencia_arquivo: 202601, saldo_movimentacao: 1}
+          - {municipio: 280480, grupamento: 'Comércio', competencia_mov: 202002, competencia_arquivo: 202608, saldo_movimentacao: -1}
+          - {municipio: 280480, grupamento: 'Comércio', competencia_mov: 202004, competencia_arquivo: 202608, saldo_movimentacao: 1}
+      - input: ref('stg_caged_exclusoes')
+        rows: []
+    expect:
+      rows:
+        - {territorio: '280480', grupamento: 'Comércio', linhas: 1, ajuste: -1}
