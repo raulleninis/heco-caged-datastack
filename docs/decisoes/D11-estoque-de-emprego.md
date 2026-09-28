@@ -19,34 +19,43 @@ o que permite comparar territórios de tamanhos diferentes (parte C da
 | Data | Decisão |
 |---|---|
 | 21/09/2026 | valor inicial manual **em jan/2020, já após as movimentações do mês**; fonte a definir (RAIS considerada) |
-| **22/09/2026** | **RAIS descartada** (exigiria mais tempo que o disponível). Valor inicial manual = **marco zero anterior a jan/2020**; movimentações aplicadas por cima desde jan/2020 |
+| 22/09/2026 | **RAIS descartada** (exigiria mais tempo que o disponível). Valor inicial manual = **marco zero anterior a jan/2020**; movimentações aplicadas por cima desde jan/2020 |
+| **28/09/2026** | Marco zero passa a ser o **estoque do painel do MTE ao fim de mar/2020**; movimentações aplicadas desde **abr/2020**. Motivo: 202001 e 202003 divergem do painel por versão dos `CAGEDMOV` no FTP, não por erro do projeto |
 
-## Decisão vigente (22/09/2026)
+## Decisão vigente (28/09/2026)
 
-> **Escolha:** definir à mão um **marco zero** do estoque, **por município × grupamento**,
-> referente ao **fim de dezembro de 2019**, e derivar o estoque de cada mês aplicando as
-> movimentações a partir de **jan/2020**.
-> **Porquê:** o sistema novo não tem histórico anterior, e a RAIS demandaria mais tempo
-> do que há.
+> **Escolha:** usar como **marco zero** o estoque do **painel do Novo CAGED (MTE)** ao
+> **fim de março de 2020**, **por território × grupamento**. O estoque de cada mês sai
+> das movimentações aplicadas a partir de **abr/2020**. Valores e fonte em
+> [marco-zero/](../../marco-zero/FONTE.md).
+> **Porquê:** o painel é a fonte oficial do nível e já traz as retificações. Ancorar em
+> mar/2020 deixa fora da série os dois meses em que os microdados do FTP não reproduzem
+> o painel (202001 e 202003).
 
 ```
-estoque(t) = marco_zero_ajustado + Σ efeito_no_saldo, de jan/2020 até t
+estoque(t) = marco_zero_ajustado + Σ efeito_no_saldo, de abr/2020 até t
 
 efeito_no_saldo:   CAGEDMOV → +saldo_movimentacao
                    CAGEDFOR → +saldo_movimentacao
                    CAGEDEXC → −saldo_movimentacao      (ver "Sinal das exclusões")
 
 marco_zero_ajustado = marco_zero_manual + Σ efeito_no_saldo das linhas de FOR/EXC
-                      com competência de movimentação ANTERIOR a jan/2020
+                      com competência de movimentação ATÉ mar/2020
+                      E vindas de arquivos POSTERIORES a 202607
 ```
+
+O corte em 202607 existe porque o painel (atualizado em 28/08/2026) **já inclui** os
+retificadores publicados até essa competência. Em Socorro são 300 linhas (efeito −106)
+que, somadas de novo, contariam duas vezes.
 
 Regras que valem junto:
 
 1. **O valor manual é imutável.** O ajuste é **calculado** numa tabela derivada, nunca
    digitado por cima. Reconstruir o warehouse do zero reproduz o mesmo resultado.
-2. **Territórios:** hoje só Nossa Senhora do Socorro (código de 6 dígitos **280480**, o
-   que aparece nos arquivos; o de 7 dígitos, 2804805, não). Aracaju (280030) e Sergipe
-   entram depois, **inserindo o marco zero deles**, sem reprocessar o histórico.
+2. **Territórios:** marco zero coletado para Nossa Senhora do Socorro (**280480**; códigos
+   de 6 dígitos, os que aparecem nos arquivos), Aracaju (280030), Barra dos Coqueiros
+   (280060), São Cristóvão (280670) e Sergipe (UF 28). Cada um passa a ter estoque quando
+   for ativado, **sem reprocessar o histórico**.
 3. **A falta de marco zero de um território não bloqueia nada.** Estoque e taxa ficam
    `NULL` para ele; fluxo e boletim continuam sendo gerados.
 4. **Desagregações (sexo, raça/cor, faixa etária, ocupação) usam só fluxo**: um mês, uma
@@ -112,14 +121,16 @@ retificadores. Por isso a regra do ajuste do marco zero continua valendo.
 | 2 | **O marco zero não se regenera.** | Versionar como *seed* do dbt no git, com **fonte, data de referência e data de coleta**. Único insumo que a [D03](D03-onde-guardar-os-dados.md) (sem backup) não recupera sozinho. |
 | 3 | **A história é revisada.** Um retificador que chega hoje muda o estoque de meses passados. | O arquivo dos boletins enviados guarda o que foi enviado ([F15](../fatias/F15-entrega-por-email-e-arquivo.md)). |
 | 4 | **O grupamento do marco zero tem que ser o mesmo do código:** A / B–E / F / G / H–U. | Documentar a regra no seed. O FTP tem um "Comunicado - Grupamento de Atividades Econômicas.pdf" na raiz; não o li. |
-| 5 | **Erro cumulativo:** um mês faltante quebra a série. | Teste de continuidade desde jan/2020 ([F16](../fatias/F16-estoque-a-partir-do-marco-zero.md)). |
+| 5 | **Erro cumulativo:** um mês faltante quebra a série. | Teste de continuidade desde abr/2020 ([F16](../fatias/F16-estoque-a-partir-do-marco-zero.md)). |
 | 6 | **Sem raw, reprocessar exige guardar as movimentações.** | Persistir as linhas de Sergipe já filtradas ([F16](../fatias/F16-estoque-a-partir-do-marco-zero.md)); alinha-se à [D06](D06-retencao-de-dados-brutos.md) (B). |
 
 ## Pontos abertos
 
-- **O valor e a fonte do marco zero de Socorro**, por grupamento (incluindo
-  "Não Identificado", que hoje tem 0 registros).
-- **Os marcos zero de Aracaju e Sergipe:** ficam para depois, sem bloquear.
+- ~~O valor e a fonte do marco zero de Socorro~~ e ~~os de Aracaju e Sergipe~~.
+  **Resolvido em 28/09/2026:** painel do MTE, mar/2020, em [marco-zero/](../../marco-zero/FONTE.md).
+- **Divergência de 202001 e 202003** entre o FTP e o painel
+  ([auditoria](../auditorias/2026-09-28-painel-vs-mart-socorro.md)): pedir esclarecimento
+  ao MTE/PDET. Afeta o fluxo desses meses, não o estoque.
 - ~~Ler o "Comunicado - Grupamento de Atividades Econômicas" e conferir se o
   agrupamento do código combina com o oficial.~~ **Resolvido em 22/09/2026:** o
   `grupamento` do código já reproduzia a Tabela 1 do MTE letra a letra (A / B,C,D,E /

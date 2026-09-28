@@ -10,9 +10,10 @@
 ## Objetivo
 
 Produzir o **estoque de emprego** por município × grupamento e, com ele, a taxa de
-variação, a partir de um marco zero manual (fim de dez/2019) e das movimentações
-`MOV + FOR − EXC`. Funciona hoje **só com Socorro** e aceita Aracaju e Sergipe depois,
-**apenas inserindo dados**.
+variação, a partir de um marco zero manual (estoque do painel do MTE ao **fim de
+mar/2020**, ver [D11](../decisoes/D11-estoque-de-emprego.md)) e das movimentações
+`MOV + FOR − EXC` a partir de **abr/2020**. Funciona hoje **só com Socorro** e aceita
+outros territórios depois, **apenas inserindo dados**.
 
 *Nada disto foi aplicado ao código.*
 
@@ -50,14 +51,18 @@ Sergipe entram depois por uma linha, sem código novo.
 
 ### 2. Marco zero
 
-Seed `marco_zero_estoque.csv`, versionado no git:
+**Já coletado** (28/09/2026): um CSV por território em
+[marco-zero/estoque/](../../marco-zero/estoque/), versionado no git, com fonte e
+conferência em [marco-zero/FONTE.md](../../marco-zero/FONTE.md). Territórios: Socorro,
+Aracaju, Barra dos Coqueiros, São Cristóvão e Sergipe. O dbt lê os arquivos por glob
+(ou os une num seed); adicionar um território = adicionar um arquivo.
 
 | coluna | |
 |---|---|
-| `territorio` | código de 6 dígitos |
+| `territorio` | código de 6 dígitos (UF: `28`) |
 | `grupamento` | mesmas seis categorias do código, incluindo "Não Identificado" |
-| `estoque` | valor manual |
-| `data_referencia` | `2019-12-31` |
+| `estoque` | valor do painel |
+| `data_referencia` | `2020-03-31` |
 | `fonte` | **obrigatória**: de onde veio o número e a metodologia |
 | `coletado_em` | data em que foi obtido |
 
@@ -92,9 +97,14 @@ O sinal da EXC está **confirmado nos dados**
 ([D11](../decisoes/D11-estoque-de-emprego.md#sinal-das-exclusões)): a coluna preserva o
 sinal do evento excluído, então o efeito é o inverso.
 
-Linhas de FOR/EXC com `competencia_mov < 2020-01` alimentam uma tabela derivada
-`ajuste_marco_zero` (por território × grupamento). Nas duas amostras que examinei ela
-sairia vazia, mas a regra fica.
+Linhas de FOR/EXC com `competencia_mov <= 2020-03` **e** `competencia_arquivo > 202607`
+alimentam uma tabela derivada `ajuste_marco_zero` (por território × grupamento). O corte
+em 202607 é a última competência que o painel já incorporava na coleta. As linhas
+anteriores **já estão no marco zero**: em Socorro são 300 linhas com efeito −106, que
+seriam contadas duas vezes. Hoje a tabela sai vazia.
+
+Linhas com `competencia_mov` entre 2020-01 e 2020-03 **não** entram no acumulado do
+estoque (continuam no fluxo).
 
 ### 5. Mart de estoque
 
@@ -117,10 +127,11 @@ nem o envio da [F15](F15-entrega-por-email-e-arquivo.md).
 
 | teste | severidade |
 |---|---|
-| **Continuidade:** existe `CAGEDMOV` para cada competência desde 202001, sem lacuna | `error` |
+| **Continuidade:** existe `CAGEDMOV` para cada competência desde 202004, sem lacuna | `error` |
 | **Sinal da EXC:** admissões excluídas têm efeito `−1`; desligamentos excluídos, `+1` | `error` |
 | Estoque nunca negativo | `error` |
-| Linhas de FOR/EXC com competência anterior a 2020 | `warn` (informa que o ajuste do marco zero foi acionado) |
+| `ajuste_marco_zero` não vazio (FOR/EXC de competência ≤ 202003 publicado depois de 202607) | `warn` (informa que o ajuste do marco zero foi acionado) |
+| Marco zero: seis grupamentos por território, mesma `data_referencia` | `error` |
 | Território ativo sem marco zero | `warn` |
 | Unicidade de `arquivo_origem` por tipo e competência | `error` |
 
@@ -134,11 +145,12 @@ nem o envio da [F15](F15-entrega-por-email-e-arquivo.md).
 ## Critério de aceite
 
 1. Com **só Socorro**, `mart_estoque` traz estoque e taxa para cada grupamento.
-2. **Adicionar Aracaju** = uma linha em `territorios.csv` + linhas em
-   `marco_zero_estoque.csv`. **Sem reprocessar o histórico**, Aracaju aparece.
+2. **Ativar Aracaju** = uma linha em `territorios.csv` (o marco zero já existe em
+   `marco-zero/estoque/`). **Sem reprocessar o histórico**, Aracaju aparece.
 3. Território **sem marco zero**: fluxo presente, estoque `NULL`, boletim gerado.
 4. **Reprocessar o mesmo arquivo duas vezes** não altera o estoque.
 5. **Apagar o `.duckdb` e reconstruir** dá o mesmo estoque (o marco zero vem do git).
 6. **Fixture de exclusão:** uma exclusão de admissão reduz o estoque em 1.
-7. Comparar o **saldo mensal consolidado** com o painel oficial do PDET para o mesmo
-   município e competência (validação do fluxo; o nível continua sem validação).
+7. Comparar o **saldo mensal consolidado** e o **estoque** com o painel oficial do MTE
+   para o mesmo território e competência (por exemplo, 202512). Como o marco zero vem do
+   painel, o nível agora também pode ser validado.
