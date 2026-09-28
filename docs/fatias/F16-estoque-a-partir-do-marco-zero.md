@@ -15,10 +15,16 @@ mar/2020**, ver [D11](../decisoes/D11-estoque-de-emprego.md)) e das movimentaç�
 `MOV + FOR − EXC` a partir de **abr/2020**. Funciona hoje **só com Socorro** e aceita
 outros territórios depois, **apenas inserindo dados**.
 
-**Estado (28/09/2026): parte 1 feita.** O marco zero, o `ajuste_marco_zero`, o `mart_estoque` e
-os testes rodam sobre a staging atual, que só guarda Socorro. O estoque bate com o painel em
-84 de 84 valores (14 competências de 202006 a 202607). Falta a parte 2 (itens 1 e 3:
-persistir `uf = 28` e criar `territorios.csv`) e a parte 3 (item 6: boletim).
+**Estado (28/09/2026):**
+
+- **Parte 1 feita:** marco zero, `ajuste_marco_zero`, `mart_estoque` e testes. O estoque de
+  Socorro bate com o painel em 84 de 84 valores (14 competências de 202006 a 202607).
+- **Parte 2, código feito (branch `f16-parte2`):** staging com Sergipe inteiro, seed
+  `territorios.csv`, marts do boletim filtrando o município, SHA-256 no registro de ingestão.
+  Medido com limite de 830 MiB: pico de 405 MiB por arquivo MOV.
+  **Falta em produção:** reprocessar o histórico (`backfill 2020..2026 --refazer`), ativar os
+  outros territórios e medir o tamanho do warehouse.
+- **Parte 3 (item 6, boletim):** não começada.
 
 ## O problema de arquitetura que esta fatia resolve
 
@@ -48,9 +54,15 @@ não medi.
 
 ### 1. Configuração de territórios
 
-Seed `territorios.csv`: código de 6 dígitos (o que aparece nos arquivos), nome, tipo
-(`municipio` ou `uf`), `ativo`. Começa com Socorro (`280480`). Aracaju (`280030`) e
-Sergipe entram depois por uma linha, sem código novo.
+✅ Seed [`dbt/seeds/territorios.csv`](../../dbt/seeds/territorios.csv): `territorio`
+(código de 6 dígitos, o que aparece nos arquivos, ou `28` para a UF), `nome`, `tipo`
+(`municipio` ou `uf`), `ativo`. Já traz os cinco territórios do marco zero; só Socorro
+ativo até o histórico ser reprocessado. O macro `efeito_no_saldo()` faz o join: `municipio`
+casa com o município, `uf` com a UF inteira.
+
+Os marts de fluxo e salário (`mart_caged_mensal_grupamento`, `mart_caged_reconciliado`) e o
+boletim continuam sendo de **um município**: filtram `municipio = var('municipio_boletim')`
+(280480, em `dbt_project.yml`).
 
 ### 2. Marco zero
 
@@ -76,18 +88,15 @@ O valor **nunca é editado** para absorver retificadores; isso é calculado (ite
 
 ### 3. Persistir as movimentações, por arquivo
 
-Tabela `movimentacoes` (no warehouse) com as linhas de `uf = 28` de **todos** os tipos,
-mais:
+✅ **Sem tabela nova.** As três stagings incrementais da F12 já são a persistência por
+arquivo: `delete+insert` por `competencia_arquivo` (FOR/EXC) ou `competencia_mov` (MOV), então
+reprocessar um arquivo **substitui** as linhas dele. Mudou só o filtro: de `município =
+280480` para `uf = 28` (~26 mil linhas/mês no MOV, 74 municípios em 202607).
 
-| coluna | |
-|---|---|
-| `tipo_arquivo` | `MOV`, `FOR` ou `EXC` |
-| `arquivo_origem` | nome do arquivo (por exemplo `CAGEDEXC202607`) |
-| `sha256` | do arquivo baixado |
-
-Reprocessar um arquivo **substitui** as linhas dele (apaga por `arquivo_origem` e
-insere), nunca soma por cima. Isso torna o estoque idempotente. Só as colunas da EXC
-`competenciaexc` e `indicadordeexclusao` são exclusivas daquele tipo.
+O registro `ingestao_arquivos` ganhou `sha256` e `bytes` do .7z baixado (NULL nos
+registros anteriores), para identificar um arquivo histórico republicado pelo PDET, como
+recomendou a [auditoria](../auditorias/2026-09-28-painel-vs-mart-socorro.md). Comparar com
+o FTP periodicamente fica para depois.
 
 Cuidado herdado da F12: os três tipos **não podem** cair na mesma pasta lida por glob,
 ou FOR e EXC são somados como MOV em silêncio.
@@ -151,11 +160,12 @@ nem o envio da [F15](F15-entrega-por-email-e-arquivo.md).
 | Estoque nunca negativo | `error` | ✅ `test_estoque_nao_negativo` |
 | `ajuste_marco_zero` não vazio (FOR/EXC de competência ≤ 202003 publicado depois de 202607) | `warn` (informa que o ajuste do marco zero foi acionado) | ✅ `test_ajuste_marco_zero_acionado` + teste unitário `ajuste_ignora_o_que_o_painel_ja_incorporou` |
 | Marco zero: seis grupamentos por território, mesma `data_referencia` e mesmo `retificacoes_ate` | `error` | ✅ `test_marco_zero_completo` |
-| Território ativo sem marco zero | `warn` | ✅ `test_territorio_sem_marco_zero` |
+| Território ativo sem marco zero | `warn` | ✅ `test_territorio_sem_marco_zero` (lê o seed) |
 | Unicidade do grão de `mart_estoque` | `error` | ✅ `test_unicidade_grao_estoque` |
+| Território por município e por UF; inativo fora; ativo sem marco com estoque NULL | `error` | ✅ teste unitário `territorios_por_municipio_e_por_uf` |
 | Coerência: saldo = reconciliado; estoque(t) − estoque(t−1) = saldo(t) | `error` | ✅ `test_coerencia_estoque` |
 | **Estoque confere com o painel** (`marco-zero/validacao/`), recalculado só com os arquivos até a foto do painel | `warn` | ✅ `test_estoque_confere_painel`: 84/84 em 28/09/2026 |
-| Unicidade de `arquivo_origem` por tipo e competência | `error` | parte 2 |
+| Unicidade de (tipo, competência) no registro de ingestão | `error` | ✅ `test_unicidade_ingestao_arquivos` |
 
 ## Fora de escopo
 
@@ -167,10 +177,12 @@ nem o envio da [F15](F15-entrega-por-email-e-arquivo.md).
 ## Critério de aceite
 
 1. ✅ Com **só Socorro**, `mart_estoque` traz estoque e taxa para cada grupamento.
-2. Parte 2 · **Ativar Aracaju** = uma linha em `territorios.csv` (o marco zero já existe
-   em `marco-zero/estoque/`). **Sem reprocessar o histórico**, Aracaju aparece.
-3. Parcial · Território **sem marco zero**: fluxo presente e estoque `NULL` (regra no
-   `mart_estoque`); falta "boletim gerado" (parte 3) e um território real para exercitar.
+2. Código pronto, falta o histórico · **Ativar Aracaju** = mudar `ativo` em
+   `territorios.csv` (o marco zero já existe em `marco-zero/estoque/`). **Sem reprocessar o
+   histórico**, Aracaju aparece. Exercitado numa cópia com todos ativos; vale de verdade
+   depois do reprocessamento único com `uf = 28`.
+3. Parcial · Território **sem marco zero**: fluxo presente e estoque `NULL` (teste
+   unitário `territorios_por_municipio_e_por_uf`); falta "boletim gerado" (parte 3).
 4. Não testado diretamente · **Reprocessar o mesmo arquivo duas vezes** não altera o
    estoque. Depende do incremental `delete+insert` das stagings (F12), que já existia; o
    `mart_estoque` é recalculado inteiro a cada run.

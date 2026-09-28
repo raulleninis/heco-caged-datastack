@@ -5,7 +5,8 @@
 ## Contexto
 
 `data/raw` tem **2,5 GB** e cresce ~450 MB/mês. Nada é apagado. Desses 450 MB por
-competência, o projeto usa **~1.500 linhas** (um município).
+competência, o projeto usa **~1.500 linhas** (um município; ~26 mil, Sergipe inteiro, desde a
+[F16](../fatias/F16-estoque-a-partir-do-marco-zero.md) parte 2).
 
 ## A dependência que complica
 

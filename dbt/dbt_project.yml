@@ -7,10 +7,26 @@ require-dbt-version: ">=1.10.0"
 profile: 'caged_analytics'
 
 model-paths: ["models"]
+seed-paths: ["seeds"]
 
 clean-targets:
   - "target"
   - "dbt_packages"
+
+vars:
+  # Município do boletim (F15) e dos marts de fluxo/salário (mart_caged_mensal_grupamento,
+  # mart_caged_reconciliado). A staging guarda Sergipe inteiro (uf = 28, F16 parte 2); estes
+  # marts continuam sendo de um município só. Os territórios do estoque vêm de seeds/territorios.csv.
+  municipio_boletim: 280480
+
+seeds:
+  caged_analytics:
+    territorios:
+      +column_types:
+        territorio: varchar
+        nome: varchar
+        tipo: varchar
+        ativo: boolean
 
 models:
   caged_analytics:

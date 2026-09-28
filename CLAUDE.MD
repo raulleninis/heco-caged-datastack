@@ -65,7 +65,7 @@ escrita em qualquer outro lugar até fechar a conexão.
 - `dbt/models/staging/stg_caged_movimentacoes.sql` — materializada como
   `incremental` (`delete+insert`, `unique_key='competencia_mov'`), lê do
   source acima (tudo VARCHAR), faz CAST explícito por coluna, filtra uf=28
-  (SE) e municipio=280480 (N. Sra. do Socorro), deriva `grupamento` e
+  (Sergipe inteiro, F16 parte 2; o município é filtrado nos marts), deriva `grupamento` e
   `subgrupamento`
 - `dbt/tests/` — testes singulares: unicidade do grão do mart, coerência
   aritmética (`saldo_liquido = admissoes - desligamentos`), faixa plausível
@@ -193,9 +193,13 @@ commit + push no repositório privado do arquivo. Regras que não são óbvias:
 - Testes que travam as premissas: `test_exc_preserva_sinal_do_evento`, `test_coerencia_reconciliado`,
   `test_continuidade_mov` (erro) e `test_continuidade_for_exc` (warn: o PDET pode publicar FOR/EXC
   depois do MOV). O boletim (F15) usa o mart reconciliado e cai no só-MOV se ele não existir
-- Filtro territorial continua `município = 280480` na staging (a F16 parte 2 o generaliza)
+- Filtro territorial (F16 parte 2): a staging guarda Sergipe inteiro (`uf = 28`, ~26 mil
+  linhas/mês no MOV). `mart_caged_mensal_grupamento`, `mart_caged_reconciliado` e o teste de
+  salário individual filtram `municipio = {{ var('municipio_boletim') }}` (280480, em
+  dbt_project.yml). ARMADILHA: todo mart ou teste novo que leia a staging precisa filtrar o
+  território, senão soma o estado inteiro em silêncio
 
-## Estoque a partir do marco zero (F16 parte 1)
+## Estoque a partir do marco zero (F16)
 - `marco-zero/` (git, montado em `/marco-zero:ro`): estoque do painel do MTE ao fim de 202003, um
   CSV por território; `normalizar.py` gera os CSVs dos originais do painel. Âncora em mar/2020
   porque 202001 e 202003 do FTP divergem do painel (docs/auditorias/). Valor manual IMUTÁVEL
@@ -206,15 +210,19 @@ commit + push no repositório privado do arquivo. Regras que não são óbvias:
   (202607); os anteriores já estão no número do painel (somá-los contaria −106 duas vezes)
 - `test_estoque_confere_painel` (warn) recalcula o estoque só com os arquivos até a foto do painel
   e compara com `marco-zero/validacao/`: continua válido depois de novos retificadores
-- O flow roda `dbt run --select stg_marco_zero_estoque path:models/marts`
+- Territórios do estoque: seed `dbt/seeds/territorios.csv` (`municipio` casa com o código de 6
+  dígitos, `uf` com a UF). Só os `ativo` entram (macro `efeito_no_saldo()` faz o join). Ativar
+  = mudar a coluna, sem reprocessar, porque a staging já tem o estado todo
+- O flow roda `dbt seed` e depois `dbt run --select stg_marco_zero_estoque path:models/marts`
+- `ingestao_arquivos` guarda `sha256` e `bytes` do .7z (NULL nos registros anteriores à parte 2)
 
 ## Fuso horário
 O cron do `ingest_caged` é `"0 3 * * *"` — 3h UTC, meia-noite em Brasília.
 Definido em `prefect.yaml` com `timezone: "America/Maceio"` para clareza.
 
 ## Limitação de memória — staging incremental é obrigatória, não opcional
-Cada `.txt` bruto tem ~450-500MB (Brasil inteiro; filtramos ~1.500-2.000
-linhas de N. Sra. do Socorro). Ler todas as competências de uma vez via
+Cada `.txt` bruto tem ~450-500MB (Brasil inteiro; filtramos ~26 mil
+linhas de Sergipe; medido na F16 parte 2: pico de 405 MiB por arquivo MOV com limite de 830 MiB). Ler todas as competências de uma vez via
 glob (`*.txt`) estoura memória — validado em runtime: só funcionava com
 `mem_limit >= 3g`. O **servidor real de produção tem 830MB RAM total**
 (~484MB disponível, ver D02) — nunca caberia processar tudo de uma vez.

@@ -1,0 +1,26 @@
+version: 2
+
+seeds:
+  - name: territorios
+    description: >
+      Territórios do estoque (F16 parte 2). `municipio` casa com o código IBGE de 6 dígitos
+      dos microdados; `uf` com a UF, somando todos os municípios. Só os `ativo` entram no
+      mart_estoque: ativar um território é mudar esta coluna, sem reprocessar o histórico,
+      porque a staging já guarda Sergipe inteiro. O marco zero de cada um fica em marco-zero/.
+    columns:
+      - name: territorio
+        tests:
+          - not_null
+          - unique
+      - name: nome
+        tests:
+          - not_null
+      - name: tipo
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['municipio', 'uf']
+      - name: ativo
+        tests:
+          - not_null

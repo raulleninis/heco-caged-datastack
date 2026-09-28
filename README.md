@@ -18,7 +18,7 @@ flowchart LR
     FTP[("FTP público<br/>ftp.mtps.gov.br<br/>MOV · FOR · EXC")]
     SCAN["Prefect (cron diário)<br/>varre os últimos 6 meses<br/>por arquivo (tipo, competência)"]
     RAW[("/data/raw/extraido<br/>.txt (apagado após os testes)")]
-    STG["dbt: 3 staging incrementais<br/>MOV · FOR · EXC<br/>+ registro de ingestão"]
+    STG["dbt: 3 staging incrementais<br/>MOV · FOR · EXC (Sergipe, uf = 28)<br/>+ registro de ingestão"]
     MART1["mart_caged_mensal_grupamento<br/>fluxo + salários (só MOV)"]
     MART2["mart_caged_reconciliado<br/>MOV + FOR − EXC<br/>provisório / consolidado"]
     MZ[("marco-zero/ (git)<br/>estoque do painel MTE<br/>em mar/2020")]
@@ -349,7 +349,7 @@ arquivo foi de fato publicado só se confirma logado.
 ### 6. Testes do projeto
 
 ```bash
-# Python: 48 testes (ingestão, reconciliação no boletim, entrega, arquivo). Sem rede e sem Prefect rodando
+# Python: 51 testes (ingestão, reconciliação no boletim, entrega, arquivo). Sem rede e sem Prefect rodando
 docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -B -m unittest discover -s /app/tests -v
 
 # dbt: testes de qualidade sobre o warehouse real (inclui 2 testes unitários do estoque)
@@ -433,9 +433,9 @@ público continua sendo a fonte de verdade para reprocessar.
 
 ### Por que incremental, não `table`
 
-Cada `.txt` do MOV tem ~450-500 MB (o Brasil inteiro; filtramos ~2.000 linhas do município). Ler todas as competências
+Cada `.txt` do MOV tem ~450-500 MB (o Brasil inteiro; filtramos ~26 mil linhas de Sergipe). Ler todas as competências
 de uma vez estoura memória, e o servidor de produção tem **830 MB de RAM**. A staging processa **um arquivo por vez**,
-mantendo o pico em ~500 MB. **Não reverta para `materialized='table'` com leitura por glob** sem resolver isso antes.
+mantendo o pico em ~500 MB (medido: 405 MiB por arquivo MOV com limite de 830 MiB, F16). **Não reverta para `materialized='table'` com leitura por glob** sem resolver isso antes.
 
 ## Estrutura do repositório
 
@@ -452,14 +452,15 @@ mantendo o pico em ~500 MB. **Não reverta para `materialized='table'` com leitu
 │   │   ├── boletim.py            # gera o PDF e o XLSX a partir do mart (F15/F12)
 │   │   ├── arquivo.py            # clone do repositório do arquivo, envios.json, índice (git)
 │   │   └── entrega.py            # SMTP, envio idempotente e o CLI: teste/enviar/arquivar/remover
-│   └── tests/                    # 48 testes Python (ingestão, boletim, entrega/arquivo)
+│   └── tests/                    # 51 testes Python (ingestão, boletim, entrega/arquivo)
 ├── dbt/
 │   ├── macros/caged.sql          # colunas, CAST e grupamento compartilhados pelas 3 staging
 │   ├── macros/estoque.sql        # efeito no saldo (MOV +, FOR +, EXC −), usado pelo estoque (F16)
 │   ├── models/
 │   │   ├── staging/              # stg_caged_movimentacoes · _fora_do_prazo · _exclusoes · stg_marco_zero_estoque
 │   │   └── marts/                # mart_caged_mensal_grupamento · mart_caged_reconciliado · ajuste_marco_zero · mart_estoque
-│   └── tests/                    # 16 testes singulares (grão, coerência, salário, sinal do EXC, continuidade, estoque…)
+│   ├── seeds/territorios.csv     # territórios do estoque: município ou UF, ativo ou não (F16)
+│   └── tests/                    # 17 testes singulares (grão, coerência, salário, sinal do EXC, continuidade, estoque…)
 ├── marco-zero/                   # estoque do painel do MTE em mar/2020 (único insumo manual) + validação (F16); montado em /marco-zero:ro
 ├── arquivo/                      # esqueleto do repositório PRIVADO do arquivo (edge function, login, script de aceite)
 └── docs/
@@ -518,6 +519,13 @@ ficam antes da âncora. Conferido contra o painel em 14 competências de 202006 
 valores idênticos (`test_estoque_confere_painel`, warn). É uma estimativa: muda quando chegam
 retificadores de meses passados.
 
+**Territórios.** A staging guarda Sergipe inteiro (`uf = 28`); os marts de fluxo e o boletim
+filtram o município de `municipio_boletim` (280480, em `dbt/dbt_project.yml`). O estoque vale
+para os territórios **ativos** em [`dbt/seeds/territorios.csv`](dbt/seeds/territorios.csv)
+(município pelo código IBGE de 6 dígitos, ou a UF inteira). Para ativar um, mude `ativo` para
+`true` e rode o flow (ou `dbt seed` + marts): não é preciso reprocessar o histórico, desde que ele
+já tenha sido carregado com Sergipe inteiro.
+
 Para carregar o histórico dos arquivos pequenos (FOR e EXC de 2020 em diante):
 
 ```bash
@@ -534,7 +542,8 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [x] Ingestão de `CAGEDFORAAAAMM` (fora do prazo) e `CAGEDEXCAAAAMM` (exclusões) — F12
 - [x] Modelo de reconciliação: mart que combina movimentações + fora do prazo − exclusões, por competência de movimentação — F12. Conferido com o painel do MTE: 70 de 72 meses idênticos em 2020–2025 ([auditoria](docs/auditorias/2026-09-28-painel-vs-mart-socorro.md))
 - [x] Estoque e taxa de variação a partir do marco zero (painel do MTE em mar/2020) — F16 parte 1; 84 de 84 valores idênticos ao painel
-- [ ] Estoque de outros territórios (Aracaju, Barra dos Coqueiros, São Cristóvão, Sergipe): persistir `uf = 28` — F16 parte 2
+- [x] Staging com Sergipe inteiro (`uf = 28`) e territórios configuráveis (`dbt/seeds/territorios.csv`) — F16 parte 2
+- [ ] Ativar Aracaju, Barra dos Coqueiros, São Cristóvão e Sergipe depois de reprocessar o histórico — F16 parte 2
 - [ ] Estoque e taxa no boletim — F16 parte 3
 - [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
 - [ ] Relatório mensal em PDF via CrewAI

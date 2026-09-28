@@ -52,7 +52,7 @@ cria um, e aí a restrição morde.
 
 **Raw: efêmero.** Baixar, extrair, processar e **apagar no mesmo run**
 ([F07](../fatias/F07-retencao-e-permissoes.md)). São 450 MB para extrair ~1.500 linhas
-úteis — guardar isso é pagar aluguel por lixo. O FTP é a fonte de verdade; se precisar
+úteis (~26 mil desde a F16, que guarda Sergipe inteiro) — guardar isso é pagar aluguel por lixo. O FTP é a fonte de verdade; se precisar
 de novo, baixa de novo.
 
 **Bônus que resolve a concorrência:** exporte o mart como **`.parquet` ou `.csv`** ao
@@ -103,4 +103,6 @@ ver nada sem rodar" da [F10](../fatias/F10-camada-analitica.md).
    run (`stg_marco_zero_estoque`): a "reconstrução do zero" não perde o estoque.
 6. **O warehouse passa a guardar as movimentações de Sergipe** (não só o mart), porque o
    raw é apagado e o estoque é cumulativo ([F16](../fatias/F16-estoque-a-partir-do-marco-zero.md)).
-   O tamanho ainda não foi medido na VM.
+   Memória medida com limite de 830 MiB (28/09/2026): pico de 405 MiB por arquivo MOV,
+   ~220 MiB nos marts. O tamanho em disco do warehouse com o histórico completo se mede
+   depois do reprocessamento.

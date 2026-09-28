@@ -15,8 +15,8 @@
       docs/auditorias/2026-09-28-painel-vs-mart-socorro.md).
     - taxa_variacao_mensal = saldo ÷ estoque do mês anterior (fração, não %); NULL se não
       houver estoque anterior ou se ele for 0.
-    - Territórios: os que têm movimentação na staging (hoje só Socorro). Marco zero de
-      território sem movimentação é ignorado, para não virar um estoque parado.
+    - Territórios: os ativos em seeds/territorios.csv (município ou UF). Marco zero de
+      território inativo é ignorado; território ativo sem marco tem fluxo e estoque NULL.
 
     O estoque é uma ESTIMATIVA a partir do marco zero, e muda quando chegam retificadores
     de meses passados (FOR retroage ~12 meses, EXC até 2020).
@@ -47,11 +47,11 @@ competencias as (
 ),
 
 territorios_ativos as (
-    select distinct territorio from eventos where tipo = 'MOV'
+    select territorio from {{ ref('territorios') }} where ativo
 ),
 
 grupamentos as (
-    select distinct territorio, grupamento from eventos
+    select distinct territorio, grupamento from eventos  -- só ativos (efeito_no_saldo)
     union
     select m.territorio, m.grupamento
     from marco m

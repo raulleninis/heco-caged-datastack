@@ -35,12 +35,15 @@ casted as (
 
 ),
 
+-- Sergipe inteiro (F16 parte 2): o raw é apagado depois da carga (D06) e o estoque é
+-- cumulativo, então o recorte guardado precisa servir a todo território do estado. O
+-- município vira configuração: seeds/territorios.csv (estoque) e a var municipio_boletim
+-- (marts de fluxo). ~26 mil linhas/mês no MOV, contra ~1.500 de Socorro.
 filtrado as (
 
     select *
     from casted
     where uf = 28
-      and municipio = 280480
 
 )
 

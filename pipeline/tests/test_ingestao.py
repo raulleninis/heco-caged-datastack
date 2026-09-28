@@ -89,7 +89,7 @@ class RegistroDeIngestaoTest(unittest.TestCase):
         self.assertEqual((ing["FOR"], ing["EXC"]), (set(), set()))
 
     def test_arquivo_com_zero_linhas_do_municipio_conta_como_ingerido(self):
-        """O ponto do registro: um FOR/EXC sem linhas de Socorro não pode ser rebaixado todo dia."""
+        """O ponto do registro: um FOR/EXC sem linhas de Sergipe não pode ser rebaixado todo dia."""
         self.com_warehouse(novo_warehouse(self.tmp))
         ic._registrar_ingestao("EXC", "202602")  # staging vazia
         self.assertIn("202602", ic._arquivos_ingeridos()["EXC"])
@@ -108,6 +108,34 @@ class RegistroDeIngestaoTest(unittest.TestCase):
         ic._registrar_ingestao("FOR", "202607")
         con = duckdb.connect(str(self.tmp / "caged.duckdb"), read_only=True)
         self.assertEqual(con.execute("select count(*) from ingestao_arquivos").fetchone()[0], 1)
+
+    def test_registra_sha256_e_tamanho_do_arquivo(self):
+        """F16: o hash do .7z permite saber se o PDET republicou um arquivo histórico."""
+        self.com_warehouse(novo_warehouse(self.tmp, staging_for=[(202607, 202606)]))
+        ic._registrar_ingestao("FOR", "202607", {"sha256": "ab" * 32, "bytes": 1234})
+        con = duckdb.connect(str(self.tmp / "caged.duckdb"), read_only=True)
+        self.assertEqual(
+            con.execute("select sha256, bytes from ingestao_arquivos").fetchone(), ("ab" * 32, 1234)
+        )
+
+    def test_registro_antigo_ganha_as_colunas_novas(self):
+        """Um ingestao_arquivos criado antes da F16 parte 2 (sem sha256/bytes) é migrado."""
+        caminho = novo_warehouse(self.tmp, staging_exc=[(202607, 202606)])
+        con = duckdb.connect(str(caminho))
+        con.execute(
+            "create table ingestao_arquivos (tipo varchar, competencia_arquivo bigint, linhas bigint, ingerido_em timestamp)"
+        )
+        con.execute("insert into ingestao_arquivos values ('FOR', 202606, 3, now())")
+        con.close()
+        self.com_warehouse(caminho)
+        ic._registrar_ingestao("EXC", "202607")
+        con = duckdb.connect(str(caminho), read_only=True)
+        linhas = con.execute("select tipo, linhas, sha256 from ingestao_arquivos order by 1").fetchall()
+        self.assertEqual(linhas, [("EXC", 1, None), ("FOR", 3, None)])
+
+    def test_origens_vem_das_metricas_de_download(self):
+        metricas = [{"tipo": "MOV", "competencia": "202607", "sha256": "x", "bytes": 9, "mb_baixados": 0, "segundos": 1}]
+        self.assertEqual(ic._origens(metricas), {("MOV", "202607"): {"sha256": "x", "bytes": 9}})
 
     def test_warehouse_inexistente_e_nada_ingerido(self):
         self.com_warehouse(self.tmp / "nao-existe.duckdb")

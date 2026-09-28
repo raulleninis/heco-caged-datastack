@@ -34,8 +34,9 @@ Uma linha por grupamento, sempre os **seis** do código:
 ## Adicionar um território
 
 Crie `estoque/<codigo>_<nome>.csv` com os seis grupamentos na mesma data de referência e acrescente
-uma linha à tabela de territórios de `FONTE.md`. Não é preciso reprocessar o histórico. O estoque só
-aparece no `mart_estoque` quando o território tiver movimentação na staging (F16, parte 2).
+uma linha à tabela de territórios de `FONTE.md`. O estoque aparece no `mart_estoque` quando o
+território estiver ativo em `dbt/seeds/territorios.csv`, sem reprocessar o histórico (a staging
+guarda Sergipe inteiro).
 
 Para conferir outro território ou novos meses, acrescente ao original do painel e rode
 `python3 marco-zero/normalizar.py`.

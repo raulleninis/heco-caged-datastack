@@ -114,6 +114,9 @@ unit_tests:
       A movimentação de 202003 não entra: o marco já a contém.
     model: mart_estoque
     given:
+      - input: ref('territorios')
+        rows:
+          - {territorio: '280480', nome: 'Nossa Senhora do Socorro', tipo: 'municipio', ativo: true}
       - input: ref('stg_marco_zero_estoque')
         rows:
           - {territorio: '280480', grupamento: 'Indústria', estoque: 100, competencia_marco_zero: 202003, retificacoes_ate: 202607}
@@ -121,14 +124,14 @@ unit_tests:
         rows: []
       - input: ref('stg_caged_movimentacoes')
         rows:
-          - {municipio: 280480, grupamento: 'Indústria', competencia_mov: 202003, saldo_movimentacao: 1}
-          - {municipio: 280480, grupamento: 'Indústria', competencia_mov: 202004, saldo_movimentacao: 1}
-          - {municipio: 280480, grupamento: 'Indústria', competencia_mov: 202004, saldo_movimentacao: 1}
+          - {uf: 28, municipio: 280480, grupamento: 'Indústria', competencia_mov: 202003, saldo_movimentacao: 1}
+          - {uf: 28, municipio: 280480, grupamento: 'Indústria', competencia_mov: 202004, saldo_movimentacao: 1}
+          - {uf: 28, municipio: 280480, grupamento: 'Indústria', competencia_mov: 202004, saldo_movimentacao: 1}
       - input: ref('stg_caged_fora_do_prazo')
         rows: []
       - input: ref('stg_caged_exclusoes')
         rows:
-          - {municipio: 280480, grupamento: 'Indústria', competencia_mov: 202004, competencia_arquivo: 202605, saldo_movimentacao: 1}
+          - {uf: 28, municipio: 280480, grupamento: 'Indústria', competencia_mov: 202004, competencia_arquivo: 202605, saldo_movimentacao: 1}
     expect:
       rows:
         - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202001, saldo_consolidado: 0, estoque: null}
@@ -143,6 +146,9 @@ unit_tests:
       202608 chegou depois e ajusta o marco. Uma de 202004 não é ajuste (entra no fluxo).
     model: ajuste_marco_zero
     given:
+      - input: ref('territorios')
+        rows:
+          - {territorio: '280480', nome: 'Nossa Senhora do Socorro', tipo: 'municipio', ativo: true}
       - input: ref('stg_marco_zero_estoque')
         rows:
           - {territorio: '280480', grupamento: 'Comércio', estoque: 50, competencia_marco_zero: 202003, retificacoes_ate: 202607}
@@ -150,11 +156,56 @@ unit_tests:
         rows: []
       - input: ref('stg_caged_fora_do_prazo')
         rows:
-          - {municipio: 280480, grupamento: 'Comércio', competencia_mov: 202002, competencia_arquivo: 202601, saldo_movimentacao: 1}
-          - {municipio: 280480, grupamento: 'Comércio', competencia_mov: 202002, competencia_arquivo: 202608, saldo_movimentacao: -1}
-          - {municipio: 280480, grupamento: 'Comércio', competencia_mov: 202004, competencia_arquivo: 202608, saldo_movimentacao: 1}
+          - {uf: 28, municipio: 280480, grupamento: 'Comércio', competencia_mov: 202002, competencia_arquivo: 202601, saldo_movimentacao: 1}
+          - {uf: 28, municipio: 280480, grupamento: 'Comércio', competencia_mov: 202002, competencia_arquivo: 202608, saldo_movimentacao: -1}
+          - {uf: 28, municipio: 280480, grupamento: 'Comércio', competencia_mov: 202004, competencia_arquivo: 202608, saldo_movimentacao: 1}
       - input: ref('stg_caged_exclusoes')
         rows: []
     expect:
       rows:
         - {territorio: '280480', grupamento: 'Comércio', linhas: 1, ajuste: -1}
+
+  - name: territorios_por_municipio_e_por_uf
+    description: >
+      F16 parte 2. Socorro (município) e Sergipe (UF) ativos, Aracaju inativo. Uma admissão
+      em Socorro e outra em Aracaju em 202004: Socorro soma 1, Sergipe soma as duas, Aracaju
+      não aparece (inativo, mesmo com marco zero). Barra dos Coqueiros está ativa sem marco
+      zero: tem fluxo e estoque NULL.
+    model: mart_estoque
+    given:
+      - input: ref('territorios')
+        rows:
+          - {territorio: '280480', nome: 'Nossa Senhora do Socorro', tipo: 'municipio', ativo: true}
+          - {territorio: '280030', nome: 'Aracaju', tipo: 'municipio', ativo: false}
+          - {territorio: '280060', nome: 'Barra dos Coqueiros', tipo: 'municipio', ativo: true}
+          - {territorio: '28', nome: 'Sergipe', tipo: 'uf', ativo: true}
+      - input: ref('stg_marco_zero_estoque')
+        rows:
+          - {territorio: '280480', grupamento: 'Serviços', estoque: 10, competencia_marco_zero: 202003, retificacoes_ate: 202607}
+          - {territorio: '280030', grupamento: 'Serviços', estoque: 50, competencia_marco_zero: 202003, retificacoes_ate: 202607}
+          - {territorio: '28', grupamento: 'Serviços', estoque: 100, competencia_marco_zero: 202003, retificacoes_ate: 202607}
+      - input: ref('ajuste_marco_zero')
+        rows: []
+      - input: ref('stg_caged_movimentacoes')
+        rows:
+          - {uf: 28, municipio: 280480, grupamento: 'Serviços', competencia_mov: 202004, saldo_movimentacao: 1}
+          - {uf: 28, municipio: 280030, grupamento: 'Serviços', competencia_mov: 202004, saldo_movimentacao: 1}
+          - {uf: 28, municipio: 280060, grupamento: 'Serviços', competencia_mov: 202004, saldo_movimentacao: -1}
+      - input: ref('stg_caged_fora_do_prazo')
+        rows: []
+      - input: ref('stg_caged_exclusoes')
+        rows: []
+    expect:
+      rows:
+        - {territorio: '28', grupamento: 'Serviços', competencia_mov: 202001, saldo_consolidado: 0, estoque: null}
+        - {territorio: '28', grupamento: 'Serviços', competencia_mov: 202002, saldo_consolidado: 0, estoque: null}
+        - {territorio: '28', grupamento: 'Serviços', competencia_mov: 202003, saldo_consolidado: 0, estoque: 100}
+        - {territorio: '28', grupamento: 'Serviços', competencia_mov: 202004, saldo_consolidado: 1, estoque: 101}
+        - {territorio: '280060', grupamento: 'Serviços', competencia_mov: 202001, saldo_consolidado: 0, estoque: null}
+        - {territorio: '280060', grupamento: 'Serviços', competencia_mov: 202002, saldo_consolidado: 0, estoque: null}
+        - {territorio: '280060', grupamento: 'Serviços', competencia_mov: 202003, saldo_consolidado: 0, estoque: null}
+        - {territorio: '280060', grupamento: 'Serviços', competencia_mov: 202004, saldo_consolidado: -1, estoque: null}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202001, saldo_consolidado: 0, estoque: null}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202002, saldo_consolidado: 0, estoque: null}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202003, saldo_consolidado: 0, estoque: 10}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202004, saldo_consolidado: 1, estoque: 11}

@@ -23,20 +23,25 @@
     quem entrou fora do prazo não se soma nem se subtrai da mediana do MOV.
 #}
 
+-- Um município só (var municipio_boletim, dbt_project.yml): a staging guarda Sergipe inteiro.
+-- O saldo de todos os territórios configurados, com estoque, está no mart_estoque (F16).
 with eventos as (
 
     select competencia_mov, grupamento, saldo_movimentacao as saldo, 'MOV' as tipo
     from {{ ref('stg_caged_movimentacoes') }}
+    where municipio = {{ var('municipio_boletim') }}
 
     union all
 
     select competencia_mov, grupamento, saldo_movimentacao, 'FOR'
     from {{ ref('stg_caged_fora_do_prazo') }}
+    where municipio = {{ var('municipio_boletim') }}
 
     union all
 
     select competencia_mov, grupamento, saldo_movimentacao, 'EXC'
     from {{ ref('stg_caged_exclusoes') }}
+    where municipio = {{ var('municipio_boletim') }}
 
 ),
 

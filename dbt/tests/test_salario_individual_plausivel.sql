@@ -22,6 +22,7 @@ select
     grupamento,
     valor_salario_fixo
 from {{ ref('stg_caged_movimentacoes') }}
-where saldo_movimentacao = 1
+where municipio = {{ var('municipio_boletim') }}  -- teto calibrado para Socorro, não para o estado
+  and saldo_movimentacao = 1
   and unidade_salario_codigo = 5
   and valor_salario_fixo > 50000

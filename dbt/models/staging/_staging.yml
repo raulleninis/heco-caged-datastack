@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: stg_caged_movimentacoes
-    description: "Movimentações (admissões/desligamentos) do Novo CAGED, filtradas para Nossa Senhora do Socorro/SE."
+    description: "Movimentações (admissões/desligamentos) do Novo CAGED de Sergipe (uf = 28). O município é filtrado nos marts."
     columns:
       - name: competencia_mov
         tests:
@@ -14,11 +14,9 @@ models:
               arguments:
                 values: [28]
       - name: municipio
+        description: "Código IBGE de 6 dígitos. Todos os municípios de Sergipe (F16 parte 2)."
         tests:
           - not_null
-          - accepted_values:
-              arguments:
-                values: [280480]
       - name: saldo_movimentacao
         description: "1 = admissão, -1 = desligamento. Todo o mart depende deste contrato — qualquer outro valor (0, 2, NULL) quebra admissoes/desligamentos/saldo_liquido silenciosamente."
         tests:
@@ -72,7 +70,7 @@ models:
 
   - name: stg_caged_fora_do_prazo
     description: >
-      CAGEDFOR (F12): movimentações declaradas fora do prazo, filtradas para Nossa Senhora do Socorro/SE.
+      CAGEDFOR (F12): movimentações declaradas fora do prazo, de Sergipe (uf = 28).
       A unidade de carga é o arquivo (competencia_arquivo), não a competência de movimentação.
     columns:
       - name: competencia_arquivo
@@ -89,11 +87,9 @@ models:
               arguments:
                 values: [28]
       - name: municipio
+        description: "Código IBGE de 6 dígitos. Todos os municípios de Sergipe (F16 parte 2)."
         tests:
           - not_null
-          - accepted_values:
-              arguments:
-                values: [280480]
       - name: saldo_movimentacao
         tests:
           - not_null
@@ -109,7 +105,7 @@ models:
 
   - name: stg_caged_exclusoes
     description: >
-      CAGEDEXC (F12): exclusões de eventos já declarados, filtradas para Nossa Senhora do Socorro/SE.
+      CAGEDEXC (F12): exclusões de eventos já declarados, de Sergipe (uf = 28).
       saldo_movimentacao vem COMO NO ARQUIVO, com o sinal do evento excluído; quem subtrai é o mart.
     columns:
       - name: competencia_arquivo
@@ -125,11 +121,9 @@ models:
               arguments:
                 values: [28]
       - name: municipio
+        description: "Código IBGE de 6 dígitos. Todos os municípios de Sergipe (F16 parte 2)."
         tests:
           - not_null
-          - accepted_values:
-              arguments:
-                values: [280480]
       - name: saldo_movimentacao
         tests:
           - not_null

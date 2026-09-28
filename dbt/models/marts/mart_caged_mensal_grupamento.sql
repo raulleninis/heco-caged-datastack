@@ -2,6 +2,7 @@
     materialized='table'
 ) }}
 
+-- Um município só (var municipio_boletim, dbt_project.yml): a staging guarda Sergipe inteiro.
 with base as (
     select
         competencia_mov,
@@ -10,6 +11,7 @@ with base as (
         unidade_salario_codigo,
         valor_salario_fixo
     from {{ ref('stg_caged_movimentacoes') }}
+    where municipio = {{ var('municipio_boletim') }}
 ),
 
 contagens as (

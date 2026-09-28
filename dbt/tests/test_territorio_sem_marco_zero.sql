@@ -1,9 +1,9 @@
 {{ config(severity='warn') }}
 
--- Avisa se um território com movimentação na staging não tem marco zero (F16). Nada quebra:
--- ele mantém o fluxo, e estoque e taxa ficam NULL no mart_estoque.
+-- Avisa se um território ATIVO (seeds/territorios.csv) não tem marco zero (F16). Nada
+-- quebra: ele mantém o fluxo, e estoque e taxa ficam NULL no mart_estoque.
 
-select distinct e.territorio
-from ({{ efeito_no_saldo() }}) e
-where e.tipo = 'MOV'
-  and e.territorio not in (select territorio from {{ ref('stg_marco_zero_estoque') }})
+select t.territorio, t.nome
+from {{ ref('territorios') }} t
+where t.ativo
+  and t.territorio not in (select territorio from {{ ref('stg_marco_zero_estoque') }})

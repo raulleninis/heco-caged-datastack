@@ -20,6 +20,7 @@ e-mail o boletim da competência mais recente e o arquiva (entrega.py). O
 backfill nunca envia e-mail.
 """
 
+import hashlib
 import re
 import statistics
 import time
@@ -126,8 +127,8 @@ def _linhas_por_competencia() -> dict[str, int]:
 def _arquivos_ingeridos() -> dict[str, set[str]]:
     """tipo -> competências (AAAAMM) dos arquivos já carregados no warehouse.
 
-    FOR e EXC vêm só do registro `ingestao_arquivos`: um arquivo pode ter ZERO linhas do
-    município e nem por isso deixou de ser ingerido (senão seria rebaixado todo dia). O MOV
+    FOR e EXC vêm só do registro `ingestao_arquivos`: um arquivo pode ter ZERO linhas de
+    Sergipe e nem por isso deixou de ser ingerido (senão seria rebaixado todo dia). O MOV
     também soma as competências da staging, que é o que valia antes do registro existir.
     """
     saida: dict[str, set[str]] = {t: set() for t in TIPOS}
@@ -147,29 +148,37 @@ def _arquivos_ingeridos() -> dict[str, set[str]]:
     return saida
 
 
-def _registrar_ingestao(tipo: str, competencia: str) -> None:
-    """Marca o arquivo (tipo, competência) como carregado, com a contagem de linhas do
-    município. Roda depois do `dbt run` da staging; reprocessar substitui o registro."""
+def _registrar_ingestao(tipo: str, competencia: str, origem: dict | None = None) -> None:
+    """Marca o arquivo (tipo, competência) como carregado, com a contagem de linhas de
+    Sergipe e, quando conhecidos, o SHA-256 e o tamanho do .7z baixado (`origem`, F16): um
+    arquivo histórico republicado pelo PDET passa a ser identificável. Roda depois do
+    `dbt run` da staging; reprocessar substitui o registro."""
+    origem = origem or {}
     con = duckdb.connect(str(WAREHOUSE_PATH))
     try:
         con.execute(
             "create table if not exists ingestao_arquivos "
             "(tipo varchar, competencia_arquivo bigint, linhas bigint, ingerido_em timestamp)"
         )
+        # Colunas acrescentadas na F16 parte 2: registros anteriores ficam com NULL.
+        con.execute("alter table ingestao_arquivos add column if not exists sha256 varchar")
+        con.execute("alter table ingestao_arquivos add column if not exists bytes bigint")
         linhas = con.execute(
             f"select count(*) from {STAGING[tipo]} where {COLUNA_ARQUIVO[tipo]} = ?", [int(competencia)]
         ).fetchone()[0]
         con.execute("delete from ingestao_arquivos where tipo = ? and competencia_arquivo = ?", [tipo, int(competencia)])
         con.execute(
-            "insert into ingestao_arquivos values (?, ?, ?, ?)",
-            [tipo, int(competencia), linhas, datetime.now(timezone.utc).replace(tzinfo=None)],
+            "insert into ingestao_arquivos (tipo, competencia_arquivo, linhas, ingerido_em, sha256, bytes) "
+            "values (?, ?, ?, ?, ?, ?)",
+            [tipo, int(competencia), linhas, datetime.now(timezone.utc).replace(tzinfo=None),
+             origem.get("sha256"), origem.get("bytes")],
         )
     finally:
         con.close()
 
 
 def _linhas_por_arquivo() -> dict[tuple[str, str], int]:
-    """(tipo, competência) -> linhas do município, a partir do registro de ingestão."""
+    """(tipo, competência) -> linhas de Sergipe, a partir do registro de ingestão."""
     if not WAREHOUSE_PATH.exists():
         return {}
     con = duckdb.connect(str(WAREHOUSE_PATH), read_only=True)
@@ -293,7 +302,7 @@ def deletar_txt_extraido(competencia: str, tipo: str = "MOV") -> None:
     """Apaga o .txt extraído de um arquivo (MOV: ~450MB, Brasil inteiro; FOR/EXC: poucos MB).
 
     Só deve ser chamada depois de staging + testes terem passado: a partir daí o dado do
-    município já está no warehouse e o FTP público continua sendo a fonte de verdade caso
+    Sergipe já está no warehouse e o FTP público continua sendo a fonte de verdade caso
     seja preciso reprocessar (política D06).
     """
     logger = get_run_logger()
@@ -353,11 +362,22 @@ def _competencias_com_volume_suspeito(
     return suspeitas
 
 
+def _sha256(caminho: Path) -> str:
+    h = hashlib.sha256()
+    with open(caminho, "rb") as f:
+        for bloco in iter(lambda: f.read(1 << 20), b""):
+            h.update(bloco)
+    return h.hexdigest()
+
+
 def _baixar_e_extrair(competencia: str, tipo: str = "MOV") -> dict:
-    """Baixa, extrai e apaga o .7z. Devolve métricas do download."""
+    """Baixa, extrai e apaga o .7z. Devolve métricas do download, com o SHA-256 e o tamanho
+    do .7z (vão para o registro de ingestão)."""
     inicio = time.monotonic()
     arquivo = baixar_arquivo(competencia, tipo)
-    mb = arquivo.stat().st_size / 1_048_576
+    tamanho = arquivo.stat().st_size
+    mb = tamanho / 1_048_576
+    sha256 = _sha256(arquivo)
     extrair_7z(arquivo)
     deletar_arquivo_7z(arquivo)
     return {
@@ -365,10 +385,12 @@ def _baixar_e_extrair(competencia: str, tipo: str = "MOV") -> dict:
         "competencia": competencia,
         "mb_baixados": round(mb, 1),
         "segundos": round(time.monotonic() - inicio),
+        "sha256": sha256,
+        "bytes": tamanho,
     }
 
 
-def _transformar(baixados: list[tuple[str, str]]) -> None:
+def _transformar(baixados: list[tuple[str, str]], origens: dict[tuple[str, str], dict] | None = None) -> None:
     """Roda a staging de cada arquivo baixado, incrementalmente (um arquivo por vez, ~500MB de
     pico para o MOV, não ~3GB de uma vez — ver comentário em stg_caged_movimentacoes.sql) e
     depois materializa os marts (pequenos, processam tudo de uma vez sem risco de memória) e
@@ -376,7 +398,8 @@ def _transformar(baixados: list[tuple[str, str]]) -> None:
     falhar, os arquivos ficam em disco para diagnóstico.
 
     `baixados` é uma lista de (tipo, competência). Cada arquivo carregado entra no registro
-    de ingestão logo depois da sua staging."""
+    de ingestão logo depois da sua staging, com o SHA-256/tamanho de `origens` quando houver."""
+    origens = origens or {}
     logger = get_run_logger()
     for tipo, competencia in baixados:
         logger.info(f"Transformando staging {tipo} de {competencia}...")
@@ -384,10 +407,12 @@ def _transformar(baixados: list[tuple[str, str]]) -> None:
             ["run", "--select", STAGING[tipo]],
             dbt_vars={"competencia_arquivo": competencia},
         )
-        _registrar_ingestao(tipo, competencia)
+        _registrar_ingestao(tipo, competencia, origens.get((tipo, competencia)))
 
-    logger.info("Materializando marco zero e marts...")
-    # O marco zero (F16) vem do git e é relido a cada run: editar o CSV basta.
+    logger.info("Materializando territórios, marco zero e marts...")
+    # Territórios (seed) e marco zero (F16) vêm do git e são relidos a cada run: editar o
+    # CSV basta (ativar um território não exige reprocessar nada).
+    run_dbt(["seed"])
     run_dbt(["run", "--select", "stg_marco_zero_estoque", "path:models/marts"])
     saida_testes = run_dbt(["test"])
 
@@ -411,6 +436,11 @@ def _transformar(baixados: list[tuple[str, str]]) -> None:
     orfaos = {(t, c) for t, c in presentes if c in ingeridos[t]}
     for tipo, competencia in sorted(set(baixados) | orfaos, key=lambda x: (x[1], TIPOS.index(x[0]))):
         deletar_txt_extraido(competencia, tipo)
+
+
+def _origens(metricas: list[dict]) -> dict[tuple[str, str], dict]:
+    """(tipo, competência) -> {sha256, bytes} das métricas de download."""
+    return {(m["tipo"], m["competencia"]): {"sha256": m.get("sha256"), "bytes": m.get("bytes")} for m in metricas}
 
 
 @task(log_prints=True)
@@ -453,7 +483,7 @@ def registrar_metricas(metricas: list[dict], inicio: float) -> None:
             f"- Última no warehouse: **{ultima}**\n- Duração: {duracao}s\n"
         )
     else:
-        md = "| competência | arquivo | MB baixados | linhas (município) | download+extração (s) |\n|---|---|---|---|---|\n"
+        md = "| competência | arquivo | MB baixados | linhas (SE) | download+extração (s) |\n|---|---|---|---|---|\n"
         for m in metricas:
             n = linhas.get(m["competencia"], 0) if m["tipo"] == "MOV" else por_arquivo.get((m["tipo"], m["competencia"]), 0)
             md += f"| {m['competencia']} | {m['tipo']} | {m['mb_baixados']} | {n} | {m['segundos']} |\n"
@@ -492,7 +522,7 @@ def ingest_caged():
             logger.info(f"Processando {tipo} de {competencia}...")
             metricas.append(_baixar_e_extrair(competencia, tipo))
         logger.info(f"Ingestão concluída. Arquivos baixados: {pendentes}")
-        _transformar(pendentes)
+        _transformar(pendentes, _origens(metricas))
     else:
         logger.info("Nenhum arquivo novo publicado nos últimos 6 meses (estado normal).")
 
@@ -524,7 +554,7 @@ def backfill_caged(ano: int = 2026, tipos: tuple[str, ...] = TIPOS, refazer: boo
 
     if pendentes:
         logger.info(f"Transformando {len(pendentes)} arquivo(s) com dbt...")
-        _transformar(pendentes)
+        _transformar(pendentes, _origens(metricas))
     else:
         logger.info("Nada a baixar (tudo já carregado ou ainda não publicado), pulando dbt.")
     registrar_metricas(metricas, inicio)

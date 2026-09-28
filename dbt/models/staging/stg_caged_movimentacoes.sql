@@ -18,7 +18,7 @@
     e estável entre competências (ver F09).
 
     Materialização incremental (não table): cada .txt bruto tem ~450-500MB
-    (o Brasil inteiro; filtramos ~1.500 linhas de N. Sra. do Socorro). Ler
+    (o Brasil inteiro; filtramos ~26 mil linhas de Sergipe). Ler
     todas as competências via glob de uma vez ("*.txt") estourava memória —
     validado em runtime: funcionava só com mem_limit >= 3g, mas o servidor
     de produção real tem 830MB RAM total (~484MB disponível, ver D02).
@@ -44,12 +44,15 @@ casted as (
 
 ),
 
+-- Sergipe inteiro (F16 parte 2): o raw é apagado depois da carga (D06) e o estoque é
+-- cumulativo, então o recorte guardado precisa servir a todo território do estado. O
+-- município vira configuração: seeds/territorios.csv (estoque) e a var municipio_boletim
+-- (marts de fluxo). ~26 mil linhas/mês no MOV, contra ~1.500 de Socorro.
 filtrado as (
 
     select *
     from casted
     where uf = 28
-      and municipio = 280480
 
 )
 

@@ -6,7 +6,7 @@ sources:
       Arquivos brutos CAGEDMOV extraídos do FTP do PDET/MTE
       (ver pipeline/flows/ingest_caged.py). Os .txt são apagados após a
       transformação (F07 fase 2). Cada arquivo cobre o Brasil
-      inteiro; a staging filtra para uf=28, municipio=280480.
+      inteiro; a staging filtra para uf=28 (Sergipe).
     tables:
       - name: caged_movimentacoes
         description: >
