@@ -19,11 +19,15 @@ outros territórios depois, **apenas inserindo dados**.
 
 - **Parte 1 feita:** marco zero, `ajuste_marco_zero`, `mart_estoque` e testes. O estoque de
   Socorro bate com o painel em 84 de 84 valores (14 competências de 202006 a 202607).
-- **Parte 2, código feito (branch `f16-parte2`):** staging com Sergipe inteiro, seed
-  `territorios.csv`, marts do boletim filtrando o município, SHA-256 no registro de ingestão.
-  Medido com limite de 830 MiB: pico de 405 MiB por arquivo MOV.
-  **Falta em produção:** reprocessar o histórico (`backfill 2020..2026 --refazer`), ativar os
-  outros territórios e medir o tamanho do warehouse.
+- **Parte 2 feita (28/09/2026):** staging com Sergipe inteiro, seed `territorios.csv`, marts
+  do boletim filtrando o município, SHA-256 no registro de ingestão. Histórico reprocessado
+  (`backfill 2020..2026 --refazer`, 1 h 28 min): 1,49 milhão de linhas de MOV dos 75 municípios,
+  233 arquivos com SHA-256, e Socorro idêntico ao de antes grupo a grupo. Warehouse: 50,5 MiB.
+  Memória com limite de 830 MiB: pico de 405 MiB por arquivo MOV e 398 MiB nos marts (todos os
+  territórios ativos).
+  **Ativos:** Socorro, Aracaju, Barra dos Coqueiros e São Cristóvão. **Sergipe inativo:** o
+  marco zero "Não Identificado" da UF no painel (5) é menor que o de Aracaju (16), e a série
+  ficaria negativa a partir de 202207 (mínimo −7). Ver D11, pontos abertos.
 - **Parte 3 (item 6, boletim):** não começada.
 
 ## O problema de arquitetura que esta fatia resolve
@@ -177,10 +181,9 @@ nem o envio da [F15](F15-entrega-por-email-e-arquivo.md).
 ## Critério de aceite
 
 1. ✅ Com **só Socorro**, `mart_estoque` traz estoque e taxa para cada grupamento.
-2. Código pronto, falta o histórico · **Ativar Aracaju** = mudar `ativo` em
-   `territorios.csv` (o marco zero já existe em `marco-zero/estoque/`). **Sem reprocessar o
-   histórico**, Aracaju aparece. Exercitado numa cópia com todos ativos; vale de verdade
-   depois do reprocessamento único com `uf = 28`.
+2. ✅ **Ativar Aracaju** = mudar `ativo` em `territorios.csv`; Aracaju, Barra dos Coqueiros
+   e São Cristóvão foram ativados assim, depois do reprocessamento único com `uf = 28`. O
+   estoque deles ainda não foi conferido com o painel (só o de Socorro).
 3. Parcial · Território **sem marco zero**: fluxo presente e estoque `NULL` (teste
    unitário `territorios_por_municipio_e_por_uf`); falta "boletim gerado" (parte 3).
 4. Não testado diretamente · **Reprocessar o mesmo arquivo duas vezes** não altera o

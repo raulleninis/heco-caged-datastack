@@ -103,6 +103,6 @@ ver nada sem rodar" da [F10](../fatias/F10-camada-analitica.md).
    run (`stg_marco_zero_estoque`): a "reconstrução do zero" não perde o estoque.
 6. **O warehouse passa a guardar as movimentações de Sergipe** (não só o mart), porque o
    raw é apagado e o estoque é cumulativo ([F16](../fatias/F16-estoque-a-partir-do-marco-zero.md)).
-   Memória medida com limite de 830 MiB (28/09/2026): pico de 405 MiB por arquivo MOV,
-   ~220 MiB nos marts. O tamanho em disco do warehouse com o histórico completo se mede
-   depois do reprocessamento.
+   Medido em 28/09/2026, com o histórico completo (79 competências, 1,49 milhão de linhas
+   de MOV): o `.duckdb` tem **50,5 MiB** (era 5,5). Com limite de 830 MiB, o pico é de
+   405 MiB por arquivo MOV e 398 MiB nos marts.

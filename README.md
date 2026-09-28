@@ -523,8 +523,10 @@ retificadores de meses passados.
 filtram o município de `municipio_boletim` (280480, em `dbt/dbt_project.yml`). O estoque vale
 para os territórios **ativos** em [`dbt/seeds/territorios.csv`](dbt/seeds/territorios.csv)
 (município pelo código IBGE de 6 dígitos, ou a UF inteira). Para ativar um, mude `ativo` para
-`true` e rode o flow (ou `dbt seed` + marts): não é preciso reprocessar o histórico, desde que ele
-já tenha sido carregado com Sergipe inteiro.
+`true` e rode o flow (ou `dbt seed` + marts): não é preciso reprocessar o histórico (já carregado
+com Sergipe inteiro em 28/09/2026). Ativos: Socorro, Aracaju, Barra dos Coqueiros e São
+Cristóvão. Sergipe (UF) está inativo: o "Não Identificado" do painel para a UF é menor que o de
+Aracaju, e a série desse grupamento ficaria negativa.
 
 Para carregar o histórico dos arquivos pequenos (FOR e EXC de 2020 em diante):
 
@@ -543,7 +545,9 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [x] Modelo de reconciliação: mart que combina movimentações + fora do prazo − exclusões, por competência de movimentação — F12. Conferido com o painel do MTE: 70 de 72 meses idênticos em 2020–2025 ([auditoria](docs/auditorias/2026-09-28-painel-vs-mart-socorro.md))
 - [x] Estoque e taxa de variação a partir do marco zero (painel do MTE em mar/2020) — F16 parte 1; 84 de 84 valores idênticos ao painel
 - [x] Staging com Sergipe inteiro (`uf = 28`) e territórios configuráveis (`dbt/seeds/territorios.csv`) — F16 parte 2
-- [ ] Ativar Aracaju, Barra dos Coqueiros, São Cristóvão e Sergipe depois de reprocessar o histórico — F16 parte 2
+- [x] Histórico reprocessado com Sergipe inteiro; Aracaju, Barra dos Coqueiros e São Cristóvão ativos — F16 parte 2
+- [ ] Sergipe (UF) no estoque: o "Não Identificado" do painel para a UF é inconsistente ([D11](docs/decisoes/D11-estoque-de-emprego.md#pontos-abertos))
+- [ ] Conferir com o painel o estoque de Aracaju, Barra dos Coqueiros e São Cristóvão
 - [ ] Estoque e taxa no boletim — F16 parte 3
 - [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
 - [ ] Relatório mensal em PDF via CrewAI

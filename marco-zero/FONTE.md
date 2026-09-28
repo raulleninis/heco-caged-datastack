@@ -70,6 +70,13 @@ em 14 competências, de 202006 a 202607 ([validacao/](validacao/)): **84 de 84 v
 nos cinco grupamentos, e o total também. O `test_estoque_confere_painel` repete essa conferência a
 cada run. Se um dia divergir, a primeira competência com diferença indica onde procurar.
 
+## Inconsistência conhecida: "Não Identificado" de Sergipe
+
+O painel dá **5** de estoque "Não Identificado" para Sergipe e **16** para Aracaju, que é parte
+de Sergipe (o mesmo nas planilhas de jan e de mar/2020). Com o marco da UF, esse grupamento
+fica negativo a partir de 202207. Por isso Sergipe está **inativo** em `dbt/seeds/territorios.csv`.
+O valor não foi alterado: o marco é imutável e reproduz o painel.
+
 ## Regra de ajuste (atenção)
 
 O estoque de mar/2020 já inclui as retificações de competências até 202003 publicadas até 202607.

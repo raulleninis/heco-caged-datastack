@@ -129,6 +129,14 @@ retificadores. Por isso a regra do ajuste do marco zero continua valendo.
 
 - ~~O valor e a fonte do marco zero de Socorro~~ e ~~os de Aracaju e Sergipe~~.
   **Resolvido em 28/09/2026:** painel do MTE, mar/2020, em [marco-zero/](../../marco-zero/FONTE.md).
+- **Sergipe (UF) fica inativo por inconsistência do painel** (28/09/2026): o marco zero de
+  "Não Identificado" (seção CNAE Z) é 5 para Sergipe e 16 para Aracaju, que faz parte dele.
+  Com o marco da UF, o estoque desse grupamento fica negativo de 202207 em diante (mínimo
+  −7), e `test_estoque_nao_negativo` (error) derrubaria o run. Os outros cinco grupamentos
+  de Sergipe não têm problema. Caminhos: conferir o painel da UF em meses recentes, como foi
+  feito para Socorro; ou decidir tratar "Não Identificado" à parte no nível da UF.
+- **Estoque de Aracaju, Barra dos Coqueiros e São Cristóvão sem conferência com o painel:**
+  passam nos testes internos, mas só Socorro foi comparado mês a mês (84/84).
 - **Divergência de 202001 e 202003** entre o FTP e o painel
   ([auditoria](../auditorias/2026-09-28-painel-vs-mart-socorro.md)): pedir esclarecimento
   ao MTE/PDET. Afeta o fluxo desses meses, não o estoque.

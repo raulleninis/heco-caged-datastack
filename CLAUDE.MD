@@ -212,7 +212,10 @@ commit + push no repositório privado do arquivo. Regras que não são óbvias:
   e compara com `marco-zero/validacao/`: continua válido depois de novos retificadores
 - Territórios do estoque: seed `dbt/seeds/territorios.csv` (`municipio` casa com o código de 6
   dígitos, `uf` com a UF). Só os `ativo` entram (macro `efeito_no_saldo()` faz o join). Ativar
-  = mudar a coluna, sem reprocessar, porque a staging já tem o estado todo
+  = mudar a coluna, sem reprocessar, porque a staging já tem o estado todo (histórico
+  reprocessado em 28/09/2026). Ativos: 280480, 280030, 280060, 280670. Sergipe (28) INATIVO de
+  propósito: o marco "Não Identificado" da UF no painel (5) < o de Aracaju (16) e o estoque
+  fica negativo → test_estoque_nao_negativo (error) derrubaria o run. Não ative sem resolver
 - O flow roda `dbt seed` e depois `dbt run --select stg_marco_zero_estoque path:models/marts`
 - `ingestao_arquivos` guarda `sha256` e `bytes` do .7z (NULL nos registros anteriores à parte 2)
 
