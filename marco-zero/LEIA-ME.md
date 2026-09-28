@@ -12,7 +12,8 @@ grupamento. O estoque de cada mês é calculado aplicando as movimentações (`M
 | `validacao/<codigo>_estoque_painel.csv` | estoque do painel em meses posteriores, só para conferência (`test_estoque_confere_painel`) |
 | `Caged Mar 2020.csv`, `validacao/Caged Estoque ....csv` | originais do painel do MTE |
 | `Caged Jan 2020.xlsx` | original de jan/2020, usado só como prova cruzada |
-| `normalizar.py` | gera `estoque/` e `validacao/*_estoque_painel.csv` a partir dos originais |
+| `normalizar.py` | gera `estoque/` e `validacao/*_estoque_painel.csv` a partir dos originais manuais ou de uma coleta (`--coleta`) |
+| `coletor/` | coleta reproduzível do painel do MTE (navegador + endpoint público), com evidências; ver [coletor/README.md](coletor/README.md) |
 | `FONTE.md` | de onde veio, quando, recorte e conferência |
 
 Esta pasta é montada só para leitura em `/marco-zero` no container do pipeline.
@@ -33,7 +34,14 @@ Uma linha por grupamento, sempre os **seis** do código:
 
 ## Adicionar um território
 
-Crie `estoque/<codigo>_<nome>.csv` com os seis grupamentos na mesma data de referência e acrescente
+Caminho recomendado, sem digitar número:
+
+1. Rode o [coletor](coletor/README.md) para o território, com `202003` no período (e, de preferência, meses
+   posteriores, para a validação).
+2. `python3 marco-zero/normalizar.py --coleta marco-zero/coletor/saida/marco-zero-IDENTIFICADOR`
+3. Ative o território em `dbt/seeds/territorios.csv` e acrescente uma linha à tabela de territórios de `FONTE.md`.
+
+Caminho manual: crie `estoque/<codigo>_<nome>.csv` com os seis grupamentos na mesma data de referência e acrescente
 uma linha à tabela de territórios de `FONTE.md`. O estoque aparece no `mart_estoque` quando o
 território estiver ativo em `dbt/seeds/territorios.csv`, sem reprocessar o histórico (a staging
 guarda Sergipe inteiro).

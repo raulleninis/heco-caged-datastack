@@ -79,6 +79,8 @@ Aracaju, Barra dos Coqueiros, São Cristóvão e Sergipe. O dbt lê os arquivos 
 (source `marco_zero.estoque`, pasta montada em `/marco-zero:ro` no container) e os
 materializa em `stg_marco_zero_estoque` ✅. Adicionar um território = adicionar um
 arquivo; `marco-zero/normalizar.py` gera os CSVs a partir dos originais do painel.
+Desde 28/09/2026 também a partir de uma coleta do [coletor](../../marco-zero/coletor/README.md)
+(`normalizar.py --coleta`), que consulta o painel de forma reproduzível e com evidências.
 
 | coluna | |
 |---|---|

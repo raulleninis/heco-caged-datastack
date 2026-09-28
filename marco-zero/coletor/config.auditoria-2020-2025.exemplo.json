@@ -1,0 +1,17 @@
+{
+  "painel_url": "https://app.powerbi.com/view?r=eyJrIjoiNWI5NWI0ODEtYmZiYy00Mjg3LTkzNWUtY2UyYjIwMDE1YWI2IiwidCI6IjNlYzkyOTY5LTVhNTEtNGYxOC04YWM5LWVmOThmYmFmYTk3OCJ9",
+  "navegador": "chromium",
+  "saida": "saida",
+  "territorios": [{"tipo": "municipio", "uf": 28, "nome": "Nossa Senhora do Socorro"}],
+  "periodo": {"inicio": 202001, "fim": 202512},
+  "comparacao": {
+    "duckdb": null,
+    "tabela": "main.mart_caged_reconciliado",
+    "municipio_da_base": 280480,
+    "colunas": {
+      "competencia": "competencia_mov", "grupamento": "grupamento",
+      "admissoes": "admissoes_consolidadas", "desligamentos": "desligamentos_consolidados",
+      "saldo": "saldo_consolidado", "estoque": null, "municipio": null
+    }
+  }
+}

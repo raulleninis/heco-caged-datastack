@@ -94,3 +94,17 @@ contaria duas vezes.** O `ajuste_marco_zero` só pode usar linhas FOR/EXC com
 `competencia_mov <= 202003` vindas de **arquivos posteriores a 202607**.
 
 O valor manual é **imutável**: não se edita para absorver retificações.
+
+## Coleta reproduzível (28/09/2026)
+
+Os valores acima foram obtidos à mão no painel. Desde 28/09/2026, o [coletor](coletor/README.md)
+faz a mesma consulta de forma reproduzível: descobre o modelo público do painel, consulta estoque
+e movimentações por território e competência, e guarda cada requisição e resposta em
+`saida/marco-zero-*/evidencias/`. `python3 marco-zero/normalizar.py --coleta <pasta>` transforma a
+coleta nos arquivos de `estoque/` e `validacao/`, com `retificacoes_ate` = última competência
+disponível no painel no momento da coleta.
+
+Os arquivos atuais continuam sendo os da coleta manual. Uma coleta simulada no formato do coletor
+com os mesmos valores reproduziu esses arquivos; a comparação do coletor com o `mart_estoque` deu
+420 de 420 valores de estoque iguais nos quatro municípios. Uma nova coleta real deve registrar
+aqui a data, a atualização do modelo e a pasta de evidências.

@@ -374,6 +374,25 @@ print(c.execute('''select competencia_mov, sum(saldo_consolidado) saldo, sum(est
 
 Falha com "lock" se algum flow estiver escrevendo: espere ele terminar.
 
+### 7b. Reconstruir o marco zero (`marco-zero/coletor/`)
+
+O marco zero do estoque (F16) vem do painel do MTE. O coletor consulta o painel público de forma
+reproduzível, guardando requisições e respostas como evidência. Roda fora do container (precisa de
+navegador); detalhes em [marco-zero/coletor/README.md](marco-zero/coletor/README.md).
+
+```bash
+cd marco-zero/coletor
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python -m playwright install chromium
+cp config.exemplo.json config.json          # territórios e período; o período precisa incluir 202003
+.venv/bin/python marco_zero.py executar --config config.json
+cd ../..
+python3 marco-zero/normalizar.py --coleta marco-zero/coletor/saida/marco-zero-IDENTIFICADOR
+```
+
+O `normalizar.py` grava `marco-zero/estoque/` (202003) e `marco-zero/validacao/` (competências
+posteriores). Depois, ative o território em `dbt/seeds/territorios.csv`. Sem `--coleta`, ele
+regenera a partir dos originais manuais já versionados.
+
 ### 8. Alertas e observabilidade
 
 Sem as variáveis o pipeline roda igual e só avisa no log. Detalhes em [CLAUDE.MD](CLAUDE.MD#observabilidade-e-alertas-f11).
@@ -462,6 +481,7 @@ mantendo o pico em ~500 MB (medido: 405 MiB por arquivo MOV com limite de 830 Mi
 │   ├── seeds/territorios.csv     # territórios do estoque: município ou UF, ativo ou não (F16)
 │   └── tests/                    # 18 testes singulares (grão, coerência, salário, sinal do EXC, continuidade, estoque…)
 ├── marco-zero/                   # estoque do painel do MTE em mar/2020 (único insumo manual) + validação (F16); montado em /marco-zero:ro
+│   └── coletor/                  # coleta reproduzível do painel (Playwright), fora do container; alimenta normalizar.py --coleta
 ├── arquivo/                      # esqueleto do repositório PRIVADO do arquivo (edge function, login, script de aceite)
 └── docs/
     ├── fatias/                   # backlog F01…F17 com o registro do que foi feito
@@ -551,6 +571,7 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [x] Estoque conferido com o painel nos cinco territórios: 84 de 84 valores em cada
 - [x] Sergipe (UF) no estoque; o "Não Identificado" da UF é negativo no próprio painel e tem teste em warn
 - [x] Estoque e taxa de variação no boletim (PDF e XLSX), como estimativa a partir de marco zero — F16 parte 3
+- [x] Coletor reproduzível do marco zero (`marco-zero/coletor/`) e `normalizar.py --coleta`: um território novo sem digitar número
 - [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
 - [ ] Relatório mensal em PDF via CrewAI
   - [ ] Configuração do CrewAI e definição dos agentes (Analista de Dados, Pesquisador de Contexto, Redator, Revisor)

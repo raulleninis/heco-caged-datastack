@@ -203,7 +203,11 @@ commit + push no repositório privado do arquivo. Regras que não são óbvias:
 
 ## Estoque a partir do marco zero (F16)
 - `marco-zero/` (git, montado em `/marco-zero:ro`): estoque do painel do MTE ao fim de 202003, um
-  CSV por território; `normalizar.py` gera os CSVs dos originais do painel. Âncora em mar/2020
+  CSV por território; `normalizar.py` gera os CSVs dos originais manuais do painel, ou de uma
+  coleta do `marco-zero/coletor/` com `--coleta PASTA` (código, `retificacoes_ate` e data da
+  coleta vêm da pasta; lê CSV com BOM). O coletor (Playwright + endpoint público do Power BI,
+  com evidências) roda fora do container, com requirements próprios; a coleta precisa incluir
+  202003. Seu comparador lê o `mart_estoque` (território em texto; TRY_CAST). Âncora em mar/2020
   porque 202001 e 202003 do FTP divergem do painel (docs/auditorias/). Valor manual IMUTÁVEL
 - `stg_marco_zero_estoque` → `ajuste_marco_zero` → `mart_estoque` (território × grupamento ×
   competência: saldo, estoque, taxa). Regra do efeito no saldo num lugar só: macro

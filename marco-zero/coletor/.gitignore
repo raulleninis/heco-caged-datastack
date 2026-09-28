@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+saida/
+config.json
+config.teste.json
+*.duckdb
+*.duckdb.wal

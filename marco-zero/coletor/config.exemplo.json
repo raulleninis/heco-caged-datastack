@@ -1,0 +1,32 @@
+{
+  "painel_url": "https://app.powerbi.com/view?r=eyJrIjoiNWI5NWI0ODEtYmZiYy00Mjg3LTkzNWUtY2UyYjIwMDE1YWI2IiwidCI6IjNlYzkyOTY5LTVhNTEtNGYxOC04YWM5LWVmOThmYmFmYTk3OCJ9",
+  "navegador": "chromium",
+  "saida": "saida",
+  "territorios": [
+    {"tipo": "municipio", "uf": 28, "nome": "Nossa Senhora do Socorro"},
+    {"tipo": "uf", "codigo": 28, "nome": "Sergipe"},
+    {"tipo": "municipio", "uf": 28, "nome": "Aracaju"},
+    {"tipo": "municipio", "uf": 28, "nome": "São Cristóvão"},
+    {"tipo": "municipio", "uf": 28, "nome": "Barra dos Coqueiros"}
+  ],
+  "periodo": {
+    "inicio": 202001,
+    "fim": "ultima_disponivel",
+    "meses_do_ano": [6, 12],
+    "adicionais": [202003]
+  },
+  "comparacao": {
+    "duckdb": null,
+    "tabela": "main.mart_estoque",
+    "municipio_da_base": null,
+    "colunas": {
+      "competencia": "competencia_mov",
+      "grupamento": "grupamento",
+      "admissoes": null,
+      "desligamentos": null,
+      "saldo": "saldo_consolidado",
+      "estoque": "estoque",
+      "municipio": "territorio"
+    }
+  }
+}
