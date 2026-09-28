@@ -27,8 +27,9 @@ flowchart TD
     F06 --> F11["F11 · Observabilidade<br/>M"]
     F09 --> F12["F12 · FOR/EXC +<br/>reconciliação · L"]
     F11 --> F13["F13 · Migração<br/>para nuvem · L"]
-    F15 --> F14["F14 · Narrativa do<br/>repositório · M"]
-    F16 --> F14
+    F16 --> F18["F18 · Produto neutro<br/>e replicável · L"]
+    F15 --> F18
+    F18 --> F14["F14 · Narrativa do<br/>repositório · M"]
     F04 --> F15["F15 · Entrega por e-mail<br/>e arquivo autenticado · L"]
     F06 --> F15
     F12 --> F16["F16 · Estoque a partir<br/>do marco zero · L"]
@@ -42,7 +43,7 @@ flowchart TD
     class F06,F07,F08,F08b,F09 pre
     class F11,F12,F13,F15,F16,F17 prod
     classDef descartada fill:#f2f3f4,stroke:#99a3a4,color:#7b7d7d,stroke-dasharray:4 3
-    class F14 vitrine
+    class F14,F18 vitrine
     class F10 descartada
 ```
 
@@ -64,14 +65,16 @@ flowchart TD
 | [F11](F11-observabilidade.md) ✅ | Observabilidade e alerta | M | produção | B | F06 |
 | [F12](F12-for-exc-reconciliacao.md) 🟡 | Ingestão FOR/EXC + reconciliação | L | produção | H | F09 |
 | [F13](F13-migracao-nuvem.md) | Migração para nuvem | L | produção | — | F11 |
-| [F14](F14-narrativa-do-repositorio.md) | Narrativa do repositório | M | vitrine | (portfólio) | F15, F16 |
+| [F14](F14-narrativa-do-repositorio.md) | Narrativa do repositório (no repositório público) | M | vitrine | (portfólio) | F18 |
 | [F15](F15-entrega-por-email-e-arquivo.md) ✅ | Entrega por e-mail e arquivo autenticado | L | produção | (objetivo de produção) | F04, F06 |
 | [F16](F16-estoque-a-partir-do-marco-zero.md) ✅ | Estoque a partir do marco zero | L | produção | (D11) | F12, F09 |
 | [F17](F17-teste-de-silencio.md) ✅ | Teste de silêncio: provar que o alerta chega | XS (+ espera) | produção | (validação de F11) | F11 |
+| [F18](F18-produto-neutro.md) | Produto neutro: de Socorro para um repositório replicável | L | vitrine | (portfólio; D07 revista) | F16, F15 |
 
 > ⛔ **descartada:** a [F10](F10-camada-analitica.md) saiu deste repositório em
 > 28/09/2026 e segue como produto interno. A [F14](F14-narrativa-do-repositorio.md), que
-> dependia dela, passa a se apoiar no boletim (F15 + F16) como resultado visível.
+> dependia dela, passa a se apoiar no boletim (F15 + F16) como resultado visível, e acontece no
+> repositório público criado pela [F18](F18-produto-neutro.md).
 
 ## Se você só tiver um fim de semana
 

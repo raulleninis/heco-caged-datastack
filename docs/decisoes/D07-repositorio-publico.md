@@ -70,3 +70,8 @@ nunca entra no repositório.
 repositório (ver [D10](D10-escopo-analitico.md)). O alvo C passa a ser **F14**, apoiada no
 boletim (F15 + F16) como resultado visível. A dúvida "amostra ou mart agregado" continua
 aberta, mas deixa de ser da F10: vale para qualquer demonstração de "clone e rode".
+
+**Revisão (28/09/2026), segunda:** este repositório **não** será aberto: o vínculo do autor com
+Socorro e o histórico ficam privados. O público será um **repositório novo**, de produto neutro,
+com Socorro como instância privada dele (fork com `upstream`). O caminho está na
+[F18](../fatias/F18-produto-neutro.md). O desenvolvimento continua aqui até o produto estar estável.

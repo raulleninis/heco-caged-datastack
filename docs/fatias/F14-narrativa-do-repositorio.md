@@ -4,7 +4,7 @@
 |---|---|
 | **Esforço** | M (meio dia) |
 | **Fase** | vitrine |
-| **Depende de** | [F15](F15-entrega-por-email-e-arquivo.md), [F16](F16-estoque-a-partir-do-marco-zero.md) (antes [F10](F10-camada-analitica.md), descartada em 28/09/2026: o resultado visível passa a ser o boletim) |
+| **Depende de** | [F18](F18-produto-neutro.md): acontece no repositório público do produto, não neste (antes [F10](F10-camada-analitica.md), descartada em 28/09/2026; o resultado visível passa a ser o boletim da cidade de exemplo) |
 | **Objetivo** | Fazer o repositório contar a história certa em 5 minutos de leitura |
 
 ## O cenário real de avaliação
