@@ -65,17 +65,24 @@ as mesmas retificações que o mart.
 
 ## Validação da série (28/09/2026)
 
-O estoque de Socorro calculado a partir deste marco (`mart_estoque`) foi comparado com o do painel
-em 14 competências, de 202006 a 202607 ([validacao/](validacao/)): **84 de 84 valores idênticos**,
-nos cinco grupamentos, e o total também. O `test_estoque_confere_painel` repete essa conferência a
-cada run. Se um dia divergir, a primeira competência com diferença indica onde procurar.
+O estoque calculado a partir deste marco (`mart_estoque`) foi comparado com o do painel em 14
+competências, de 202006 a 202607 ([validacao/](validacao/), original em
+`Caged Estoque 2020-2026 v2.csv`): **84 de 84 valores idênticos em cada um dos cinco
+territórios**, Sergipe inclusive (conferido com a UF ativada numa cópia do warehouse). O
+`test_estoque_confere_painel` repete a conferência a cada run, para os territórios ativos. Se um
+dia divergir, a primeira competência com diferença indica onde procurar.
+
+**"Não Identificado" em branco no painel:** o painel esconde esse grupamento quando ele é zero ou
+negativo, mas o TOTAL o inclui. O `normalizar.py` o deriva como TOTAL − os outros cinco (e confere
+quando vem preenchido).
 
 ## Inconsistência conhecida: "Não Identificado" de Sergipe
 
 O painel dá **5** de estoque "Não Identificado" para Sergipe e **16** para Aracaju, que é parte
-de Sergipe (o mesmo nas planilhas de jan e de mar/2020). Com o marco da UF, esse grupamento
-fica negativo a partir de 202207. Por isso Sergipe está **inativo** em `dbt/seeds/territorios.csv`.
-O valor não foi alterado: o marco é imutável e reproduz o painel.
+de Sergipe (o mesmo nas planilhas de jan e de mar/2020). A série da UF nesse grupamento fica
+**negativa no próprio painel** (−4 em 202212, 202306 e 202506; −3 em 202607), e o mart a reproduz
+exatamente. Enquanto `test_estoque_nao_negativo` for `error` para todo grupamento, Sergipe fica
+**inativo** em `dbt/seeds/territorios.csv`. O valor não foi alterado: o marco é imutável.
 
 ## Regra de ajuste (atenção)
 

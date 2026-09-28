@@ -516,7 +516,7 @@ estoque parte do **marco zero**, o estoque do painel do MTE ao fim de mar/2020
 ([marco-zero/](marco-zero/FONTE.md)), e soma os saldos a partir de abr/2020. Jan e mar/2020 dos
 microdados divergem do painel ([auditoria](docs/auditorias/2026-09-28-painel-vs-mart-socorro.md)) e
 ficam antes da âncora. Conferido contra o painel em 14 competências de 202006 a 202607: 84 de 84
-valores idênticos (`test_estoque_confere_painel`, warn). É uma estimativa: muda quando chegam
+valores idênticos em cada território (`test_estoque_confere_painel`, warn). É uma estimativa: muda quando chegam
 retificadores de meses passados.
 
 **Territórios.** A staging guarda Sergipe inteiro (`uf = 28`); os marts de fluxo e o boletim
@@ -525,8 +525,8 @@ para os territórios **ativos** em [`dbt/seeds/territorios.csv`](dbt/seeds/terri
 (município pelo código IBGE de 6 dígitos, ou a UF inteira). Para ativar um, mude `ativo` para
 `true` e rode o flow (ou `dbt seed` + marts): não é preciso reprocessar o histórico (já carregado
 com Sergipe inteiro em 28/09/2026). Ativos: Socorro, Aracaju, Barra dos Coqueiros e São
-Cristóvão. Sergipe (UF) está inativo: o "Não Identificado" do painel para a UF é menor que o de
-Aracaju, e a série desse grupamento ficaria negativa.
+Cristóvão. Sergipe (UF) está inativo: o "Não Identificado" da UF é negativo no próprio painel
+(o mart o reproduz), e o teste de estoque não negativo derrubaria o run.
 
 Para carregar o histórico dos arquivos pequenos (FOR e EXC de 2020 em diante):
 
@@ -546,8 +546,8 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [x] Estoque e taxa de variação a partir do marco zero (painel do MTE em mar/2020) — F16 parte 1; 84 de 84 valores idênticos ao painel
 - [x] Staging com Sergipe inteiro (`uf = 28`) e territórios configuráveis (`dbt/seeds/territorios.csv`) — F16 parte 2
 - [x] Histórico reprocessado com Sergipe inteiro; Aracaju, Barra dos Coqueiros e São Cristóvão ativos — F16 parte 2
-- [ ] Sergipe (UF) no estoque: o "Não Identificado" do painel para a UF é inconsistente ([D11](docs/decisoes/D11-estoque-de-emprego.md#pontos-abertos))
-- [ ] Conferir com o painel o estoque de Aracaju, Barra dos Coqueiros e São Cristóvão
+- [x] Estoque conferido com o painel nos cinco territórios: 84 de 84 valores em cada
+- [ ] Sergipe (UF) no estoque: o "Não Identificado" da UF é negativo no próprio painel ([D11](docs/decisoes/D11-estoque-de-emprego.md#pontos-abertos))
 - [ ] Estoque e taxa no boletim — F16 parte 3
 - [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
 - [ ] Relatório mensal em PDF via CrewAI

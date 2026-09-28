@@ -1,6 +1,6 @@
 """Normaliza os originais do painel MTE: marco zero (um CSV por território) e validação.
 
-Uso: python3 marco-zero/normalizar.py (só biblioteca padrão; sobrescreve estoque/ e validacao/280480_*.csv).
+Uso: python3 marco-zero/normalizar.py (só biblioteca padrão; sobrescreve estoque/ e validacao/*_estoque_painel.csv).
 """
 import csv
 from collections import defaultdict
@@ -27,17 +27,28 @@ COLETADO_EM = "2026-09-28"
 
 
 def ler_painel(caminho):
-    """{(regiao, competencia): {grupamento: estoque}} conferindo soma = TOTAL."""
+    """{(regiao, competencia): {grupamento: estoque}} conferindo soma = TOTAL.
+
+    O painel esconde "Não Identificado" quando ele é zero ou NEGATIVO (célula vazia ou linha
+    ausente), mas o TOTAL o inclui: nesse caso ele é derivado como TOTAL − os outros cinco
+    (em Sergipe chega a −4). Quando vem preenchido, a soma é conferida. Os outros cinco
+    grupamentos são obrigatórios."""
     dados = defaultdict(dict)
     with caminho.open(encoding="utf-8") as f:
         for r in csv.DictReader(f, delimiter=";"):
-            dados[(r["regiao"], r["competencia"])][r["grupamento"].strip()] = int(r["estoque"])
+            estoque = r["estoque"].strip()
+            dados[(r["regiao"], r["competencia"])][r["grupamento"].strip()] = int(estoque) if estoque else None
     saida = {}
     for chave, g in dados.items():
         total = g.pop("TOTAL")
         assert set(g) <= set(GRUPAMENTOS), (chave, set(g) - set(GRUPAMENTOS))
-        valores = {k: g.get(k, 0) for k in GRUPAMENTOS}  # ausente no painel = 0
-        assert sum(valores.values()) == total, (chave, sum(valores.values()), total)
+        cinco = GRUPAMENTOS[:-1]
+        assert all(g.get(k) is not None for k in cinco), (chave, g)
+        valores = {k: g[k] for k in cinco}
+        ni = total - sum(valores.values())
+        if g.get("Não Identificado") is not None:
+            assert g["Não Identificado"] == ni, (chave, g["Não Identificado"], ni)
+        valores["Não Identificado"] = ni
         saida[chave] = valores
     return saida
 
@@ -54,13 +65,15 @@ for nome, (codigo, slug) in TERRITORIOS.items():
             w.writerow([codigo, k, v, DATA_REFERENCIA, RETIFICACOES_ATE, FONTE, COLETADO_EM])
     print(f"marco zero {codigo:>6} {nome:<26} ok")
 
-# Validação: estoque do painel em meses posteriores
-valid = ler_painel(BASE / "validacao" / "Caged Estoque Socorro 2020-2026.csv")
-assert {r for r, _ in valid} == {"Nossa Senhora do Socorro"}
-with (BASE / "validacao" / "280480_estoque_painel.csv").open("w", encoding="utf-8", newline="") as f:
-    w = csv.writer(f, lineterminator="\n")
-    w.writerow(["territorio", "grupamento", "competencia", "estoque", "retificacoes_ate", "coletado_em"])
-    for (_, comp), g in sorted(valid.items(), key=lambda x: x[0][1]):
-        for k, v in g.items():
-            w.writerow(["280480", k, comp, v, RETIFICACOES_ATE, COLETADO_EM])
-print(f"validação: {len(valid)} competências ok")
+# Validação: estoque do painel em meses posteriores, um arquivo por território
+valid = ler_painel(BASE / "validacao" / "Caged Estoque 2020-2026 v2.csv")
+assert {r for r, _ in valid} == set(TERRITORIOS)
+for nome, (codigo, slug) in TERRITORIOS.items():
+    comps = sorted(c for r, c in valid if r == nome)
+    with (BASE / "validacao" / f"{codigo}_estoque_painel.csv").open("w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f, lineterminator="\n")
+        w.writerow(["territorio", "grupamento", "competencia", "estoque", "retificacoes_ate", "coletado_em"])
+        for comp in comps:
+            for k, v in valid[(nome, comp)].items():
+                w.writerow([codigo, k, comp, v, RETIFICACOES_ATE, COLETADO_EM])
+    print(f"validação {codigo:>6} {nome:<26} {len(comps)} competências ok")

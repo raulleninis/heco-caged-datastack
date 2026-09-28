@@ -132,11 +132,11 @@ retificadores. Por isso a regra do ajuste do marco zero continua valendo.
 - **Sergipe (UF) fica inativo por inconsistência do painel** (28/09/2026): o marco zero de
   "Não Identificado" (seção CNAE Z) é 5 para Sergipe e 16 para Aracaju, que faz parte dele.
   Com o marco da UF, o estoque desse grupamento fica negativo de 202207 em diante (mínimo
-  −7), e `test_estoque_nao_negativo` (error) derrubaria o run. Os outros cinco grupamentos
-  de Sergipe não têm problema. Caminhos: conferir o painel da UF em meses recentes, como foi
-  feito para Socorro; ou decidir tratar "Não Identificado" à parte no nível da UF.
-- **Estoque de Aracaju, Barra dos Coqueiros e São Cristóvão sem conferência com o painel:**
-  passam nos testes internos, mas só Socorro foi comparado mês a mês (84/84).
+  −7), e `test_estoque_nao_negativo` (error) derrubaria o run. **Conferido com o painel:** a
+  série negativa é a do próprio painel (−4 em 202212, −3 em 202607), e o mart a reproduz em 84
+  de 84 valores. Falta decidir se o teste passa a tolerar "Não Identificado" negativo.
+- ~~Estoque de Aracaju, Barra dos Coqueiros e São Cristóvão sem conferência com o painel.~~
+  **Resolvido em 28/09/2026:** 84 de 84 valores idênticos em cada um (14 competências).
 - **Divergência de 202001 e 202003** entre o FTP e o painel
   ([auditoria](../auditorias/2026-09-28-painel-vs-mart-socorro.md)): pedir esclarecimento
   ao MTE/PDET. Afeta o fluxo desses meses, não o estoque.

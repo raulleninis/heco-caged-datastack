@@ -1,7 +1,9 @@
 {{ config(severity='warn') }}
 
 -- Confere o estoque calculado com o do painel do MTE (marco-zero/validacao/, critério 7 da
--- F16). Em 28/09/2026: 84 de 84 combinações (14 competências × 6 grupamentos) idênticas.
+-- F16), para os territórios ATIVOS (um inativo não tem movimentações no macro, e daria
+-- diferença falsa). Em 28/09/2026: 14 competências × 6 grupamentos idênticas nos cinco
+-- territórios, Sergipe incluído (conferido com ele ativado numa cópia).
 --
 -- O painel é uma foto: só incorporava os arquivos até `retificacoes_ate`. Por isso o
 -- estoque é recalculado AQUI só com esses arquivos, e não lido do mart_estoque (que inclui
@@ -20,6 +22,7 @@ with painel as (
         cast(estoque as bigint)          as estoque_painel,
         cast(retificacoes_ate as bigint) as retificacoes_ate
     from {{ source('marco_zero', 'validacao_painel') }}
+    where territorio in (select territorio from {{ ref('territorios') }} where ativo)
 ),
 
 eventos as (

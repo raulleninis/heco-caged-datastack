@@ -1,0 +1,445 @@
+competencia;regiao;grupamento;admissoes;desligamentos;saldo;estoque
+202006;Nossa Senhora do Socorro;TOTAL;201;305;-104;20866
+202006;Nossa Senhora do Socorro;Agropecuária;1;5;-4;76
+202006;Nossa Senhora do Socorro;Indústria;93;77;16;5845
+202006;Nossa Senhora do Socorro;Construção;7;33;-26;1018
+202006;Nossa Senhora do Socorro;Comércio;57;81;-24;5346
+202006;Nossa Senhora do Socorro;Serviços;43;109;-66;8581
+202006;Sergipe;TOTAL;4553;5589;-1036;264695
+202006;Sergipe;Agropecuária;204;87;117;9667
+202006;Sergipe;Indústria;1082;693;389;45077
+202006;Sergipe;Construção;436;891;-455;19316
+202006;Sergipe;Comércio;787;1299;-512;58704
+202006;Sergipe;Serviços;2044;2619;-575;131926
+202006;Sergipe;Não Identificado;;;;5
+202006;Aracaju;TOTAL;2558;3319;-761;148551
+202006;Aracaju;Agropecuária;0;1;-1;601
+202006;Aracaju;Indústria;311;176;135;11414
+202006;Aracaju;Construção;203;498;-295;14004
+202006;Aracaju;Comércio;416;718;-302;30022
+202006;Aracaju;Serviços;1628;1926;-298;92494
+202006;Aracaju;Não Identificado;;;;16
+202006;São Cristóvão;TOTAL;126;155;-29;8876
+202006;São Cristóvão;Agropecuária;7;8;-1;501
+202006;São Cristóvão;Indústria;13;15;-2;1140
+202006;São Cristóvão;Construção;26;26;0;74
+202006;São Cristóvão;Comércio;10;26;-16;776
+202006;São Cristóvão;Serviços;70;80;-10;6385
+202006;Barra dos Coqueiros;TOTAL;46;50;-4;2710
+202006;Barra dos Coqueiros;Agropecuária;2;0;2;37
+202006;Barra dos Coqueiros;Indústria;2;12;-10;262
+202006;Barra dos Coqueiros;Construção;11;8;3;785
+202006;Barra dos Coqueiros;Comércio;15;8;7;456
+202006;Barra dos Coqueiros;Serviços;16;22;-6;1170
+202012;Nossa Senhora do Socorro;TOTAL;371;379;-8;21035
+202012;Nossa Senhora do Socorro;Agropecuária;0;2;-2;73
+202012;Nossa Senhora do Socorro;Indústria;130;85;45;5912
+202012;Nossa Senhora do Socorro;Construção;13;37;-24;992
+202012;Nossa Senhora do Socorro;Comércio;144;178;-34;5425
+202012;Nossa Senhora do Socorro;Serviços;84;77;7;8633
+202012;Sergipe;TOTAL;7352;6848;504;274940
+202012;Sergipe;Agropecuária;123;217;-94;10649
+202012;Sergipe;Indústria;1050;973;77;48847
+202012;Sergipe;Construção;580;1031;-451;19851
+202012;Sergipe;Comércio;2294;1790;504;61747
+202012;Sergipe;Serviços;3305;2837;468;133841
+202012;Sergipe;Não Identificado;;;;5
+202012;Aracaju;TOTAL;4571;4037;534;152945
+202012;Aracaju;Agropecuária;7;17;-10;593
+202012;Aracaju;Indústria;256;178;78;11834
+202012;Aracaju;Construção;310;499;-189;14697
+202012;Aracaju;Comércio;1512;1090;422;32119
+202012;Aracaju;Serviços;2486;2253;233;93686
+202012;Aracaju;Não Identificado;;;;16
+202012;São Cristóvão;TOTAL;184;250;-66;8563
+202012;São Cristóvão;Agropecuária;6;10;-4;500
+202012;São Cristóvão;Indústria;24;46;-22;1076
+202012;São Cristóvão;Construção;59;86;-27;84
+202012;São Cristóvão;Comércio;26;20;6;793
+202012;São Cristóvão;Serviços;69;88;-19;6110
+202012;Barra dos Coqueiros;TOTAL;90;75;15;2744
+202012;Barra dos Coqueiros;Agropecuária;0;1;-1;36
+202012;Barra dos Coqueiros;Indústria;2;9;-7;214
+202012;Barra dos Coqueiros;Construção;28;36;-8;832
+202012;Barra dos Coqueiros;Comércio;15;6;9;459
+202012;Barra dos Coqueiros;Serviços;45;23;22;1203
+202106;Nossa Senhora do Socorro;TOTAL;369;375;-6;20616
+202106;Nossa Senhora do Socorro;Agropecuária;2;2;0;77
+202106;Nossa Senhora do Socorro;Indústria;100;58;42;5484
+202106;Nossa Senhora do Socorro;Construção;13;46;-33;913
+202106;Nossa Senhora do Socorro;Comércio;118;106;12;5573
+202106;Nossa Senhora do Socorro;Serviços;136;163;-27;8569
+202106;Sergipe;TOTAL;8124;6500;1624;276591
+202106;Sergipe;Agropecuária;717;199;518;10395
+202106;Sergipe;Indústria;1194;769;425;47260
+202106;Sergipe;Construção;882;992;-110;20132
+202106;Sergipe;Comércio;1891;1673;218;63270
+202106;Sergipe;Serviços;3440;2867;573;135529
+202106;Sergipe;Não Identificado;;;;5
+202106;Aracaju;TOTAL;4088;4072;16;154763
+202106;Aracaju;Agropecuária;3;6;-3;623
+202106;Aracaju;Indústria;197;214;-17;12087
+202106;Aracaju;Construção;598;661;-63;14906
+202106;Aracaju;Comércio;1076;970;106;32328
+202106;Aracaju;Serviços;2214;2221;-7;94803
+202106;Aracaju;Não Identificado;;;;16
+202106;São Cristóvão;TOTAL;191;159;32;8284
+202106;São Cristóvão;Agropecuária;14;15;-1;510
+202106;São Cristóvão;Indústria;18;13;5;1068
+202106;São Cristóvão;Construção;21;44;-23;111
+202106;São Cristóvão;Comércio;29;22;7;856
+202106;São Cristóvão;Serviços;109;65;44;5739
+202106;Barra dos Coqueiros;TOTAL;125;79;46;2898
+202106;Barra dos Coqueiros;Agropecuária;;;;35
+202106;Barra dos Coqueiros;Indústria;2;2;0;218
+202106;Barra dos Coqueiros;Construção;47;27;20;940
+202106;Barra dos Coqueiros;Comércio;18;10;8;494
+202106;Barra dos Coqueiros;Serviços;58;40;18;1211
+202112;Nossa Senhora do Socorro;TOTAL;479;460;19;21199
+202112;Nossa Senhora do Socorro;Agropecuária;2;0;2;82
+202112;Nossa Senhora do Socorro;Indústria;128;139;-11;5617
+202112;Nossa Senhora do Socorro;Construção;17;31;-14;884
+202112;Nossa Senhora do Socorro;Comércio;218;143;75;5909
+202112;Nossa Senhora do Socorro;Serviços;114;147;-33;8707
+202112;Sergipe;TOTAL;7913;8549;-636;290766
+202112;Sergipe;Agropecuária;294;451;-157;12820
+202112;Sergipe;Indústria;780;1287;-507;50405
+202112;Sergipe;Construção;1255;1143;112;22918
+202112;Sergipe;Comércio;2206;2027;179;66964
+202112;Sergipe;Serviços;3378;3641;-263;137654
+202112;Sergipe;Não Identificado;;;;5
+202112;Aracaju;TOTAL;4935;4685;250;159723
+202112;Aracaju;Agropecuária;7;9;-2;634
+202112;Aracaju;Indústria;172;215;-43;11882
+202112;Aracaju;Construção;739;620;119;16543
+202112;Aracaju;Comércio;1369;1229;140;34597
+202112;Aracaju;Serviços;2648;2612;36;96051
+202112;Aracaju;Não Identificado;;;;16
+202112;São Cristóvão;TOTAL;237;382;-145;8441
+202112;São Cristóvão;Agropecuária;17;8;9;530
+202112;São Cristóvão;Indústria;15;64;-49;1169
+202112;São Cristóvão;Construção;108;47;61;382
+202112;São Cristóvão;Comércio;19;44;-25;900
+202112;São Cristóvão;Serviços;78;219;-141;5460
+202112;Barra dos Coqueiros;TOTAL;165;142;23;3259
+202112;Barra dos Coqueiros;Agropecuária;;;;36
+202112;Barra dos Coqueiros;Indústria;1;1;0;226
+202112;Barra dos Coqueiros;Construção;88;64;24;1229
+202112;Barra dos Coqueiros;Comércio;23;29;-6;506
+202112;Barra dos Coqueiros;Serviços;53;48;5;1262
+202206;Nossa Senhora do Socorro;TOTAL;618;578;40;21829
+202206;Nossa Senhora do Socorro;Agropecuária;4;1;3;76
+202206;Nossa Senhora do Socorro;Indústria;166;126;40;5489
+202206;Nossa Senhora do Socorro;Construção;52;40;12;980
+202206;Nossa Senhora do Socorro;Comércio;146;128;18;6122
+202206;Nossa Senhora do Socorro;Serviços;250;283;-33;9162
+202206;Sergipe;TOTAL;8831;7889;942;293315
+202206;Sergipe;Agropecuária;265;278;-13;10525
+202206;Sergipe;Indústria;1353;997;356;48098
+202206;Sergipe;Construção;1252;1611;-359;23788
+202206;Sergipe;Comércio;2262;1789;473;67350
+202206;Sergipe;Serviços;3699;3214;485;143549
+202206;Sergipe;Não Identificado;;;;5
+202206;Aracaju;TOTAL;4924;4629;295;163109
+202206;Aracaju;Agropecuária;4;25;-21;624
+202206;Aracaju;Indústria;220;207;13;11975
+202206;Aracaju;Construção;753;1123;-370;16947
+202206;Aracaju;Comércio;1329;1047;282;34256
+202206;Aracaju;Serviços;2618;2227;391;99291
+202206;Aracaju;Não Identificado;;;;16
+202206;São Cristóvão;TOTAL;238;208;30;8809
+202206;São Cristóvão;Agropecuária;12;14;-2;496
+202206;São Cristóvão;Indústria;24;22;2;1200
+202206;São Cristóvão;Construção;62;43;19;358
+202206;São Cristóvão;Comércio;32;25;7;1008
+202206;São Cristóvão;Serviços;108;104;4;5747
+202206;Barra dos Coqueiros;TOTAL;177;143;34;3501
+202206;Barra dos Coqueiros;Agropecuária;1;0;1;42
+202206;Barra dos Coqueiros;Indústria;12;2;10;226
+202206;Barra dos Coqueiros;Construção;62;58;4;1324
+202206;Barra dos Coqueiros;Comércio;33;26;7;569
+202206;Barra dos Coqueiros;Serviços;69;57;12;1340
+202212;Nossa Senhora do Socorro;TOTAL;888;604;284;22092
+202212;Nossa Senhora do Socorro;Agropecuária;1;2;-1;73
+202212;Nossa Senhora do Socorro;Indústria;116;110;6;5440
+202212;Nossa Senhora do Socorro;Construção;35;30;5;1050
+202212;Nossa Senhora do Socorro;Comércio;144;136;8;6201
+202212;Nossa Senhora do Socorro;Serviços;592;326;266;9328
+202212;Sergipe;TOTAL;7417;8745;-1328;302596
+202212;Sergipe;Agropecuária;190;398;-208;12955
+202212;Sergipe;Indústria;854;991;-137;50295
+202212;Sergipe;Construção;1066;1327;-261;24733
+202212;Sergipe;Comércio;2175;2152;23;70116
+202212;Sergipe;Serviços;3131;3877;-746;144501
+202212;Sergipe;Não Identificado;1;0;1;
+202212;Aracaju;TOTAL;4106;4656;-550;165311
+202212;Aracaju;Agropecuária;6;8;-2;646
+202212;Aracaju;Indústria;226;211;15;11883
+202212;Aracaju;Construção;708;789;-81;17406
+202212;Aracaju;Comércio;1282;1322;-40;35938
+202212;Aracaju;Serviços;1884;2326;-442;99432
+202212;Aracaju;Não Identificado;;;;6
+202212;São Cristóvão;TOTAL;167;249;-82;9110
+202212;São Cristóvão;Agropecuária;6;7;-1;529
+202212;São Cristóvão;Indústria;30;37;-7;1244
+202212;São Cristóvão;Construção;36;45;-9;465
+202212;São Cristóvão;Comércio;29;37;-8;1046
+202212;São Cristóvão;Serviços;66;123;-57;5826
+202212;Barra dos Coqueiros;TOTAL;109;171;-62;3652
+202212;Barra dos Coqueiros;Agropecuária;0;2;-2;37
+202212;Barra dos Coqueiros;Indústria;7;8;-1;216
+202212;Barra dos Coqueiros;Construção;39;75;-36;1331
+202212;Barra dos Coqueiros;Comércio;29;27;2;666
+202212;Barra dos Coqueiros;Serviços;34;59;-25;1402
+202306;Nossa Senhora do Socorro;TOTAL;498;622;-124;22316
+202306;Nossa Senhora do Socorro;Agropecuária;5;1;4;82
+202306;Nossa Senhora do Socorro;Indústria;133;126;7;5496
+202306;Nossa Senhora do Socorro;Construção;14;36;-22;1015
+202306;Nossa Senhora do Socorro;Comércio;177;176;1;6143
+202306;Nossa Senhora do Socorro;Serviços;169;283;-114;9580
+202306;Sergipe;TOTAL;9129;8489;640;304717
+202306;Sergipe;Agropecuária;302;236;66;10626
+202306;Sergipe;Indústria;1505;1070;435;49822
+202306;Sergipe;Construção;1259;1219;40;25667
+202306;Sergipe;Comércio;2349;2133;216;70223
+202306;Sergipe;Serviços;3714;3831;-117;148383
+202306;Aracaju;TOTAL;4862;4768;94;168550
+202306;Aracaju;Agropecuária;7;5;2;641
+202306;Aracaju;Indústria;300;289;11;12158
+202306;Aracaju;Construção;855;801;54;18614
+202306;Aracaju;Comércio;1241;1147;94;35588
+202306;Aracaju;Serviços;2459;2526;-67;101543
+202306;Aracaju;Não Identificado;;;;6
+202306;São Cristóvão;TOTAL;284;253;31;9538
+202306;São Cristóvão;Agropecuária;24;10;14;567
+202306;São Cristóvão;Indústria;28;24;4;1281
+202306;São Cristóvão;Construção;34;28;6;444
+202306;São Cristóvão;Comércio;40;46;-6;1088
+202306;São Cristóvão;Serviços;158;145;13;6158
+202306;Barra dos Coqueiros;TOTAL;163;154;9;3730
+202306;Barra dos Coqueiros;Agropecuária;0;1;-1;36
+202306;Barra dos Coqueiros;Indústria;0;6;-6;206
+202306;Barra dos Coqueiros;Construção;59;48;11;1266
+202306;Barra dos Coqueiros;Comércio;35;28;7;694
+202306;Barra dos Coqueiros;Serviços;69;71;-2;1528
+202312;Nossa Senhora do Socorro;TOTAL;1005;629;376;23657
+202312;Nossa Senhora do Socorro;Agropecuária;1;0;1;79
+202312;Nossa Senhora do Socorro;Indústria;138;108;30;5693
+202312;Nossa Senhora do Socorro;Construção;2;29;-27;955
+202312;Nossa Senhora do Socorro;Comércio;152;178;-26;6191
+202312;Nossa Senhora do Socorro;Serviços;712;314;398;10739
+202312;Sergipe;TOTAL;7855;8711;-856;315982
+202312;Sergipe;Agropecuária;249;392;-143;12621
+202312;Sergipe;Indústria;765;918;-153;52545
+202312;Sergipe;Construção;945;1150;-205;26602
+202312;Sergipe;Comércio;2393;2055;338;73153
+202312;Sergipe;Serviços;3496;4193;-697;151059
+202312;Sergipe;Não Identificado;7;3;4;2
+202312;Aracaju;TOTAL;4254;4608;-354;171698
+202312;Aracaju;Agropecuária;4;13;-9;640
+202312;Aracaju;Indústria;210;205;5;12112
+202312;Aracaju;Construção;643;771;-128;19463
+202312;Aracaju;Comércio;1453;1170;283;37229
+202312;Aracaju;Serviços;1944;2449;-505;102248
+202312;Aracaju;Não Identificado;;;;6
+202312;São Cristóvão;TOTAL;210;165;45;9977
+202312;São Cristóvão;Agropecuária;15;15;0;601
+202312;São Cristóvão;Indústria;16;19;-3;1303
+202312;São Cristóvão;Construção;19;15;4;459
+202312;São Cristóvão;Comércio;34;32;2;1149
+202312;São Cristóvão;Serviços;126;84;42;6465
+202312;Barra dos Coqueiros;TOTAL;195;176;19;3726
+202312;Barra dos Coqueiros;Agropecuária;0;1;-1;32
+202312;Barra dos Coqueiros;Indústria;3;3;0;207
+202312;Barra dos Coqueiros;Construção;31;35;-4;1127
+202312;Barra dos Coqueiros;Comércio;35;34;1;703
+202312;Barra dos Coqueiros;Serviços;126;103;23;1656
+202312;Barra dos Coqueiros;Não Identificado;;;;1
+202406;Nossa Senhora do Socorro;TOTAL;1117;695;422;24155
+202406;Nossa Senhora do Socorro;Agropecuária;2;1;1;76
+202406;Nossa Senhora do Socorro;Indústria;268;165;103;6058
+202406;Nossa Senhora do Socorro;Construção;26;14;12;988
+202406;Nossa Senhora do Socorro;Comércio;235;163;72;6331
+202406;Nossa Senhora do Socorro;Serviços;586;352;234;10702
+202406;Sergipe;TOTAL;10686;8832;1854;321091
+202406;Sergipe;Agropecuária;321;278;43;10511
+202406;Sergipe;Indústria;1574;1195;379;51003
+202406;Sergipe;Construção;1768;1676;92;28429
+202406;Sergipe;Comércio;2722;2100;622;74425
+202406;Sergipe;Serviços;4299;3582;717;156723
+202406;Sergipe;Não Identificado;2;1;1;
+202406;Aracaju;TOTAL;5817;5117;700;177167
+202406;Aracaju;Agropecuária;11;10;1;637
+202406;Aracaju;Indústria;271;250;21;12148
+202406;Aracaju;Construção;1356;1272;84;21152
+202406;Aracaju;Comércio;1530;1212;318;37566
+202406;Aracaju;Serviços;2649;2373;276;105658
+202406;Aracaju;Não Identificado;;;;6
+202406;São Cristóvão;TOTAL;325;265;60;10534
+202406;São Cristóvão;Agropecuária;27;19;8;609
+202406;São Cristóvão;Indústria;47;71;-24;1337
+202406;São Cristóvão;Construção;35;35;0;483
+202406;São Cristóvão;Comércio;41;30;11;1205
+202406;São Cristóvão;Serviços;175;110;65;6900
+202406;Barra dos Coqueiros;TOTAL;173;162;11;3940
+202406;Barra dos Coqueiros;Agropecuária;2;2;0;28
+202406;Barra dos Coqueiros;Indústria;16;8;8;231
+202406;Barra dos Coqueiros;Construção;51;50;1;1135
+202406;Barra dos Coqueiros;Comércio;30;38;-8;719
+202406;Barra dos Coqueiros;Serviços;74;64;10;1827
+202412;Nossa Senhora do Socorro;TOTAL;1027;809;218;24847
+202412;Nossa Senhora do Socorro;Agropecuária;5;2;3;77
+202412;Nossa Senhora do Socorro;Indústria;147;136;11;6573
+202412;Nossa Senhora do Socorro;Construção;12;46;-34;966
+202412;Nossa Senhora do Socorro;Comércio;172;195;-23;6459
+202412;Nossa Senhora do Socorro;Serviços;691;430;261;10772
+202412;Sergipe;TOTAL;8920;11049;-2129;331542
+202412;Sergipe;Agropecuária;232;323;-91;12186
+202412;Sergipe;Indústria;963;1239;-276;54289
+202412;Sergipe;Construção;987;1646;-659;28881
+202412;Sergipe;Comércio;2827;2430;397;77828
+202412;Sergipe;Serviços;3909;5411;-1502;158352
+202412;Sergipe;Não Identificado;2;0;2;6
+202412;Aracaju;TOTAL;4892;5514;-622;181387
+202412;Aracaju;Agropecuária;3;7;-4;642
+202412;Aracaju;Indústria;218;260;-42;12320
+202412;Aracaju;Construção;683;1145;-462;21537
+202412;Aracaju;Comércio;1677;1349;328;39499
+202412;Aracaju;Serviços;2311;2753;-442;107383
+202412;Aracaju;Não Identificado;;;;6
+202412;São Cristóvão;TOTAL;221;580;-359;10450
+202412;São Cristóvão;Agropecuária;20;12;8;641
+202412;São Cristóvão;Indústria;45;27;18;1455
+202412;São Cristóvão;Construção;12;52;-40;394
+202412;São Cristóvão;Comércio;42;136;-94;1173
+202412;São Cristóvão;Serviços;102;353;-251;6787
+202412;Barra dos Coqueiros;TOTAL;177;150;27;4278
+202412;Barra dos Coqueiros;Agropecuária;0;1;-1;27
+202412;Barra dos Coqueiros;Indústria;22;5;17;307
+202412;Barra dos Coqueiros;Construção;30;38;-8;1172
+202412;Barra dos Coqueiros;Comércio;39;34;5;769
+202412;Barra dos Coqueiros;Serviços;86;72;14;2003
+202506;Nossa Senhora do Socorro;TOTAL;1018;768;250;25146
+202506;Nossa Senhora do Socorro;Agropecuária;0;1;-1;73
+202506;Nossa Senhora do Socorro;Indústria;190;189;1;6545
+202506;Nossa Senhora do Socorro;Construção;16;25;-9;912
+202506;Nossa Senhora do Socorro;Comércio;253;196;57;6449
+202506;Nossa Senhora do Socorro;Serviços;559;357;202;11167
+202506;Sergipe;TOTAL;12902;10478;2424;338032
+202506;Sergipe;Agropecuária;288;260;28;10717
+202506;Sergipe;Indústria;1459;1294;165;52107
+202506;Sergipe;Construção;1658;1475;183;31111
+202506;Sergipe;Comércio;3124;2703;421;79172
+202506;Sergipe;Serviços;6373;4744;1629;164929
+202506;Sergipe;Não Identificado;0;2;-2;
+202506;Aracaju;TOTAL;7156;6125;1031;186136
+202506;Aracaju;Agropecuária;9;9;0;641
+202506;Aracaju;Indústria;414;364;50;11801
+202506;Aracaju;Construção;1195;1025;170;23146
+202506;Aracaju;Comércio;1624;1512;112;39767
+202506;Aracaju;Serviços;3914;3214;700;110779
+202506;Aracaju;Não Identificado;0;1;-1;2
+202506;São Cristóvão;TOTAL;527;318;209;11306
+202506;São Cristóvão;Agropecuária;27;21;6;680
+202506;São Cristóvão;Indústria;57;41;16;1486
+202506;São Cristóvão;Construção;37;19;18;483
+202506;São Cristóvão;Comércio;41;34;7;1359
+202506;São Cristóvão;Serviços;365;203;162;7298
+202506;Barra dos Coqueiros;TOTAL;267;173;94;4492
+202506;Barra dos Coqueiros;Agropecuária;0;2;-2;25
+202506;Barra dos Coqueiros;Indústria;7;10;-3;309
+202506;Barra dos Coqueiros;Construção;57;57;0;1112
+202506;Barra dos Coqueiros;Comércio;68;29;39;818
+202506;Barra dos Coqueiros;Serviços;135;75;60;2228
+202512;Nossa Senhora do Socorro;TOTAL;683;1006;-323;25627
+202512;Nossa Senhora do Socorro;Agropecuária;2;2;0;69
+202512;Nossa Senhora do Socorro;Indústria;132;237;-105;6878
+202512;Nossa Senhora do Socorro;Construção;11;26;-15;901
+202512;Nossa Senhora do Socorro;Comércio;193;195;-2;6633
+202512;Nossa Senhora do Socorro;Serviços;345;546;-201;11146
+202512;Sergipe;TOTAL;9373;11986;-2613;347097
+202512;Sergipe;Agropecuária;205;336;-131;11967
+202512;Sergipe;Indústria;984;1320;-336;54019
+202512;Sergipe;Construção;1108;1662;-554;32919
+202512;Sergipe;Comércio;2863;2836;27;81911
+202512;Sergipe;Serviços;4207;5832;-1625;166281
+202512;Sergipe;Não Identificado;6;0;6;
+202512;Aracaju;TOTAL;5227;6443;-1216;188993
+202512;Aracaju;Agropecuária;5;9;-4;626
+202512;Aracaju;Indústria;236;288;-52;11799
+202512;Aracaju;Construção;753;1203;-450;24335
+202512;Aracaju;Comércio;1603;1574;29;41061
+202512;Aracaju;Serviços;2630;3369;-739;111172
+202512;São Cristóvão;TOTAL;285;711;-426;11440
+202512;São Cristóvão;Agropecuária;12;17;-5;669
+202512;São Cristóvão;Indústria;41;54;-13;1524
+202512;São Cristóvão;Construção;21;43;-22;512
+202512;São Cristóvão;Comércio;37;176;-139;1225
+202512;São Cristóvão;Serviços;174;421;-247;7510
+202512;Barra dos Coqueiros;TOTAL;164;236;-72;4637
+202512;Barra dos Coqueiros;Agropecuária;0;1;-1;23
+202512;Barra dos Coqueiros;Indústria;5;21;-16;294
+202512;Barra dos Coqueiros;Construção;50;59;-9;1101
+202512;Barra dos Coqueiros;Comércio;43;38;5;867
+202512;Barra dos Coqueiros;Serviços;66;117;-51;2352
+202606;Nossa Senhora do Socorro;TOTAL;918;872;46;25522
+202606;Nossa Senhora do Socorro;Agropecuária;2;1;1;72
+202606;Nossa Senhora do Socorro;Indústria;189;207;-18;6853
+202606;Nossa Senhora do Socorro;Construção;61;39;22;990
+202606;Nossa Senhora do Socorro;Comércio;250;227;23;6610
+202606;Nossa Senhora do Socorro;Serviços;416;398;18;10997
+202606;Sergipe;TOTAL;12587;11963;624;352022
+202606;Sergipe;Agropecuária;218;302;-84;10527
+202606;Sergipe;Indústria;1950;2030;-80;54422
+202606;Sergipe;Construção;2053;1952;101;34688
+202606;Sergipe;Comércio;2905;2872;33;81232
+202606;Sergipe;Serviços;5461;4807;654;171154
+202606;Aracaju;TOTAL;7065;6704;361;193138
+202606;Aracaju;Agropecuária;9;31;-22;587
+202606;Aracaju;Indústria;570;661;-91;12618
+202606;Aracaju;Construção;1303;1266;37;25468
+202606;Aracaju;Comércio;1569;1524;45;40670
+202606;Aracaju;Serviços;3614;3222;392;113795
+202606;São Cristóvão;TOTAL;305;363;-58;11995
+202606;São Cristóvão;Agropecuária;20;29;-9;663
+202606;São Cristóvão;Indústria;42;48;-6;1574
+202606;São Cristóvão;Construção;28;45;-17;539
+202606;São Cristóvão;Comércio;35;48;-13;1170
+202606;São Cristóvão;Serviços;180;193;-13;8049
+202606;Barra dos Coqueiros;TOTAL;340;206;134;4940
+202606;Barra dos Coqueiros;Agropecuária;;;;25
+202606;Barra dos Coqueiros;Indústria;12;11;1;220
+202606;Barra dos Coqueiros;Construção;155;59;96;1267
+202606;Barra dos Coqueiros;Comércio;42;35;7;957
+202606;Barra dos Coqueiros;Serviços;131;101;30;2471
+202607;Nossa Senhora do Socorro;TOTAL;882;965;-83;25439
+202607;Nossa Senhora do Socorro;Agropecuária;0;4;-4;68
+202607;Nossa Senhora do Socorro;Indústria;189;195;-6;6847
+202607;Nossa Senhora do Socorro;Construção;61;55;6;996
+202607;Nossa Senhora do Socorro;Comércio;262;251;11;6621
+202607;Nossa Senhora do Socorro;Serviços;370;460;-90;10907
+202607;Sergipe;TOTAL;13362;12267;1095;353117
+202607;Sergipe;Agropecuária;242;292;-50;10477
+202607;Sergipe;Indústria;1826;1669;157;54579
+202607;Sergipe;Construção;2250;1902;348;35036
+202607;Sergipe;Comércio;3132;3097;35;81267
+202607;Sergipe;Serviços;5912;5305;607;171761
+202607;Sergipe;Não Identificado;0;2;-2;
+202607;Aracaju;TOTAL;7586;6845;741;193879
+202607;Aracaju;Agropecuária;4;8;-4;583
+202607;Aracaju;Indústria;537;505;32;12650
+202607;Aracaju;Construção;1492;1259;233;25701
+202607;Aracaju;Comércio;1693;1723;-30;40640
+202607;Aracaju;Serviços;3860;3350;510;114305
+202607;São Cristóvão;TOTAL;504;442;62;12057
+202607;São Cristóvão;Agropecuária;31;22;9;672
+202607;São Cristóvão;Indústria;57;32;25;1599
+202607;São Cristóvão;Construção;31;55;-24;515
+202607;São Cristóvão;Comércio;43;42;1;1171
+202607;São Cristóvão;Serviços;342;291;51;8100
+202607;Barra dos Coqueiros;TOTAL;434;272;162;5102
+202607;Barra dos Coqueiros;Agropecuária;;;;25
+202607;Barra dos Coqueiros;Indústria;6;10;-4;216
+202607;Barra dos Coqueiros;Construção;262;106;156;1423
+202607;Barra dos Coqueiros;Comércio;44;45;-1;956
+202607;Barra dos Coqueiros;Serviços;122;111;11;2482

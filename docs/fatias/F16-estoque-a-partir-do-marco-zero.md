@@ -25,9 +25,10 @@ outros territórios depois, **apenas inserindo dados**.
   233 arquivos com SHA-256, e Socorro idêntico ao de antes grupo a grupo. Warehouse: 50,5 MiB.
   Memória com limite de 830 MiB: pico de 405 MiB por arquivo MOV e 398 MiB nos marts (todos os
   territórios ativos).
-  **Ativos:** Socorro, Aracaju, Barra dos Coqueiros e São Cristóvão. **Sergipe inativo:** o
-  marco zero "Não Identificado" da UF no painel (5) é menor que o de Aracaju (16), e a série
-  ficaria negativa a partir de 202207 (mínimo −7). Ver D11, pontos abertos.
+  **Ativos:** Socorro, Aracaju, Barra dos Coqueiros e São Cristóvão, os quatro conferidos com
+  o painel (84/84 cada). **Sergipe inativo:** também confere 84/84, mas o "Não Identificado" da
+  UF é negativo no próprio painel, e `test_estoque_nao_negativo` (error) derrubaria o run. Ver
+  D11, pontos abertos.
 - **Parte 3 (item 6, boletim):** não começada.
 
 ## O problema de arquitetura que esta fatia resolve
@@ -168,7 +169,7 @@ nem o envio da [F15](F15-entrega-por-email-e-arquivo.md).
 | Unicidade do grão de `mart_estoque` | `error` | ✅ `test_unicidade_grao_estoque` |
 | Território por município e por UF; inativo fora; ativo sem marco com estoque NULL | `error` | ✅ teste unitário `territorios_por_municipio_e_por_uf` |
 | Coerência: saldo = reconciliado; estoque(t) − estoque(t−1) = saldo(t) | `error` | ✅ `test_coerencia_estoque` |
-| **Estoque confere com o painel** (`marco-zero/validacao/`), recalculado só com os arquivos até a foto do painel | `warn` | ✅ `test_estoque_confere_painel`: 84/84 em 28/09/2026 |
+| **Estoque confere com o painel** (`marco-zero/validacao/`), recalculado só com os arquivos até a foto do painel, territórios ativos | `warn` | ✅ `test_estoque_confere_painel`: 84/84 por território em 28/09/2026 |
 | Unicidade de (tipo, competência) no registro de ingestão | `error` | ✅ `test_unicidade_ingestao_arquivos` |
 
 ## Fora de escopo
@@ -182,8 +183,7 @@ nem o envio da [F15](F15-entrega-por-email-e-arquivo.md).
 
 1. ✅ Com **só Socorro**, `mart_estoque` traz estoque e taxa para cada grupamento.
 2. ✅ **Ativar Aracaju** = mudar `ativo` em `territorios.csv`; Aracaju, Barra dos Coqueiros
-   e São Cristóvão foram ativados assim, depois do reprocessamento único com `uf = 28`. O
-   estoque deles ainda não foi conferido com o painel (só o de Socorro).
+   e São Cristóvão foram ativados assim, depois do reprocessamento único com `uf = 28`.
 3. Parcial · Território **sem marco zero**: fluxo presente e estoque `NULL` (teste
    unitário `territorios_por_municipio_e_por_uf`); falta "boletim gerado" (parte 3).
 4. Não testado diretamente · **Reprocessar o mesmo arquivo duas vezes** não altera o
@@ -196,4 +196,4 @@ nem o envio da [F15](F15-entrega-por-email-e-arquivo.md).
 7. ✅ Comparar o **saldo mensal consolidado** e o **estoque** com o painel oficial do MTE:
    saldo coincide em 70 de 72 meses de 2020–2025 (as exceções são 202001 e 202003,
    [auditoria](../auditorias/2026-09-28-painel-vs-mart-socorro.md)); estoque coincide em
-   84 de 84 valores (14 competências de 202006 a 202607).
+   84 de 84 valores (14 competências de 202006 a 202607) em cada um dos cinco territórios.
