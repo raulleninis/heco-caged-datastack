@@ -12,6 +12,10 @@ consolidado. Se o warehouse ainda não tem esse mart (anterior à F12), cai no
 mart só-MOV e o boletim diz isso. Salários: sempre do mart só-MOV (a mediana de
 quem entrou fora do prazo não se soma à do MOV).
 
+Estoque e taxa de variação (F16): vêm do mart_estoque, só para o território do boletim. São uma
+ESTIMATIVA a partir do marco zero e só aparecem quando existem: sem o mart, ou sem marco zero
+para o território, o boletim sai sem eles, e nada mais muda.
+
 O boletim gerado é o que vai ser ENVIADO e ARQUIVADO. Ele não se regenera
 depois: o CAGED recebe declarações fora do prazo e exclusões que mudam meses
 já publicados, então regenerar hoje daria números diferentes dos enviados.
@@ -30,6 +34,18 @@ MESES = [
 ]
 
 TITULO = "Boletim CAGED - Nossa Senhora do Socorro/SE"
+
+# Território do boletim no mart_estoque. É o mesmo município da var `municipio_boletim` do dbt
+# (dbt_project.yml), que filtra os marts de fluxo e salário.
+TERRITORIO = "280480"
+
+NOTA_ESTOQUE = (
+    "Estoque: estimativa a partir de marco zero, em vínculos formais ao fim do mês. O marco é o "
+    "estoque do painel do Novo CAGED do MTE em março/2020; a cada mês desde abril/2020 soma-se o "
+    "saldo reconciliado. Conferido com o painel do MTE (idêntico em 14 competências de 2020 a 2026). "
+    "É revisado quando chegam declarações fora do prazo e exclusões. Variação no mês = saldo do mês "
+    "dividido pelo estoque do mês anterior."
+)
 
 # O que o leitor precisa saber para não superinterpretar o número.
 NOTAS_RECONCILIADO = [
@@ -72,6 +88,19 @@ class Boletim:
     reconciliado: bool = False  # True se as contagens vêm do mart reconciliado (F12)
     ultima_competencia: str | None = None   # última competência carregada (corte do consolidado)
     situacao: str | None = None             # desta competência: provisório | consolidado
+    # F16: estoque e taxa do total do território por competência (vazio sem mart_estoque)
+    estoque_totais: dict[str, dict] = field(default_factory=dict)
+
+    @property
+    def tem_estoque(self) -> bool:
+        return self.estoque_total is not None
+
+    @property
+    def estoque_total(self) -> dict | None:
+        """{'estoque', 'taxa_variacao_mensal'} do total desta competência, ou None se não houver
+        estoque (sem mart_estoque, sem marco zero, ou competência anterior ao marco)."""
+        t = self.estoque_totais.get(self.competencia)
+        return t if t and t["estoque"] is not None else None
 
     @property
     def total(self) -> dict:
@@ -118,6 +147,13 @@ def fmt_num(x: float | None, casas: int = 2) -> str:
 
 def fmt_brl(x: float | None) -> str:
     return "-" if x is None else f"R$ {fmt_num(x)}"
+
+
+def fmt_pct(x: float | None) -> str:
+    """Fração -> '+0,18%' / '-0,33%'."""
+    if x is None:
+        return "-"
+    return ("+" if x > 0 else "") + fmt_num(x * 100) + "%"
 
 
 def _latin1(texto: str) -> str:
@@ -174,6 +210,7 @@ def carregar(warehouse: Path, competencia: str) -> Boletim:
             )
             if tem_reconciliado else []
         )
+        estoque, estoque_totais = _carregar_estoque(con, competencia)
     finally:
         con.close()
 
@@ -186,9 +223,10 @@ def carregar(warehouse: Path, competencia: str) -> Boletim:
     else:
         historico = so_mov
 
-    linhas = [h for h in historico if h["competencia_mov"] == competencia]
-    if not linhas:
+    if not any(h["competencia_mov"] == competencia for h in historico):
         raise ValueError(f"Competência {competencia} não está no mart.")
+    historico = _com_estoque(historico, estoque)
+    linhas = [h for h in historico if h["competencia_mov"] == competencia]
 
     por_comp: dict[str, list[dict]] = {}
     for h in historico:
@@ -209,7 +247,79 @@ def carregar(warehouse: Path, competencia: str) -> Boletim:
         reconciliado=bool(reconciliado),
         ultima_competencia=str(linhas[0]["ultima_competencia_carregada"]) if reconciliado else None,
         situacao=linhas[0]["situacao"] if reconciliado else None,
+        estoque_totais=estoque_totais,
     )
+
+
+def _carregar_estoque(con, competencia: str) -> tuple[dict, dict]:
+    """(por (competência, grupamento), por competência) do mart_estoque do TERRITORIO. Os totais
+    do território (estoque e taxa) saem de SQL, como os demais números do boletim. Vazios se o
+    mart não existir (warehouse anterior à F16)."""
+    if not con.execute(
+        "select 1 from information_schema.tables where table_name = 'mart_estoque'"
+    ).fetchone():
+        return {}, {}
+    por_grupo = {
+        (str(r["competencia_mov"]), r["grupamento"]): r
+        for r in _consulta(
+            con,
+            "select competencia_mov, grupamento, saldo_consolidado, estoque, taxa_variacao_mensal "
+            "from mart_estoque where territorio = ? and competencia_mov <= ?",
+            [TERRITORIO, int(competencia)],
+        )
+    }
+    totais = {
+        str(r["competencia_mov"]): {
+            "estoque": None if r["estoque"] is None else int(r["estoque"]),
+            "taxa_variacao_mensal": r["taxa_variacao_mensal"],
+        }
+        for r in _consulta(
+            con,
+            "select competencia_mov, sum(estoque) as estoque, "
+            "sum(saldo_consolidado) / nullif(lag(sum(estoque)) over (order by competencia_mov), 0) "
+            "as taxa_variacao_mensal "
+            "from mart_estoque where territorio = ? and competencia_mov <= ? group by 1",
+            [TERRITORIO, int(competencia)],
+        )
+    }
+    return por_grupo, totais
+
+
+def _com_estoque(historico: list[dict], estoque: dict) -> list[dict]:
+    """Acrescenta estoque e taxa a cada linha. Um grupamento com estoque mas SEM movimentação no
+    mês (fora dos marts de fluxo) entra com contagens zeradas, para a coluna de estoque fechar
+    com o total do território."""
+    saida = []
+    for h in historico:
+        e = estoque.get((h["competencia_mov"], h["grupamento"]), {})
+        saida.append({**h, "estoque": _int_ou_none(e.get("estoque")),
+                      "taxa_variacao_mensal": e.get("taxa_variacao_mensal")})
+    presentes = {(h["competencia_mov"], h["grupamento"]) for h in historico}
+    modelo = {}  # uma linha por competência: os campos que valem para o mês todo
+    for h in historico:
+        modelo.setdefault(h["competencia_mov"], h)
+    for (c, g), e in estoque.items():
+        if (c, g) in presentes or c not in modelo or not e.get("estoque"):
+            continue
+        linha = {k: (0 if k in _CONTAGENS else None) for k in modelo[c]}
+        linha.update({k: modelo[c][k] for k in _DO_MES if k in modelo[c]})
+        linha.update({"competencia_mov": c, "grupamento": g, "estoque": int(e["estoque"]),
+                      "taxa_variacao_mensal": e.get("taxa_variacao_mensal")})
+        saida.append(linha)
+    return sorted(saida, key=lambda h: (h["competencia_mov"], h["grupamento"]))
+
+
+# Na linha de um grupamento sem movimentação no mês: contagens zeradas, salários vazios, e os
+# campos que valem para o mês todo copiados de outra linha da mesma competência.
+_CONTAGENS = {
+    "admissoes", "desligamentos", "saldo_liquido", "admissoes_com_salario_valido",
+    "admissoes_mov", "desligamentos_mov", "saldo_mov", "saldo_fora_prazo", "saldo_exclusoes",
+}
+_DO_MES = {"situacao", "defasagem_meses", "ultima_competencia_carregada"}
+
+
+def _int_ou_none(x) -> int | None:
+    return None if x is None else int(x)
 
 
 def _mesclar(so_mov: list[dict], reconciliado: list[dict]) -> list[dict]:
@@ -251,6 +361,12 @@ def _resumo(b: Boletim) -> list[str]:
         f"Em {nome_competencia(b.competencia)}: {fmt_int(t['admissoes'])} admissões, "
         f"{fmt_int(t['desligamentos'])} desligamentos e saldo líquido de {fmt_sinal(t['saldo_liquido'])} empregos formais."
     ]
+    if b.tem_estoque:
+        e = b.estoque_total
+        frases.append(
+            f"Estoque estimado ao fim do mês: {fmt_int(e['estoque'])} vínculos formais "
+            f"(variação de {fmt_pct(e['taxa_variacao_mensal'])} no mês; estimativa a partir de marco zero)."
+        )
     if b.reconciliado:
         frases.append(
             f"Situação: {b.situacao.upper()}."
@@ -332,10 +448,16 @@ def gerar_pdf(b: Boletim, destino: Path) -> None:
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 6, "Por grupamento de atividade", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", size=8)
-    cab = ["Grupamento", "Admissões", "Deslig.", "Saldo", "Sal. mediano", "Sal. médio", "Palma"]
+    # Com estoque (F16), a tabela ganha duas colunas; as larguras somam os 190 mm úteis nos dois casos.
+    if b.tem_estoque:
+        cab = ["Grupamento", "Admissões", "Deslig.", "Saldo", "Estoque*", "Var. mês*", "Sal. mediano", "Sal. médio", "Palma"]
+        larguras = (39, 22, 17, 16, 20, 16, 23, 23, 14)
+    else:
+        cab = ["Grupamento", "Admissões", "Deslig.", "Saldo", "Sal. mediano", "Sal. médio", "Palma"]
+        larguras = (52, 20, 20, 20, 30, 30, 18)
     with pdf.table(
-        col_widths=(52, 20, 20, 20, 30, 30, 18),
-        text_align=("LEFT",) + ("RIGHT",) * 6,
+        col_widths=larguras,
+        text_align=("LEFT",) + ("RIGHT",) * (len(cab) - 1),
         line_height=4.5,
     ) as tabela:
         linha = tabela.row()
@@ -347,6 +469,9 @@ def gerar_pdf(b: Boletim, destino: Path) -> None:
             linha.cell(fmt_int(l["admissoes"]))
             linha.cell(fmt_int(l["desligamentos"]))
             linha.cell(fmt_sinal(l["saldo_liquido"]))
+            if b.tem_estoque:
+                linha.cell(fmt_int(l.get("estoque")))
+                linha.cell(fmt_pct(l.get("taxa_variacao_mensal")))
             linha.cell(fmt_brl(l["salario_mediano_admissao"]))
             linha.cell(fmt_brl(l["salario_medio_admissao"]))
             linha.cell(fmt_num(l["palma_index_admissao"], 2))
@@ -356,9 +481,15 @@ def gerar_pdf(b: Boletim, destino: Path) -> None:
         linha.cell(fmt_int(t["admissoes"]))
         linha.cell(fmt_int(t["desligamentos"]))
         linha.cell(fmt_sinal(t["saldo_liquido"]))
+        if b.tem_estoque:
+            linha.cell(fmt_int(b.estoque_total["estoque"]))
+            linha.cell(fmt_pct(b.estoque_total["taxa_variacao_mensal"]))
         linha.cell("-")
         linha.cell("-")
         linha.cell("-")
+    if b.tem_estoque:
+        pdf.set_font("Helvetica", size=7)
+        pdf.cell(0, 4, _latin1("* Estimativa a partir de marco zero (ver notas)."), new_x="LMARGIN", new_y="NEXT")
     pdf.ln(6)
 
     pdf.set_font("Helvetica", "B", 11)
@@ -380,9 +511,13 @@ def gerar_pdf(b: Boletim, destino: Path) -> None:
 
 def _notas(b: Boletim) -> list[str]:
     if not b.reconciliado:
-        return NOTAS_SO_MOV
-    ultima = nome_competencia(b.ultima_competencia) if b.ultima_competencia else "-"
-    return [n.format(ultima=ultima) if "{ultima}" in n else n for n in NOTAS_RECONCILIADO]
+        notas = list(NOTAS_SO_MOV)
+    else:
+        ultima = nome_competencia(b.ultima_competencia) if b.ultima_competencia else "-"
+        notas = [n.format(ultima=ultima) if "{ultima}" in n else n for n in NOTAS_RECONCILIADO]
+    if b.tem_estoque:
+        notas.insert(len(notas) - 1, NOTA_ESTOQUE)  # antes da definição de saldo líquido
+    return notas
 
 
 # ----------------------------------------------------------------------- XLSX
@@ -407,6 +542,12 @@ _COLUNAS_RECONCILIACAO = [
     ("situacao", "Situação"),
 ]
 
+# Com estoque (F16): estimativa a partir de marco zero.
+_COLUNAS_ESTOQUE = [
+    ("estoque", "Estoque (estimativa, fim do mês)"),
+    ("taxa_variacao_mensal", "Variação do estoque no mês"),
+]
+
 
 def gerar_xlsx(b: Boletim, destino: Path) -> None:
     wb = xlsxwriter.Workbook(str(destino))
@@ -414,6 +555,7 @@ def gerar_xlsx(b: Boletim, destino: Path) -> None:
     inteiro = wb.add_format({"num_format": "#,##0"})
     dinheiro = wb.add_format({"num_format": "R$ #,##0.00"})
     razao = wb.add_format({"num_format": "0.00"})
+    percentual = wb.add_format({"num_format": "0.00%"})
     total_int = wb.add_format({"bold": True, "num_format": "#,##0", "top": 1})
     total_txt = wb.add_format({"bold": True, "top": 1})
     formatos = {
@@ -421,8 +563,14 @@ def gerar_xlsx(b: Boletim, destino: Path) -> None:
         "admissoes_com_salario_valido": inteiro, "salario_mediano_admissao": dinheiro,
         "salario_medio_admissao": dinheiro, "palma_index_admissao": razao,
         "saldo_mov": inteiro, "saldo_fora_prazo": inteiro, "saldo_exclusoes": inteiro,
+        "estoque": inteiro, "taxa_variacao_mensal": percentual,
     }
-    colunas = _COLUNAS_BASE + (_COLUNAS_RECONCILIACAO if b.reconciliado else [])
+    colunas = (
+        _COLUNAS_BASE[:5]
+        + (_COLUNAS_ESTOQUE if b.tem_estoque else [])
+        + _COLUNAS_BASE[5:]
+        + (_COLUNAS_RECONCILIACAO if b.reconciliado else [])
+    )
 
     def aba(nome: str, linhas: list[dict], com_total: bool) -> None:
         ws = wb.add_worksheet(nome)
@@ -442,6 +590,11 @@ def gerar_xlsx(b: Boletim, destino: Path) -> None:
             for j, (chave, _) in enumerate(colunas):
                 if chave in ("admissoes", "desligamentos", "saldo_liquido", "saldo_mov", "saldo_fora_prazo", "saldo_exclusoes"):
                     ws.write(fim, j, sum(l.get(chave, 0) for l in linhas), total_int)
+                elif chave == "estoque":
+                    ws.write(fim, j, b.estoque_total["estoque"], total_int)
+                elif chave == "taxa_variacao_mensal" and b.estoque_total["taxa_variacao_mensal"] is not None:
+                    ws.write(fim, j, b.estoque_total["taxa_variacao_mensal"],
+                             wb.add_format({"bold": True, "num_format": "0.00%", "top": 1}))
         ws.set_column(0, 0, 13)
         ws.set_column(1, 1, 44)
         ws.set_column(2, len(colunas) - 1, 16)

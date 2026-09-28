@@ -349,7 +349,7 @@ arquivo foi de fato publicado só se confirma logado.
 ### 6. Testes do projeto
 
 ```bash
-# Python: 51 testes (ingestão, reconciliação no boletim, entrega, arquivo). Sem rede e sem Prefect rodando
+# Python: 56 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo). Sem rede e sem Prefect rodando
 docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -B -m unittest discover -s /app/tests -v
 
 # dbt: testes de qualidade sobre o warehouse real (inclui 2 testes unitários do estoque)
@@ -452,7 +452,7 @@ mantendo o pico em ~500 MB (medido: 405 MiB por arquivo MOV com limite de 830 Mi
 │   │   ├── boletim.py            # gera o PDF e o XLSX a partir do mart (F15/F12)
 │   │   ├── arquivo.py            # clone do repositório do arquivo, envios.json, índice (git)
 │   │   └── entrega.py            # SMTP, envio idempotente e o CLI: teste/enviar/arquivar/remover
-│   └── tests/                    # 51 testes Python (ingestão, boletim, entrega/arquivo)
+│   └── tests/                    # 56 testes Python (ingestão, boletim, entrega/arquivo)
 ├── dbt/
 │   ├── macros/caged.sql          # colunas, CAST e grupamento compartilhados pelas 3 staging
 │   ├── macros/estoque.sql        # efeito no saldo (MOV +, FOR +, EXC −), usado pelo estoque (F16)
@@ -478,6 +478,8 @@ login) e envia **um e-mail por destinatário**. Os comandos manuais estão na [R
 
 - **O boletim usa o número reconciliado** (MOV + FOR − EXC), com a marcação **provisório/consolidado**; sem o mart
   reconciliado, cai no só-MOV. Os salários são sempre só do MOV.
+- **Estoque e variação no mês** (F16) aparecem no resumo, na tabela e na planilha, rotulados como estimativa a
+  partir de marco zero; sem `mart_estoque` ou sem marco zero, o boletim sai sem eles.
 - **O estado de envio (`envios.json`) vive no repositório do arquivo**, não no warehouse: apagar o `.duckdb` e
   reconstruí-lo **não reenvia nada**. Sem conseguir ler esse estado, o pipeline não envia (falha fechado).
 - **Envio interrompido** vira `enviando` órfão: alerta a cada run e **nunca** é reenviado sozinho.
@@ -548,7 +550,7 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [x] Histórico reprocessado com Sergipe inteiro; Aracaju, Barra dos Coqueiros e São Cristóvão ativos — F16 parte 2
 - [x] Estoque conferido com o painel nos cinco territórios: 84 de 84 valores em cada
 - [x] Sergipe (UF) no estoque; o "Não Identificado" da UF é negativo no próprio painel e tem teste em warn
-- [ ] Estoque e taxa no boletim — F16 parte 3
+- [x] Estoque e taxa de variação no boletim (PDF e XLSX), como estimativa a partir de marco zero — F16 parte 3
 - [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
 - [ ] Relatório mensal em PDF via CrewAI
   - [ ] Configuração do CrewAI e definição dos agentes (Analista de Dados, Pesquisador de Contexto, Redator, Revisor)

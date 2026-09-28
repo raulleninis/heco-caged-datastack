@@ -28,7 +28,9 @@ outros territórios depois, **apenas inserindo dados**.
   **Ativos:** Socorro, Aracaju, Barra dos Coqueiros, São Cristóvão e Sergipe (UF), todos
   conferidos com o painel (84/84 cada). O "Não Identificado" de Sergipe é negativo no próprio
   painel: esse grupamento tem teste de estoque negativo em `warn`; os outros cinco, em `error`.
-- **Parte 3 (item 6, boletim):** não começada.
+- **Parte 3 feita (28/09/2026):** o boletim (PDF e XLSX) de Socorro mostra o estoque ao fim do
+  mês e a variação no mês, no total e por grupamento, com a nota "estimativa a partir de marco
+  zero". Sem `mart_estoque` ou sem marco zero, sai como antes.
 
 ## O problema de arquitetura que esta fatia resolve
 
@@ -155,6 +157,19 @@ Os campos de estoque e taxa **só aparecem quando existem**, com a nota "estimat
 partir de marco zero". Um território sem marco zero **não impede a geração** do boletim
 nem o envio da [F15](F15-entrega-por-email-e-arquivo.md).
 
+✅ Feito em [boletim.py](../../pipeline/flows/boletim.py), para o território do boletim
+(`TERRITORIO = "280480"`, o mesmo da var `municipio_boletim` do dbt):
+
+- **Resumo:** "Estoque estimado ao fim do mês: 25.439 vínculos formais (variação de −0,33% no
+  mês; estimativa a partir de marco zero)".
+- **Tabela do PDF:** colunas "Estoque*" e "Var. mês*", com a nota de rodapé. Um grupamento com
+  estoque mas sem movimentação no mês entra com saldo 0, para a coluna fechar com o total.
+- **XLSX:** "Estoque (estimativa, fim do mês)" e "Variação do estoque no mês" na aba da
+  competência e na série histórica (em branco antes de 202003).
+- **Totais do território** (estoque e taxa) calculados em SQL, como os demais números.
+- Testes: `test_boletim.py` cobre estoque presente, ausência do mart, território sem marco,
+  grupamento sem movimentação e isolamento do território.
+
 ### 7. Testes
 
 | teste | severidade | estado |
@@ -184,8 +199,9 @@ nem o envio da [F15](F15-entrega-por-email-e-arquivo.md).
 1. ✅ Com **só Socorro**, `mart_estoque` traz estoque e taxa para cada grupamento.
 2. ✅ **Ativar Aracaju** = mudar `ativo` em `territorios.csv`; Aracaju, Barra dos Coqueiros
    e São Cristóvão foram ativados assim, depois do reprocessamento único com `uf = 28`.
-3. Parcial · Território **sem marco zero**: fluxo presente e estoque `NULL` (teste
-   unitário `territorios_por_municipio_e_por_uf`); falta "boletim gerado" (parte 3).
+3. ✅ Território **sem marco zero**: fluxo presente e estoque `NULL` (teste unitário
+   `territorios_por_municipio_e_por_uf`) e boletim gerado sem estoque
+   (`test_territorio_sem_marco_zero_gera_o_boletim_sem_estoque`).
 4. Não testado diretamente · **Reprocessar o mesmo arquivo duas vezes** não altera o
    estoque. Depende do incremental `delete+insert` das stagings (F12), que já existia; o
    `mart_estoque` é recalculado inteiro a cada run.

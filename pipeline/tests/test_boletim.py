@@ -141,6 +141,84 @@ class BoletimTest(unittest.TestCase):
         self.assertNotIn("indisponível", resumo)
         self.assertIn("mesmo mês do ano anterior (julho/2025): +10", resumo)
 
+    # ------------------------------------------------------------- estoque (F16)
+
+    def _com_estoque(self, nome: str, marco: bool = True) -> Path:
+        """Warehouse reconciliado + mart_estoque. Socorro: Comércio e Serviços com saldo +16/mês
+        (como no reconciliado) e Indústria com estoque 500 e NENHUMA movimentação; Não
+        Identificado com estoque 0. Sergipe (28) com números maiores, que não podem vazar."""
+        wh = self.tmp / nome
+        criar_warehouse(wh, com_reconciliado=True)
+        con = duckdb.connect(str(wh))
+        con.execute(
+            "create table mart_estoque (territorio varchar, grupamento varchar, competencia_mov bigint, "
+            "saldo_consolidado bigint, estoque hugeint, taxa_variacao_mensal double, competencia_marco_zero bigint)"
+        )
+        for i, c in enumerate(("202605", "202606", "202607")):
+            for g, base, saldo in (("Comércio", 1000, 16), ("Serviços", 1000, 16), ("Indústria", 500, 0), ("Não Identificado", 0, 0)):
+                est = base + saldo * i if marco else None
+                ant = base + saldo * (i - 1) if marco else None
+                taxa = saldo / ant if marco and i > 0 and ant else None
+                con.execute("insert into mart_estoque values ('280480', ?, ?, ?, ?, ?, ?)",
+                            [g, int(c), saldo, est, taxa, 202003 if marco else None])
+            con.execute("insert into mart_estoque values ('28', 'Comércio', ?, 999, 90000, 0.5, 202003)", [int(c)])
+        con.close()
+        return wh
+
+    def test_estoque_e_taxa_no_resumo_na_tabela_e_na_planilha(self):
+        wh = self._com_estoque("i.duckdb")
+        b = boletim.carregar(wh, "202607")
+        self.assertTrue(b.tem_estoque)
+        # 1032 + 1032 + 500 (+ 0); taxa do total = 32 / (1016 + 1016 + 500)
+        self.assertEqual(b.estoque_total["estoque"], 2564)
+        self.assertAlmostEqual(b.estoque_total["taxa_variacao_mensal"], 32 / 2532)
+        comercio = next(l for l in b.linhas if l["grupamento"] == "Comércio")
+        self.assertEqual(comercio["estoque"], 1032)
+        self.assertAlmostEqual(comercio["taxa_variacao_mensal"], 16 / 1016)
+        resumo = " ".join(boletim._resumo(b))
+        self.assertIn("Estoque estimado ao fim do mês: 2.564 vínculos formais", resumo)
+        self.assertIn("+1,26% no mês", resumo)
+        self.assertIn("estimativa a partir de marco zero", " ".join(boletim._notas(b)).lower())
+        pdf, xlsx = boletim.gerar(wh, "202607", self.tmp / "s")
+        self.assertTrue(pdf.read_bytes().startswith(b"%PDF"))
+        textos = zipfile.ZipFile(xlsx).read("xl/sharedStrings.xml").decode()
+        self.assertIn("Estoque (estimativa, fim do mês)", textos)
+        self.assertIn("Variação do estoque no mês", textos)
+
+    def test_grupamento_sem_movimentacao_entra_com_o_estoque(self):
+        """Indústria não tem movimentação no mês (fora dos marts de fluxo), mas tem estoque: sem ela a
+        coluna de estoque não fecharia com o total."""
+        b = boletim.carregar(self._com_estoque("j.duckdb"), "202607")
+        ind = next(l for l in b.linhas if l["grupamento"] == "Indústria")
+        self.assertEqual((ind["admissoes"], ind["saldo_liquido"], ind["estoque"]), (0, 0, 500))
+        self.assertEqual(ind["situacao"], "provisório")  # herdado da competência
+        self.assertIsNone(ind["salario_mediano_admissao"])
+        self.assertNotIn("Não Identificado", [l["grupamento"] for l in b.linhas])  # estoque 0: não entra
+        self.assertEqual(b.total["saldo_liquido"], 34)  # as contagens não mudam
+        self.assertEqual(b.total_so_mov, 20)
+
+    def test_sem_mart_estoque_o_boletim_sai_sem_estoque(self):
+        wh = self.tmp / "k.duckdb"
+        criar_warehouse(wh, com_reconciliado=True)
+        b = boletim.carregar(wh, "202607")
+        self.assertFalse(b.tem_estoque)
+        self.assertNotIn("Estoque", " ".join(boletim._resumo(b)))
+        self.assertNotIn("marco zero", " ".join(boletim._notas(b)))
+        pdf, xlsx = boletim.gerar(wh, "202607", self.tmp / "s")
+        self.assertNotIn("Estoque (estimativa", zipfile.ZipFile(xlsx).read("xl/sharedStrings.xml").decode())
+
+    def test_territorio_sem_marco_zero_gera_o_boletim_sem_estoque(self):
+        """Critério 3 da F16: estoque NULL não impede o boletim."""
+        wh = self._com_estoque("l.duckdb", marco=False)
+        b = boletim.carregar(wh, "202607")
+        self.assertFalse(b.tem_estoque)
+        pdf, _ = boletim.gerar(wh, "202607", self.tmp / "s")
+        self.assertTrue(pdf.read_bytes().startswith(b"%PDF"))
+
+    def test_so_o_territorio_do_boletim(self):
+        b = boletim.carregar(self._com_estoque("m.duckdb"), "202607")
+        self.assertNotIn(90000, [l.get("estoque") for l in b.historico])
+
     def test_competencia_ausente_do_mart_levanta_erro(self):
         wh = self.tmp / "g.duckdb"
         criar_warehouse(wh, com_reconciliado=True)

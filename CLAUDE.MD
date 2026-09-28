@@ -192,7 +192,9 @@ commit + push no repositório privado do arquivo. Regras que não são óbvias:
   medido). "Consolidado" NÃO é imutável: o EXC retroage até 68 meses. Salários ficam só no mart do MOV
 - Testes que travam as premissas: `test_exc_preserva_sinal_do_evento`, `test_coerencia_reconciliado`,
   `test_continuidade_mov` (erro) e `test_continuidade_for_exc` (warn: o PDET pode publicar FOR/EXC
-  depois do MOV). O boletim (F15) usa o mart reconciliado e cai no só-MOV se ele não existir
+  depois do MOV). O boletim (F15) usa o mart reconciliado e cai no só-MOV se ele não existir.
+  Estoque e taxa (F16 parte 3) vêm do mart_estoque, `TERRITORIO = "280480"` em boletim.py (tem de
+  bater com a var municipio_boletim do dbt); só aparecem quando existem
 - Filtro territorial (F16 parte 2): a staging guarda Sergipe inteiro (`uf = 28`, ~26 mil
   linhas/mês no MOV). `mart_caged_mensal_grupamento`, `mart_caged_reconciliado` e o teste de
   salário individual filtram `municipio = {{ var('municipio_boletim') }}` (280480, em
