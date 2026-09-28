@@ -1,6 +1,6 @@
 # D11 · Como constituir o estoque de emprego
 
-**Status:** decidida, revisada em 22/09/2026, com pontos abertos · **Bloqueia:** [F16](../fatias/F16-estoque-a-partir-do-marco-zero.md), [F10](../fatias/F10-camada-analitica.md) (indicadores de taxa) · **Urgência:** média
+**Status:** decidida, revisada em 22/09/2026, com pontos abertos · **Bloqueia:** [F16](../fatias/F16-estoque-a-partir-do-marco-zero.md), [F10](../fatias/F10-camada-analitica.md) (indicadores de taxa; F10 descartada em 28/09/2026) · **Urgência:** média
 
 ## Contexto
 

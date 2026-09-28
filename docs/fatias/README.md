@@ -23,11 +23,12 @@ flowchart TD
     F04 --> F07["F07 · Retenção do raw<br/>S"]
     F08 --> F08b["F08b · Validar com<br/>Docker real · S"]
     F09 --> F08b
-    F09 --> F10["F10 · Camada analítica<br/>visível · L"]
+    F09 -.-> F10["F10 · Camada analítica<br/>visível · descartada"]
     F06 --> F11["F11 · Observabilidade<br/>M"]
     F09 --> F12["F12 · FOR/EXC +<br/>reconciliação · L"]
     F11 --> F13["F13 · Migração<br/>para nuvem · L"]
-    F10 --> F14["F14 · Narrativa do<br/>repositório · M"]
+    F15 --> F14["F14 · Narrativa do<br/>repositório · M"]
+    F16 --> F14
     F04 --> F15["F15 · Entrega por e-mail<br/>e arquivo autenticado · L"]
     F06 --> F15
     F12 --> F16["F16 · Estoque a partir<br/>do marco zero · L"]
@@ -40,7 +41,9 @@ flowchart TD
     class F01,F02,F03,F04,F05 agora
     class F06,F07,F08,F08b,F09 pre
     class F11,F12,F13,F15,F16,F17 prod
-    class F10,F14 vitrine
+    classDef descartada fill:#f2f3f4,stroke:#99a3a4,color:#7b7d7d,stroke-dasharray:4 3
+    class F14 vitrine
+    class F10 descartada
 ```
 
 ## Tabela
@@ -57,14 +60,18 @@ flowchart TD
 | [F08](F08-reprodutibilidade.md) | Reprodutibilidade do ambiente | S | pré-prod | J, K, L | F01 |
 | [F08b](F08b-validar-reprodutibilidade-docker.md) ✅ | Validar com Docker real (F08 + F09 + revisão) | S | pré-prod | — | F08, F09 |
 | [F09](F09-testes-de-qualidade.md) | Testes de qualidade ampliados | M | pré-prod | D, F | F05 |
-| [F10](F10-camada-analitica.md) | Camada analítica visível | L | vitrine | (portfólio) | F09 |
+| [F10](F10-camada-analitica.md) ⛔ | Camada analítica visível (descartada aqui; produto interno) | L | vitrine | (portfólio) | F09 |
 | [F11](F11-observabilidade.md) ✅ | Observabilidade e alerta | M | produção | B | F06 |
 | [F12](F12-for-exc-reconciliacao.md) 🟡 | Ingestão FOR/EXC + reconciliação | L | produção | H | F09 |
 | [F13](F13-migracao-nuvem.md) | Migração para nuvem | L | produção | — | F11 |
-| [F14](F14-narrativa-do-repositorio.md) | Narrativa do repositório | M | vitrine | (portfólio) | F10 |
+| [F14](F14-narrativa-do-repositorio.md) | Narrativa do repositório | M | vitrine | (portfólio) | F15, F16 |
 | [F15](F15-entrega-por-email-e-arquivo.md) ✅ | Entrega por e-mail e arquivo autenticado | L | produção | (objetivo de produção) | F04, F06 |
 | [F16](F16-estoque-a-partir-do-marco-zero.md) ✅ | Estoque a partir do marco zero | L | produção | (D11) | F12, F09 |
 | [F17](F17-teste-de-silencio.md) ✅ | Teste de silêncio: provar que o alerta chega | XS (+ espera) | produção | (validação de F11) | F11 |
+
+> ⛔ **descartada:** a [F10](F10-camada-analitica.md) saiu deste repositório em
+> 28/09/2026 e segue como produto interno. A [F14](F14-narrativa-do-repositorio.md), que
+> dependia dela, passa a se apoiar no boletim (F15 + F16) como resultado visível.
 
 ## Se você só tiver um fim de semana
 

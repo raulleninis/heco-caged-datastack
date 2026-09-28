@@ -1,6 +1,6 @@
 # D10 · Escopo analítico do projeto
 
-**Status:** decidida (21/09/2026) · **Bloqueia:** [F10](../fatias/F10-camada-analitica.md) · **Urgência:** alta
+**Status:** decidida (21/09/2026) · revisada em 28/09/2026: execução da parte analítica fora deste repositório · **Bloqueia:** [F10](../fatias/F10-camada-analitica.md) (descartada) · **Urgência:** —
 
 ## Contexto
 
@@ -110,3 +110,30 @@ grupamento Serviços como um todo.
 filtro é agressivo de propósito. Numa VM de 830 MiB dividida com outra aplicação
 ([D02](D02-modelo-de-execucao.md)), isso precisa ser **medido**. Comparar com Aracaju e
 com Sergipe é bem menos dado que o Brasil inteiro.
+
+## Revisão (28/09/2026): a análise sai do repositório público
+
+> **Data:** 28/09/2026
+> **O que muda:** a [F10](../fatias/F10-camada-analitica.md) foi descartada neste
+> repositório. A análise (partes B e D) foi feita e segue como **produto interno** da
+> administração municipal de N. Sra. do Socorro, onde o autor trabalha.
+> **Porquê:** o vínculo do autor com o município torna inadequado expor uma análise
+> detalhada do seu mercado de trabalho numa vitrine pública.
+> **Nível de análise:** setorial, com CNAE só em casos pontuais para explicar uma
+> movimentação. Nunca no nível de empresa: o microdado público não traz CNPJ, e inferir a
+> empresa por CNAE, porte e município é reidentificação, que algumas instituições vedam.
+
+O que fica no repositório público:
+
+- **B (demográfico e ocupacional):** fora. A staging continua carregando as colunas, mas
+  nenhum mart público as usa.
+- **C (comparação territorial):** em parte, pela [F16](../fatias/F16-estoque-a-partir-do-marco-zero.md):
+  estoque e taxa de variação para Socorro, Aracaju, Barra dos Coqueiros, São Cristóvão
+  e Sergipe, no boletim.
+- **D (pergunta de negócio):** fora. O ponto aberto "qual é a pergunta" deixa de valer
+  para este repositório.
+
+**Efeito sobre o relatório com IA (roadmap):** a F10 era o seu pré-requisito. Sem ela,
+os fatos disponíveis aqui (saldo por grupamento, estoque, salário) não bastam para
+explicar variações. Se o relatório for feito, ele provavelmente pertence ao produto
+interno. Ver o [README](../../README.md#roadmap).

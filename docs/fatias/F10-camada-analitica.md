@@ -1,5 +1,13 @@
 # F10 · Camada analítica visível
 
+> **Status: descartada no repositório público (28/09/2026).** A análise foi feita, mas
+> segue como **produto interno** da administração municipal de N. Sra. do Socorro, fora
+> deste repositório. O motivo é o vínculo do autor com a prefeitura: uma análise detalhada
+> do mercado de trabalho do município não cabe numa vitrine pública. O texto abaixo
+> fica como registro do que a fatia propunha. Ver a nota de revisão em
+> [D10](../decisoes/D10-escopo-analitico.md) e o efeito sobre o relatório com IA na seção
+> [Relação com o CrewAI](#relação-com-o-crewai).
+
 | | |
 |---|---|
 | **Esforço** | L (1 a 3 dias) |
@@ -83,6 +91,18 @@ esta fatia é quem produz esses números.
 
 Ordem correta: **análise primeiro, LLM depois.** Um relatório automatizado sobre uma
 única agregação não impressiona; sobre uma camada analítica rica, impressiona muito.
+
+> **Com a fatia descartada (28/09/2026):** o repositório público oferece ao LLM só o
+> saldo por grupamento, o estoque e os salários. É pouco para explicar variações. A
+> análise interna mostrou que o que explica um mês é **onde o número se moveu**: o setor
+> e, em casos pontuais, a atividade (CNAE) por trás da variação. Por isso o relatório com
+> IA, se for feito, provavelmente fica junto da análise, no produto interno. Ver o
+> roadmap no [README](../../README.md).
+>
+> **Nível de análise (28/09/2026):** setorial, com CNAE só em casos pontuais para explicar
+> uma movimentação, e nunca no nível de empresa. O microdado público não traz CNPJ, e
+> apontar uma empresa a partir de CNAE, porte e município é reidentificação, que algumas
+> instituições vedam.
 
 ## Critério de aceite
 

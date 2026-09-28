@@ -17,17 +17,16 @@ Cada fatia em [docs/fatias/](../fatias/) que depende de uma delas está marcada.
 | [D04](D04-politica-de-falha-de-teste.md) | Teste dbt falhando derruba o flow? | [F04](../fatias/F04-religar-dbt-no-flow.md) | C — severidade por teste | decidida · 21/09/2026 |
 | [D05](D05-metrica-de-salario.md) | Qual métrica de salário publicar | [F05](../fatias/F05-corrigir-salario-medio.md) | mediana + média, só mensal, sem zero | decidida · 21/09/2026 |
 | [D06](D06-retencao-de-dados-brutos.md) | Política de retenção do raw | [F07](../fatias/F07-retencao-e-permissoes.md) | A agora, B depois da F09 | decidida · 21/09/2026 |
-| [D07](D07-repositorio-publico.md) | Quando abrir o repositório | [F10](../fatias/F10-camada-analitica.md) | após F01+F02+F05 | decidida · 21/09/2026 |
+| [D07](D07-repositorio-publico.md) | Quando abrir o repositório | [F14](../fatias/F14-narrativa-do-repositorio.md) (antes F10) | após F01+F02+F05 | decidida · 21/09/2026 · revisada 28/09/2026 |
 | [D08](D08-gestao-de-segredos.md) | Gestão de segredos | [F13](../fatias/F13-migracao-nuvem.md) | `.env` 600, escopo mínimo | decidida · 21/09/2026 |
 | [D09](D09-claude-md-na-vitrine.md) | O que fazer com o CLAUDE.MD | [F14](../fatias/F14-narrativa-do-repositorio.md) | D com A como acabamento | decidida · 21/09/2026 |
-| [D10](D10-escopo-analitico.md) | Escopo analítico do projeto | [F10](../fatias/F10-camada-analitica.md) | B + C ancoradas por D | decidida · 21/09/2026 |
-| [D11](D11-estoque-de-emprego.md) | Como constituir o estoque de emprego | [F16](../fatias/F16-estoque-a-partir-do-marco-zero.md), [F10](../fatias/F10-camada-analitica.md) | marco zero = estoque do painel do MTE em mar/2020, por território × grupamento, + movimentações MOV/FOR/EXC desde abr/2020 | decidida · revisada 28/09/2026 · F16 parte 1 aplicada |
+| [D10](D10-escopo-analitico.md) | Escopo analítico do projeto | [F10](../fatias/F10-camada-analitica.md) (descartada) | B + C ancoradas por D; no repositório público só C, via F16 | decidida · 21/09/2026 · revisada 28/09/2026: análise vira produto interno |
+| [D11](D11-estoque-de-emprego.md) | Como constituir o estoque de emprego | [F16](../fatias/F16-estoque-a-partir-do-marco-zero.md) | marco zero = estoque do painel do MTE em mar/2020, por território × grupamento, + movimentações MOV/FOR/EXC desde abr/2020 | decidida · revisada 28/09/2026 · F16 parte 1 aplicada |
 
 ## Pontos que continuam abertos dentro de decisões já tomadas
 
 | Onde | O quê |
 |---|---|
-| [D10](D10-escopo-analitico.md) | qual é a **pergunta de negócio** específica (a "D" do escopo) |
 | [D07](D07-repositorio-publico.md) | versionar amostra do recorte ou só o mart agregado; termos de uso do PDET |
 | [F15](../fatias/F15-entrega-por-email-e-arquivo.md) | **provedor de e-mail** |
 | [D03](D03-onde-guardar-os-dados.md) | se o FTP do PDET mantém o histórico necessário para reconstruir o warehouse |

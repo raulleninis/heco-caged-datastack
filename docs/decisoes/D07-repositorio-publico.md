@@ -65,3 +65,8 @@ boletins da [F15](../fatias/F15-entrega-por-email-e-arquivo.md) é um repositór
 agregado ([F10](../fatias/F10-camada-analitica.md)). Antes, confirmar os termos de uso do
 PDET para redistribuição. A lista de destinatários do boletim é dado pessoal (LGPD) e
 nunca entra no repositório.
+
+**Revisão (28/09/2026):** a [F10](../fatias/F10-camada-analitica.md) foi descartada neste
+repositório (ver [D10](D10-escopo-analitico.md)). O alvo C passa a ser **F14**, apoiada no
+boletim (F15 + F16) como resultado visível. A dúvida "amostra ou mart agregado" continua
+aberta, mas deixa de ser da F10: vale para qualquer demonstração de "clone e rode".

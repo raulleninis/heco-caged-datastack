@@ -292,3 +292,10 @@ pesquisa de contexto na web, redação, revisão factual) + renderização
 determinística (WeasyPrint). Regra de design: números nunca devem ser
 calculados pelo LLM — só SQL determinístico, o agente interpreta/redige
 em cima de fatos já calculados.
+
+Dependência: o relatório precisa da camada analítica (setor e, em casos
+pontuais, CNAE por trás de cada variação; nunca empresa, pois reidentificação
+é vedada), que era a F10. A F10 foi descartada deste
+repositório em 28/09/2026 e segue como produto interno (ver revisão na D10);
+o relatório provavelmente fica no produto interno também. Causas só com fonte
+externa citada e rotuladas como hipótese; revisão humana antes de enviar.
