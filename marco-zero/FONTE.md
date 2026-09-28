@@ -81,8 +81,10 @@ quando vem preenchido).
 O painel dá **5** de estoque "Não Identificado" para Sergipe e **16** para Aracaju, que é parte
 de Sergipe (o mesmo nas planilhas de jan e de mar/2020). A série da UF nesse grupamento fica
 **negativa no próprio painel** (−4 em 202212, 202306 e 202506; −3 em 202607), e o mart a reproduz
-exatamente. Enquanto `test_estoque_nao_negativo` for `error` para todo grupamento, Sergipe fica
-**inativo** em `dbt/seeds/territorios.csv`. O valor não foi alterado: o marco é imutável.
+exatamente. Por isso "Não Identificado" tem teste próprio, em `warn`
+(`test_estoque_nao_identificado_negativo`), e o `test_estoque_nao_negativo` (error) vale para os
+outros cinco grupamentos. Sergipe está **ativo** desde 28/09/2026. O valor não foi alterado: o
+marco é imutável.
 
 ## Regra de ajuste (atenção)
 

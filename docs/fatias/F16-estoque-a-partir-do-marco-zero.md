@@ -25,10 +25,9 @@ outros territórios depois, **apenas inserindo dados**.
   233 arquivos com SHA-256, e Socorro idêntico ao de antes grupo a grupo. Warehouse: 50,5 MiB.
   Memória com limite de 830 MiB: pico de 405 MiB por arquivo MOV e 398 MiB nos marts (todos os
   territórios ativos).
-  **Ativos:** Socorro, Aracaju, Barra dos Coqueiros e São Cristóvão, os quatro conferidos com
-  o painel (84/84 cada). **Sergipe inativo:** também confere 84/84, mas o "Não Identificado" da
-  UF é negativo no próprio painel, e `test_estoque_nao_negativo` (error) derrubaria o run. Ver
-  D11, pontos abertos.
+  **Ativos:** Socorro, Aracaju, Barra dos Coqueiros, São Cristóvão e Sergipe (UF), todos
+  conferidos com o painel (84/84 cada). O "Não Identificado" de Sergipe é negativo no próprio
+  painel: esse grupamento tem teste de estoque negativo em `warn`; os outros cinco, em `error`.
 - **Parte 3 (item 6, boletim):** não começada.
 
 ## O problema de arquitetura que esta fatia resolve
@@ -162,7 +161,8 @@ nem o envio da [F15](F15-entrega-por-email-e-arquivo.md).
 |---|---|---|
 | **Continuidade:** existe `CAGEDMOV` para cada competência desde 202004, sem lacuna | `error` | ✅ `test_continuidade_mov` (já existia; confere desde 202001) |
 | **Sinal da EXC:** admissões excluídas têm efeito `−1`; desligamentos excluídos, `+1` | `error` | ✅ `test_exc_preserva_sinal_do_evento` (já existia) + teste unitário `exclusao_de_admissao_reduz_estoque` |
-| Estoque nunca negativo | `error` | ✅ `test_estoque_nao_negativo` |
+| Estoque nunca negativo (cinco grupamentos principais) | `error` | ✅ `test_estoque_nao_negativo` |
+| Estoque de "Não Identificado" negativo (é negativo no próprio painel para Sergipe) | `warn` | ✅ `test_estoque_nao_identificado_negativo` |
 | `ajuste_marco_zero` não vazio (FOR/EXC de competência ≤ 202003 publicado depois de 202607) | `warn` (informa que o ajuste do marco zero foi acionado) | ✅ `test_ajuste_marco_zero_acionado` + teste unitário `ajuste_ignora_o_que_o_painel_ja_incorporou` |
 | Marco zero: seis grupamentos por território, mesma `data_referencia` e mesmo `retificacoes_ate` | `error` | ✅ `test_marco_zero_completo` |
 | Território ativo sem marco zero | `warn` | ✅ `test_territorio_sem_marco_zero` (lê o seed) |

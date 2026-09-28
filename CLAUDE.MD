@@ -213,10 +213,10 @@ commit + push no repositório privado do arquivo. Regras que não são óbvias:
 - Territórios do estoque: seed `dbt/seeds/territorios.csv` (`municipio` casa com o código de 6
   dígitos, `uf` com a UF). Só os `ativo` entram (macro `efeito_no_saldo()` faz o join). Ativar
   = mudar a coluna, sem reprocessar, porque a staging já tem o estado todo (histórico
-  reprocessado em 28/09/2026). Ativos: 280480, 280030, 280060, 280670 (todos 84/84 com o
-  painel). Sergipe (28) INATIVO de propósito: confere 84/84, mas o "Não Identificado" da UF é
-  NEGATIVO no próprio painel → test_estoque_nao_negativo (error) derrubaria o run. Não ative
-  sem mudar o teste
+  reprocessado em 28/09/2026). Todos os cinco ativos (280480, 280030, 280060, 280670 e 28),
+  84/84 com o painel cada. O "Não Identificado" de Sergipe é NEGATIVO no próprio painel: por isso
+  test_estoque_nao_negativo (error) exclui esse grupamento e test_estoque_nao_identificado_negativo
+  (warn) o cobre — esse WARN é esperado em todo run
 - marco-zero/validacao/: o painel esconde "Não Identificado" ≤ 0 (célula vazia) mas o TOTAL o
   inclui; normalizar.py o deriva como TOTAL − os outros cinco
 - O flow roda `dbt seed` e depois `dbt run --select stg_marco_zero_estoque path:models/marts`

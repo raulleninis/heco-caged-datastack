@@ -460,7 +460,7 @@ mantendo o pico em ~500 MB (medido: 405 MiB por arquivo MOV com limite de 830 Mi
 │   │   ├── staging/              # stg_caged_movimentacoes · _fora_do_prazo · _exclusoes · stg_marco_zero_estoque
 │   │   └── marts/                # mart_caged_mensal_grupamento · mart_caged_reconciliado · ajuste_marco_zero · mart_estoque
 │   ├── seeds/territorios.csv     # territórios do estoque: município ou UF, ativo ou não (F16)
-│   └── tests/                    # 17 testes singulares (grão, coerência, salário, sinal do EXC, continuidade, estoque…)
+│   └── tests/                    # 18 testes singulares (grão, coerência, salário, sinal do EXC, continuidade, estoque…)
 ├── marco-zero/                   # estoque do painel do MTE em mar/2020 (único insumo manual) + validação (F16); montado em /marco-zero:ro
 ├── arquivo/                      # esqueleto do repositório PRIVADO do arquivo (edge function, login, script de aceite)
 └── docs/
@@ -524,9 +524,9 @@ filtram o município de `municipio_boletim` (280480, em `dbt/dbt_project.yml`). 
 para os territórios **ativos** em [`dbt/seeds/territorios.csv`](dbt/seeds/territorios.csv)
 (município pelo código IBGE de 6 dígitos, ou a UF inteira). Para ativar um, mude `ativo` para
 `true` e rode o flow (ou `dbt seed` + marts): não é preciso reprocessar o histórico (já carregado
-com Sergipe inteiro em 28/09/2026). Ativos: Socorro, Aracaju, Barra dos Coqueiros e São
-Cristóvão. Sergipe (UF) está inativo: o "Não Identificado" da UF é negativo no próprio painel
-(o mart o reproduz), e o teste de estoque não negativo derrubaria o run.
+com Sergipe inteiro em 28/09/2026). Ativos: Socorro, Aracaju, Barra dos Coqueiros, São Cristóvão
+e Sergipe (UF). O "Não Identificado" de Sergipe é negativo no próprio painel (o mart o reproduz),
+então aparece sempre como WARN em `test_estoque_nao_identificado_negativo`.
 
 Para carregar o histórico dos arquivos pequenos (FOR e EXC de 2020 em diante):
 
@@ -547,7 +547,7 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [x] Staging com Sergipe inteiro (`uf = 28`) e territórios configuráveis (`dbt/seeds/territorios.csv`) — F16 parte 2
 - [x] Histórico reprocessado com Sergipe inteiro; Aracaju, Barra dos Coqueiros e São Cristóvão ativos — F16 parte 2
 - [x] Estoque conferido com o painel nos cinco territórios: 84 de 84 valores em cada
-- [ ] Sergipe (UF) no estoque: o "Não Identificado" da UF é negativo no próprio painel ([D11](docs/decisoes/D11-estoque-de-emprego.md#pontos-abertos))
+- [x] Sergipe (UF) no estoque; o "Não Identificado" da UF é negativo no próprio painel e tem teste em warn
 - [ ] Estoque e taxa no boletim — F16 parte 3
 - [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
 - [ ] Relatório mensal em PDF via CrewAI
