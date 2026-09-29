@@ -311,3 +311,11 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
 - `flows/fatos.py <territorio> <competencia>`: JSON de fatos; cada número registrado com id
   em `numeros` (tabela do verificador). Limiares em `pipeline/perfis/<territorio>.toml`
   (instância), padrões em `LIMIARES_PADRAO`. Sazonalidade = faixa mín–máx do mesmo mês
+- Parte 2 (proteções) feita: `flows/ia.py`. Todo agente roda por `Execucao` (context manager):
+  modelos só de IA_MODELOS_PERMITIDOS e com preço de saída ≤ teto; `UsageLimits` e `RunUsage`
+  compartilhados (8 requisições, 120k tokens de entrada, 20k de saída); `max_tokens`/timeout
+  por papel (LIMITES_PAPEL). NÃO confiar no `cost_limit` do PydanticAI: usa genai-prices e
+  não se aplica a modelo desconhecido; o custo real da OpenRouter vem em
+  `provider_details['cost']`. Por isso: reserva do pior caso (limites × preço da API pública
+  da OpenRouter, cache 7 dias, falha fechado) antes de rodar, e registro JSONL em
+  /data/ia/custos.jsonl (reserva aberta conta pelo máximo)

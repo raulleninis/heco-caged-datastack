@@ -5,3 +5,4 @@ duckdb==1.5.5
 py7zr==0.22.0
 fpdf2==2.8.8
 xlsxwriter==3.2.9
+pydantic-ai-slim[openrouter]==2.51.0

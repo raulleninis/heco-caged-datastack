@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | 🟡 em andamento: parte 1 ✅ (29/09/2026); parte 2 a seguir |
+| **Status** | 🟡 em andamento: partes 1 e 2 ✅ (29/09/2026); parte 3 a seguir |
 | **Esforço** | XL, em partes independentes |
 | **Fase** | produção / vitrine |
 | **Depende de** | [F16](F16-estoque-a-partir-do-marco-zero.md) (estoque e territórios), [F15](F15-entrega-por-email-e-arquivo.md) (arquivo e envio) |
@@ -84,6 +84,22 @@ Tudo por código, testado, e útil mesmo sem IA:
 ### 2. Cliente e proteções
 
 Configuração da OpenRouter no PydanticAI, `UsageLimits`, registro mensal de custo, lista de modelos permitidos e reaproveitamento por hash dos fatos. **Aceite:** testes com `TestModel`/`FunctionModel`, sem chamar a API, provam que cada limite corta a execução.
+
+**Feito (29/09/2026)** em `pipeline/flows/ia.py`, com 17 testes (`FunctionModel`, sem rede):
+
+- **Achado:** o `cost_limit` do PydanticAI 2.51 calcula o custo pela tabela `genai-prices` e,
+  para um modelo que ela não conhece, **não aplica o limite** (só avisa). O custo real da
+  OpenRouter chega em `provider_details['cost']`, fora do contador. Por isso o teto em dólar
+  é nosso:
+  - **reserva do pior caso:** antes de rodar, a execução reserva `limites de tokens × preço`
+    do modelo mais caro dela (preços da API pública da OpenRouter, cópia local de até 7 dias;
+    sem preço, não roda). Com o Sonnet 5.5: US$ 0,44;
+  - **registro:** `/data/ia/custos.jsonl` grava reserva, custo real de cada resposta e
+    encerramento; uma reserva sem encerramento conta pelo máximo.
+- Limites nativos que funcionam: requisições (8), tokens de entrada (120 mil) e de saída
+  (20 mil) por execução, compartilhados entre os agentes; `max_tokens` e tempo limite por papel.
+- Lista de modelos permitidos vazia por padrão, e teto de preço de saída por modelo (US$ 15/M).
+- O reaproveitamento por hash dos fatos fica para a parte 3, onde está o orquestrador.
 
 ### 3. Agentes e verificador
 

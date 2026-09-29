@@ -41,6 +41,11 @@ services:
       EMAIL_SAIR_DA_LISTA: ${EMAIL_SAIR_DA_LISTA:-}
       EMAIL_RESPONDER_PARA: ${EMAIL_RESPONDER_PARA:-}
       EMAIL_TESTE: ${EMAIL_TESTE:-}
+      # Boletim com IA (F19) — sem chave ou sem modelos permitidos, nada roda.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      IA_MODELOS_PERMITIDOS: ${IA_MODELOS_PERMITIDOS:-}
+      IA_ORCAMENTO_MENSAL_USD: ${IA_ORCAMENTO_MENSAL_USD:-2}
+      IA_PRECO_MAX_SAIDA_USD_MTOK: ${IA_PRECO_MAX_SAIDA_USD_MTOK:-15}
     volumes:
       - ./data:/data
       - ./dbt:/dbt

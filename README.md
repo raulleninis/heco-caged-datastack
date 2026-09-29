@@ -349,7 +349,7 @@ arquivo foi de fato publicado só se confirma logado.
 ### 6. Testes do projeto
 
 ```bash
-# Python: 71 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos do boletim com IA). Sem rede e sem Prefect rodando
+# Python: 88 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos e proteções de gasto do boletim com IA). Sem rede e sem Prefect rodando
 docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -B -m unittest discover -s /app/tests -v
 
 # dbt: testes de qualidade sobre o warehouse real (inclui 2 testes unitários do estoque)
@@ -444,6 +444,10 @@ Tudo em `.env` (nunca commitado; `.env.example` é o modelo). Os segredos em **a
 | `EMAIL_RESPONDER_PARA` | cabeçalho `Reply-To` (o remetente costuma não ter caixa) | vazio = sem `Reply-To` |
 | `EMAIL_SAIR_DA_LISTA` | endereço (ou URL) para sair da lista: cabeçalho `List-Unsubscribe` e corpo | vazio |
 | `EMAIL_TESTE` | destino do comando `teste` | vazio |
+| `OPENROUTER_API_KEY` | chave **dedicada** da OpenRouter para o boletim com IA (F19), com limite de crédito na própria OpenRouter | vazio = boletim com IA desligado |
+| `IA_MODELOS_PERMITIDOS` | ids da OpenRouter que podem rodar, separados por vírgula | vazio = nenhum |
+| `IA_ORCAMENTO_MENSAL_USD` | orçamento do mês; cada execução reserva o seu pior caso antes de começar | `2` |
+| `IA_PRECO_MAX_SAIDA_USD_MTOK` | teto do preço de saída de um modelo (US$ por milhão de tokens) | `15` |
 
 | arquivo em `./secrets/` | conteúdo |
 |---|---|
@@ -484,9 +488,10 @@ mantendo o pico em ~500 MB (medido: 405 MiB por arquivo MOV com limite de 830 Mi
 │   │   ├── boletim.py            # gera o PDF e o XLSX a partir do mart (F15/F12)
 │   │   ├── arquivo.py            # clone do repositório do arquivo, envios.json, índice (git)
 │   │   ├── entrega.py            # SMTP, envio idempotente e o CLI: teste/enviar/arquivar/remover
-│   │   └── fatos.py              # JSON de fatos do boletim com IA (F19 parte 1), cada número com id
+│   │   ├── fatos.py              # JSON de fatos do boletim com IA (F19 parte 1), cada número com id
+│   │   └── ia.py                 # cliente OpenRouter (PydanticAI) e proteções de gasto (F19 parte 2)
 │   ├── perfis/                   # perfil econômico por território (limiares dos gatilhos; F19)
-│   └── tests/                    # 71 testes Python (ingestão, boletim, entrega/arquivo, fatos)
+│   └── tests/                    # 88 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
 ├── dbt/
 │   ├── macros/caged.sql          # colunas, CAST e grupamento compartilhados pelas 3 staging
 │   ├── macros/estoque.sql        # efeito no saldo (MOV +, FOR +, EXC −), usado pelo estoque (F16)
@@ -590,7 +595,7 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
 - [ ] Boletim analítico com IA ([F19](docs/fatias/F19-boletim-com-ia.md), [roteiro](docs/boletim-ia/roteiro.md))
   - [x] Fatos por código: fluxo reconciliado por subgrupamento e divisão CNAE, perfil das admissões, região, acumulados e gatilhos
-  - [ ] Cliente OpenRouter no PydanticAI com limites de uso, registro mensal de custo (US$ 2/mês) e modelos permitidos
+  - [x] Cliente OpenRouter no PydanticAI com limites de uso, registro mensal de custo (US$ 2/mês) e modelos permitidos
   - [ ] Agentes (analista, pesquisador, redator, revisor) e verificador de números
   - [ ] Evidências externas (IBGE, Banco Central, busca na web com teto)
   - [ ] Aprovação humana antes do envio
