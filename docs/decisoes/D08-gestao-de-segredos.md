@@ -13,7 +13,7 @@ Três coisas mudam na nuvem:
 1. Variável de ambiente em container é legível por `docker inspect` e costuma
    aparecer em log de plataforma.
 2. `.env` em disco de VM sobrevive a snapshot, backup e imagem — e vaza junto.
-3. O **CrewAI** ([roadmap](../../README.md)) traz uma chave de API de LLM, que é
+3. O boletim com IA ([F19](../fatias/F19-boletim-com-ia.md); o plano original era CrewAI) traz uma chave de API de LLM, que é
    segredo com **custo financeiro direto** — categoria diferente de uma senha de
    Postgres local.
 
@@ -36,7 +36,7 @@ Três coisas mudam na nuvem:
 Escolha o mecanismo pela [D02](D02-modelo-de-execucao.md): Actions → Secrets;
 Prefect Cloud → Blocks; container gerenciado → Secret Manager do provedor.
 
-Quando o CrewAI entrar, trate a chave de LLM como categoria própria: **limite de gasto
+Quando o boletim com IA entrar (F19: chave da OpenRouter, limite de US$ 2/mês), trate a chave de LLM como categoria própria: **limite de gasto
 configurado no provedor**, chave dedicada ao projeto, e rotação se o repositório for
 público. Chave de LLM vazada não é constrangimento — é fatura.
 
@@ -54,7 +54,7 @@ plataforma" perdeu o sentido que tinha para a nuvem. Os segredos previstos passa
 |---|---|
 | Credencial de e-mail (SMTP/API) | só envio |
 | Chave de escrita do repositório do arquivo ([F15](../fatias/F15-entrega-por-email-e-arquivo.md)) | *deploy key* de um único repositório |
-| Chave de LLM (quando o CrewAI entrar) | chave dedicada, **limite de gasto no provedor**, rotação se o repositório for público |
+| Chave de LLM (OpenRouter, F19) | chave dedicada, **limite de gasto no provedor**, rotação se o repositório for público |
 
 Antes: só `PREFECT_HOST` (e `POSTGRES_*` até a [F02](../fatias/F02-concluir-migracao-duckdb.md)).
 Revisitar esta decisão se algum dia entrar Prefect Cloud ou execução gerenciada.

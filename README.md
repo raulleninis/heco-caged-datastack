@@ -573,20 +573,10 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [x] Estoque e taxa de variação no boletim (PDF e XLSX), como estimativa a partir de marco zero — F16 parte 3
 - [x] Coletor reproduzível do marco zero (`marco-zero/coletor/`) e `normalizar.py --coleta`: um território novo sem digitar número
 - [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
-- [ ] Relatório mensal em PDF via CrewAI
-  - [ ] Configuração do CrewAI e definição dos agentes (Analista de Dados, Pesquisador de Contexto, Redator, Revisor)
-  - [ ] Integração via OpenRouter (modelo a definir)
-  - [ ] Criação do layout/template visual do relatório (PDF)
-  - [ ] Geração determinística dos fatos (SQL) → narrativa (LLM) → renderização (PDF)
-  - Dependência: o relatório precisa de fatos que expliquem **onde o número se moveu**
-    (setor e, em casos pontuais, CNAE por trás de cada variação). Essa camada analítica
-    ([F10](docs/fatias/F10-camada-analitica.md)) foi descartada deste repositório em
-    28/09/2026 e segue como produto interno. Por isso o relatório provavelmente pertence
-    ao produto interno também. Se for feito:
-    - análise setorial, com CNAE só em casos pontuais, e nunca no nível de empresa:
-      inferir a empresa por CNAE, porte e município é reidentificação;
-    - o dado mostra onde, não o porquê. Causas só com fonte externa citada e rotuladas
-      como hipótese;
-    - revisão humana antes de qualquer envio, ao contrário do boletim da F15, que sai
-      automaticamente;
-    - chave do LLM com limite de gasto no provedor ([D08](docs/decisoes/D08-gestao-de-segredos.md)).
+- [ ] Boletim analítico com IA ([F19](docs/fatias/F19-boletim-com-ia.md), [roteiro](docs/boletim-ia/roteiro.md))
+  - [ ] Fatos por código: fluxo reconciliado por subgrupamento e divisão CNAE, perfil das admissões, região, acumulados e gatilhos
+  - [ ] Cliente OpenRouter no PydanticAI com limites de uso, registro mensal de custo (US$ 2/mês) e modelos permitidos
+  - [ ] Agentes (analista, pesquisador, redator, revisor) e verificador de números
+  - [ ] Evidências externas (IBGE, Banco Central, busca na web com teto)
+  - [ ] Aprovação humana antes do envio
+  - [ ] Comparação prática de modelos

@@ -290,16 +290,15 @@ Todas filtram:
 - `unidade_salario_codigo = 5` (mensal, não hora/dia/semana)
 - `valor_salario_fixo > 0` (excluem "não informado")
 
-## Próximos passos (não implementado ainda)
-Relatório mensal em PDF via CrewAI (múltiplos agentes: análise dos dados,
-pesquisa de contexto na web, redação, revisão factual) + renderização
-determinística (WeasyPrint). Regra de design: números nunca devem ser
-calculados pelo LLM — só SQL determinístico, o agente interpreta/redige
-em cima de fatos já calculados.
-
-Dependência: o relatório precisa da camada analítica (setor e, em casos
-pontuais, CNAE por trás de cada variação; nunca empresa, pois reidentificação
-é vedada), que era a F10. A F10 foi descartada deste
-repositório em 28/09/2026 e segue como produto interno (ver revisão na D10);
-o relatório provavelmente fica no produto interno também. Causas só com fonte
-externa citada e rotuladas como hipótese; revisão humana antes de enviar.
+## Boletim com IA (F19, em andamento)
+docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/09/2026:
+- PydanticAI (não CrewAI), OpenRouter, quatro agentes (analista, pesquisador, redator,
+  revisor) em sequência fixa no código, com `UsageLimits` compartilhado (inclui
+  `cost_limit`). Orçamento US$ 2/mês, também como limite da chave na OpenRouter
+- Números nunca calculados pelo LLM: fatos por código (parte 1), cada número com id; o
+  verificador de números é o `output_validator` do redator
+- Sem NL2SQL: o analista só usa consultas fixas, numa cópia do warehouse `read_only`
+- Análise setorial; desagregação (subgrupamento, divisão CNAE) só quando relevante;
+  nunca empresa. Acontecimentos conforme noticiados, com fonte; ligação = hipótese
+- Aprovação humana antes do envio; o boletim com IA nunca sai sozinho
+- Vive no produto neutro (F18); o resultado de Socorro fica na instância

@@ -29,6 +29,8 @@ flowchart TD
     F11 --> F13["F13 · Migração<br/>para nuvem · L"]
     F16 --> F18["F18 · Produto neutro<br/>e replicável · L"]
     F15 --> F18
+    F16 --> F19["F19 · Boletim com IA<br/>XL"]
+    F15 --> F19
     F18 --> F14["F14 · Narrativa do<br/>repositório · M"]
     F04 --> F15["F15 · Entrega por e-mail<br/>e arquivo autenticado · L"]
     F06 --> F15
@@ -41,7 +43,7 @@ flowchart TD
     classDef vitrine fill:#eafaf1,stroke:#1e8449,color:#145a32
     class F01,F02,F03,F04,F05 agora
     class F06,F07,F08,F08b,F09 pre
-    class F11,F12,F13,F15,F16,F17 prod
+    class F11,F12,F13,F15,F16,F17,F19 prod
     classDef descartada fill:#f2f3f4,stroke:#99a3a4,color:#7b7d7d,stroke-dasharray:4 3
     class F14,F18 vitrine
     class F10 descartada
@@ -69,6 +71,7 @@ flowchart TD
 | [F15](F15-entrega-por-email-e-arquivo.md) ✅ | Entrega por e-mail e arquivo autenticado | L | produção | (objetivo de produção) | F04, F06 |
 | [F16](F16-estoque-a-partir-do-marco-zero.md) ✅ | Estoque a partir do marco zero | L | produção | (D11) | F12, F09 |
 | [F17](F17-teste-de-silencio.md) ✅ | Teste de silêncio: provar que o alerta chega | XS (+ espera) | produção | (validação de F11) | F11 |
+| [F19](F19-boletim-com-ia.md) 🟡 | Boletim analítico com IA (PydanticAI, OpenRouter, aprovação humana) | XL | produção | (roteiro do boletim) | F16, F15 |
 | [F18](F18-produto-neutro.md) | Produto neutro: de Socorro para um repositório replicável | L | vitrine | (portfólio; D07 revista) | F16, F15 |
 
 > ⛔ **descartada:** a [F10](F10-camada-analitica.md) saiu deste repositório em

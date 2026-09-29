@@ -21,9 +21,9 @@ docs/
 │   ├── 01-sumario-executivo.md    ← comece aqui
 │   ├── 02-achados.md              todos os achados, por dimensão
 │   └── 03-evidencias.md           como reproduzir cada achado
-├── fatias/                        19 unidades de trabalho entregáveis
+├── fatias/                        20 unidades de trabalho entregáveis
 │   ├── README.md                  backlog ordenado, com grafo de dependências
-│   └── F01..F18-*.md
+│   └── F01..F19-*.md
 ├── decisoes/                      11 escolhas que dependem de julgamento seu
 │   ├── README.md
 │   └── D01..D11-*.md
