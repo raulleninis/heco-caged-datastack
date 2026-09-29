@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | 🟡 em andamento: partes 1 a 5 ✅ (29/09/2026); faltam 3b-2 e parte 6 |
+| **Status** | 🟡 em andamento: partes 1 a 5 e 3b-2 ✅ (29/09/2026); falta a parte 6 |
 | **Esforço** | XL, em partes independentes |
 | **Fase** | produção / vitrine |
 | **Depende de** | [F16](F16-estoque-a-partir-do-marco-zero.md) (estoque e territórios), [F15](F15-entrega-por-email-e-arquivo.md) (arquivo e envio) |
@@ -161,6 +161,21 @@ tickets).
   pergunta: ao incluir "CLT; estatutário não conta", acertou os professores da rede pública e
   errou a campanha de esgoto. Perguntas e limiares precisam de calibração com casos rotulados
   (parte 6); as triagens gravadas em /data/ia/evidencias/ são o início desse conjunto.
+
+**3b-2, decisão e tickets (feita, 29/09/2026)**, a partir das sugestões do usuário (advisor,
+agir pelo grau de certeza, tickets com estado salvo, registro de decisões):
+- A certeza que o LLM declara é mal calibrada; quem decide é o código, com o Jev: ele classifica
+  as dúvidas do analista (fato local, método, nenhuma) e julga se os fatos citados sustentam cada
+  afirmação interpretativa do texto. As não sustentadas vão destacadas para a revisão humana.
+- Dúvida de método vai ao advisor (Sonnet 5.5; no máximo 2). Dúvida de fato local vira ticket:
+  a execução para com a análise salva; respondida, retoma sem pagar o analista de novo, e a
+  resposta entra na base de conhecimento local dos boletins seguintes.
+- Registro de decisões no resultado (triagens, retomadas, julgamentos, com probabilidades).
+- Primeira execução real: o advisor deu orientações de método precisas (não falar em tendência
+  com competência provisória; Pix e saldo medem coisas e períodos diferentes); o Jev concordou
+  com o analista nas três dúvidas; uma virou ticket. A pergunta do ticket puxava para
+  "um ou poucos estabelecimentos": as instruções do analista passaram a proibir dúvidas sobre
+  empresas ou estabelecimentos.
 
 **Indicadores oficiais (feitos, 29/09/2026):** `flows/indicadores.py`, a pedido do usuário.
 - Pix por município (Banco Central): o único dado de atividade econômica do próprio município,

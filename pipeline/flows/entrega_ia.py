@@ -209,6 +209,15 @@ def _relatorio_de_revisao(r: dict) -> str:
     linhas += [f"- {p['tipo']}: {p.get('numero')} em ...{p['trecho']}..." for p in r["verificador"]]
     linhas += ["", f"AVISOS DE ESTILO: {len(r.get('avisos_de_estilo', []))}"]
     linhas += [f"- {a['motivo']}: ...{a['trecho']}..." for a in r.get("avisos_de_estilo", [])]
+    nao = r.get("afirmacoes_nao_sustentadas", [])
+    linhas += ["", f"AFIRMAÇÕES QUE O JUIZ (Jev) NÃO VIU SUSTENTADAS PELOS FATOS: {len(nao)}  (confira estas primeiro)"]
+    linhas += [f"- p={a['probabilidade']}: {a['texto']}  [ids: {', '.join(a['ids'])}]" for a in nao]
+    if r.get("orientacoes_do_advisor"):
+        linhas += ["", "ORIENTAÇÕES DO ADVISOR (dúvidas de método):"]
+        linhas += [f"- {o['pergunta']} -> {o['resposta']} (confiança {o['confianca']})" for o in r["orientacoes_do_advisor"]]
+    if r.get("respostas_humanas"):
+        linhas += ["", "RESPOSTAS HUMANAS A TICKETS USADAS:"]
+        linhas += [f"- {q['pergunta']} -> {q['resposta']} ({q.get('respondido_por', '')})" for q in r["respostas_humanas"]]
     linhas += ["", f"EVIDÊNCIAS USADAS: {len(r.get('evidencias_usadas', []))}"]
     linhas += [f"- [{e['janela']}, {e['data']}, {e['fonte']}] {e['fato']}" for e in r.get("evidencias_usadas", [])]
     return "\n".join(linhas) + "\n"

@@ -82,6 +82,8 @@ LIMITES_PAPEL = {
     "pesquisador": LimitesPapel(max_tokens=3_000, timeout=120, raciocinio="low"),
     "redator": LimitesPapel(max_tokens=8_000, timeout=180, raciocinio="low"),
     "revisor": LimitesPapel(max_tokens=3_000, timeout=120, raciocinio="low"),
+    # conselheiro (3b-2): modelo mais capaz, consultado no máximo 2 vezes, resposta curta
+    "advisor": LimitesPapel(max_tokens=1_200, timeout=120, raciocinio="low"),
     # modelo de decisão (Jev): não gera texto; limites próprios em MAX_DECISOES
     "juiz": LimitesPapel(max_tokens=0, timeout=30, raciocinio=None),
 }
@@ -89,7 +91,8 @@ LIMITES_PAPEL = {
 # Por execução (todos os agentes juntos). Uma execução normal: ~35 mil tokens de entrada e ~8
 # mil de saída em 4 a 6 requisições.
 LIMITES_EXECUCAO = {
-    "request_limit": 8,
+    # pior caso do boletim com IA (3b-2): analista 2 + advisor 2 + redator 2 + revisor 1 + redator 2 = 9
+    "request_limit": 10,
     "tool_calls_limit": 6,
     "input_tokens_limit": 120_000,
     "output_tokens_limit": 20_000,

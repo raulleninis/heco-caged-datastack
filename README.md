@@ -353,7 +353,22 @@ IA_MODELO_REVISOR=z-ai/glm-5.3-flash
 IA_MODELO_PESQUISADOR=z-ai/glm-5.3-flash
 ```
 
-O Jev (`typesafe/jev-1.13`) entra sozinho como juiz da triagem de notícias; nunca redige. A chave da
+O Jev (`typesafe/jev-1.13`) entra sozinho como juiz (triagem de notícias, das dúvidas e das afirmações do
+texto); nunca redige. O advisor (`IA_MODELO_ADVISOR`, padrão: o 1º modelo de texto se não for o redator) só
+responde dúvidas de método, no máximo 2 por boletim.
+
+**Tickets (dúvidas de fato local):** quando o analista tem uma dúvida que só quem conhece o município responde,
+a geração para, salva a análise e abre um ticket em `/data/ia/tickets/`. Responda e rode de novo; a análise
+não é paga de novo, e a resposta vai para a base de conhecimento local (`/data/ia/conhecimento/`), usada nos
+boletins seguintes:
+
+```bash
+docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607 --responder 1 --resposta "..." --por "Nome"
+docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607 --com-evidencias   # retoma
+```
+
+`--sem-tickets` segue sem perguntar (o redator é instruído a não afirmar nada sobre a dúvida). O relatório de
+revisão mostra primeiro as afirmações que o Jev não viu sustentadas pelos fatos. A chave da
 OpenRouter tem limite vitalício de crédito, reajustado à mão todo mês (limita a perda num
 vazamento); se ele se esgotar, a OpenRouter recusa a chamada e o comando avisa.
 
@@ -382,7 +397,7 @@ arquivo foi de fato publicado só se confirma logado.
 ### 6. Testes do projeto
 
 ```bash
-# Python: 156 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos e proteções de gasto do boletim com IA). Sem rede e sem Prefect rodando
+# Python: 162 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos e proteções de gasto do boletim com IA). Sem rede e sem Prefect rodando
 docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -B -m unittest discover -s /app/tests -v
 
 # dbt: testes de qualidade sobre o warehouse real (inclui 2 testes unitários do estoque)
@@ -501,6 +516,7 @@ Tudo em `.env` (nunca commitado; `.env.example` é o modelo). Os segredos em **a
 | `IA_PRECO_MAX_SAIDA_USD_MTOK` | teto do preço de saída de um modelo (US$ por milhão de tokens) | `15` |
 | `IA_MODELO_REDATOR` | modelo que redige o boletim com IA | 1º modelo de texto de `IA_MODELOS_PERMITIDOS` |
 | `IA_MODELO_ANALISTA` / `IA_MODELO_REVISOR` / `IA_MODELO_PESQUISADOR` | modelos dos demais papéis; use outra família que a do redator no revisor | último modelo de texto da lista |
+| `IA_MODELO_ADVISOR` | modelo mais capaz, só para dúvidas de método (no máximo 2 por boletim) | 1º modelo de texto, se não for o redator |
 | `DESTINATARIOS_ADMIN_ARQUIVO` | lista dos administradores que revisam o boletim com IA | `/secrets/destinatarios_admin.txt` |
 
 | arquivo em `./secrets/` | conteúdo |
@@ -552,7 +568,7 @@ mantendo o pico em ~500 MB (medido: 405 MiB por arquivo MOV com limite de 830 Mi
 │   │   ├── entrega_ia.py         # revisão pelos admins, aprovação e envio do boletim com IA (F19 parte 5)
 │   │   └── indicadores.py        # Pix por município e Selic (Banco Central) nos fatos (F19 parte 4)
 │   ├── perfis/                   # perfil econômico por território e fontes de notícias (F19)
-│   └── tests/                    # 156 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
+│   └── tests/                    # 162 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
 ├── dbt/
 │   ├── macros/caged.sql          # colunas, CAST e grupamento compartilhados pelas 3 staging
 │   ├── macros/estoque.sql        # efeito no saldo (MOV +, FOR +, EXC −), usado pelo estoque (F16)
@@ -661,4 +677,5 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
   - [x] Evidências externas: coletor diário, triagem pelo Jev, pesquisador, leituras relacionadas
   - [x] Indicadores oficiais: Pix por município e Selic (Banco Central), notícias do IBGE
   - [x] Aprovação humana antes do envio: rascunho aos administradores, aprovação com nome, envio do mesmo PDF
-  - [ ] Comparação prática de modelos
+  - [x] Decisão e tickets (3b-2): Jev julga afirmações e tria dúvidas; advisor para método; tickets com estado salvo e base de conhecimento local
+  - [ ] Comparação prática de modelos e calibração do Jev

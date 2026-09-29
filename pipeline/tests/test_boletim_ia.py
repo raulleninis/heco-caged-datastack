@@ -108,10 +108,12 @@ class Roteiro:
     def __init__(self, **filas):
         self.filas = {p: list(v) for p, v in filas.items()}
         self.chamadas = {p: 0 for p in filas}
+        self.prompts = {p: [] for p in filas}
 
     def criar_modelo(self, papel):
         def fn(msgs, info: AgentInfo):
             self.chamadas[papel] += 1
+            self.prompts[papel].append(str(msgs))
             fila = self.filas[papel]
             saida = fila.pop(0) if len(fila) > 1 else fila[0]
             return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, saida)],
@@ -240,6 +242,104 @@ class Fluxo(unittest.TestCase):
         vazio = ia.ConfigIA(**{**self.cfg.__dict__, "modelos_permitidos": ()})
         with self.assertRaises(RuntimeError):
             boletim_ia.modelos_do_ambiente(vazio)
+
+
+
+
+JEV = "typesafe/jev-1.13"
+ADVISOR = "teste/advisor"
+
+
+def analise_com(*duvidas):
+    return {**analise(), "duvidas": [{"pergunta": p, "tipo": tipo, "ids": ["panorama.saldo"], "por_que": "x"}
+                                     for p, tipo in duvidas]}
+
+
+class Ticket3b2(unittest.TestCase):
+    """3b-2: triagem de dúvidas, advisor, tickets com estado salvo e julgamento de afirmações.
+    Reaproveita a preparação do Fluxo sem herdar (e re-executar) os testes dele."""
+
+    def tearDown(self):
+        Fluxo.tearDown(self)
+
+    def setUp(self):
+        Fluxo.setUp(self)
+        self.cfg = ia.ConfigIA(**{**self.cfg.__dict__, "modelos_permitidos": (REDATOR, REVISOR, ADVISOR, JEV)})
+        listagem = {"data": [{"id": m, "pricing": {"prompt": "0.000001", "completion": "0.000004"}}
+                             for m in (REDATOR, REVISOR, ADVISOR)]}
+        self.precos = ia.Precos(self.pasta, baixar=lambda: listagem, baixar_endpoints=lambda m: {
+            "data": {"endpoints": [{"pricing": {"prompt": "0.000000042", "completion": "0"}}]}})
+        self.jev = []  # respostas do Jev, em ordem
+
+    def post(self, chave, corpo, timeout):
+        return {"answers": self.jev.pop(0), "usage": {"cost": 1e-05}}
+
+    def gerar(self, roteiro, com_juiz=True, **kw):
+        modelos = {**self.modelos, "advisor": ADVISOR, **({"juiz": JEV} if com_juiz else {})}
+        return boletim_ia.gerar(FATOS, self.cfg, modelos, criar_modelo=roteiro.criar_modelo, precos=self.precos,
+                                registro=self.registro, post_decisoes=self.post, **kw)
+
+    def test_duvida_de_metodo_vai_ao_advisor_e_orienta_o_redator(self):
+        r = Roteiro(analista=[analise_com(("Comparar taxa ou saldo?", "metodo"))], redator=[boletim()],
+                    revisor=[parecer()], advisor=[{"resposta": "Compare taxas entre territórios.", "confianca": "alta"}])
+        self.jev = [{"tipo": {"choice": "metodo", "confidence": 0.9}}]
+        res = self.gerar(r)
+        self.assertEqual(r.chamadas["advisor"], 1)
+        self.assertIn("Compare taxas entre territórios", r.prompts["redator"][0])
+        self.assertEqual(res["orientacoes_do_advisor"][0]["confianca"], "alta")
+
+    def test_jev_descarta_duvida_que_os_fatos_respondem(self):
+        r = Roteiro(analista=[analise_com(("O saldo foi negativo?", "metodo"))], redator=[boletim()],
+                    revisor=[parecer()], advisor=[{"resposta": "x", "confianca": "alta"}])
+        self.jev = [{"tipo": {"choice": "nenhuma", "confidence": 0.95}}]
+        res = self.gerar(r)
+        self.assertEqual(r.chamadas["advisor"], 0)
+        self.assertEqual(res["decisoes"][0]["destino"], "nenhuma")
+
+    def test_fato_local_abre_ticket_e_retoma_sem_pagar_o_analista_de_novo(self):
+        r = Roteiro(analista=[analise_com(("Houve fechamento de obra em julho?", "fato_local"))], redator=[boletim()],
+                    revisor=[parecer()], advisor=[{"resposta": "x", "confianca": "alta"}])
+        self.jev = [{"tipo": {"choice": "fato_local", "confidence": 0.99}}]
+        res = self.gerar(r)
+        self.assertEqual(res["situacao"], "aguardando_resposta")
+        self.assertEqual(r.chamadas["redator"], 0)
+        # sem resposta: nem roda
+        with self.assertRaises(boletim_ia.AguardandoResposta):
+            self.gerar(r)
+        self.assertEqual(r.chamadas["analista"], 1)
+        boletim_ia.responder_ticket(self.cfg, "280480", "202607", 1, "Sim, a obra X terminou em junho.", "Fulana")
+        res = self.gerar(r)
+        self.assertEqual(res["situacao"], "aguardando_aprovacao")
+        self.assertEqual(r.chamadas["analista"], 1)  # análise reaproveitada do ticket
+        self.assertIn("a obra X terminou em junho", r.prompts["redator"][0])
+        base = boletim_ia.conhecimento_local(self.cfg, "280480")
+        self.assertEqual(base[0]["respondido_por"], "Fulana")
+
+    def test_sem_tickets_segue_sem_afirmar(self):
+        r = Roteiro(analista=[analise_com(("Houve fechamento de obra?", "fato_local"))], redator=[boletim()],
+                    revisor=[parecer()], advisor=[{"resposta": "x", "confianca": "alta"}])
+        self.jev = [{"tipo": {"choice": "fato_local", "confidence": 0.99}}]
+        res = self.gerar(r, sem_tickets=True)
+        self.assertEqual(res["situacao"], "aguardando_aprovacao")
+        self.assertIn("SEM RESPOSTA", r.prompts["redator"][0])
+
+    def test_afirmacao_nao_sustentada_vai_destacada(self):
+        com_afirmacoes = {**boletim(), "afirmacoes": [
+            {"texto": "O saldo foi negativo.", "ids": ["panorama.saldo"]},
+            {"texto": "Serviços puxou a queda por causa das eleições.", "ids": ["panorama.saldo"]}]}
+        r = Roteiro(analista=[analise()], redator=[com_afirmacoes], revisor=[parecer()],
+                    advisor=[{"resposta": "x", "confianca": "alta"}])
+        self.jev = [{"sustentada": {"noul": 0.95}}, {"sustentada": {"noul": 0.1}}]
+        res = self.gerar(r)
+        self.assertEqual([a["texto"] for a in res["afirmacoes_nao_sustentadas"]],
+                         ["Serviços puxou a queda por causa das eleições."])
+
+    def test_sem_juiz_funciona_como_antes(self):
+        r = Roteiro(analista=[analise_com(("Comparar taxa?", "metodo"))], redator=[boletim()], revisor=[parecer()],
+                    advisor=[{"resposta": "Use taxas.", "confianca": "media"}])
+        res = self.gerar(r, com_juiz=False)
+        self.assertEqual(res["afirmacoes_nao_sustentadas"], [])
+        self.assertEqual(r.chamadas["advisor"], 1)
 
 
 if __name__ == "__main__":

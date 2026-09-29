@@ -355,5 +355,13 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   IBGE de 7 dígitos = 6 do CAGED + dígito verificador) com leitura RELATIVA (adoção do Pix);
   Selic (SGS 432) só com Construção/Comércio em destaque; dólar fora. Cache em
   /data/ia/indicadores/; falha de rede não derruba (fica em `indicadores_ausentes`)
+- 3b-2 (feita): analista levanta até 3 `duvidas`; o Jev as classifica (fato_local/metodo/
+  nenhuma; descarta "nenhuma" só com confiança >= 0,6). Método -> advisor (IA_MODELO_ADVISOR,
+  máx. 2, Orientacao tipada). Fato local -> ticket em /data/ia/tickets/ com a análise salva;
+  sem resposta não roda (AguardandoResposta, nada gasto); `--responder N --resposta --por`
+  grava no ticket e em /data/ia/conhecimento/<territorio>.jsonl (entra nos próximos prompts,
+  últimos 20). O redator lista `afirmacoes` com ids; o Jev julga cada uma (limiar 0,5); as não
+  sustentadas vão ao relatório de revisão. `decisoes` = registro de decisões. request_limit 10
+  (pior caso 9). Dúvidas nunca sobre empresas/estabelecimentos
 - Decisões editoriais (29/09/2026): hipóteses fora até existir evidência externa, depois só
   em "Pontos de atenção"; percentuais com 2 casas decimais
