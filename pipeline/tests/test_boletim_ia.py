@@ -66,6 +66,16 @@ class Verificador(unittest.TestCase):
         for esperado in ("travessão", "vale ressaltar", "2 casas", "nome do mês", "provisórios"):
             self.assertIn(esperado, motivos)
 
+    def test_separador_de_milhar_sem_mexer_em_anos(self):
+        from verificador import formatar_milhares
+        self.assertEqual(formatar_milhares("Estoque de 25439 em 2025, mediana de R$ 1661,00 e 1060 admissões."),
+                         "Estoque de 25.439 em 2025, mediana de R$ 1.661,00 e 1.060 admissões.")
+        self.assertEqual(formatar_milhares("Já formatado: 25.439 e -0,33%."), "Já formatado: 25.439 e -0,33%.")
+
+    def test_sinal_de_menos_no_texto_gera_aviso(self):
+        from verificador import avisos_de_estilo
+        self.assertIn("sinal de menos", avisos_de_estilo("O saldo de -83 vínculos.")[0]["motivo"])
+
     def test_sinaliza_forma_juridica_de_empresa(self):
         tipos = [p["tipo"] for p in verificar_texto("Demissões na Empresa X LTDA.", NUMEROS)]
         self.assertEqual(tipos, ["possivel_identificacao"])
@@ -166,6 +176,18 @@ class Fluxo(unittest.TestCase):
         self.assertEqual(res["versoes_do_redator"], 2)
         self.assertEqual(r.chamadas["redator"], 2)
         self.assertEqual(r.chamadas["revisor"], 1)  # não revisa de novo
+
+    def test_muitos_avisos_de_estilo_geram_segunda_versao(self):
+        feio = {**boletim(), "sintese": "Vale ressaltar o saldo de -83 — no mesmo mês do ano anterior."}
+        r = Roteiro(analista=[analise()], redator=[feio, boletim()], revisor=[parecer()])
+        res = self.gerar(r)
+        self.assertEqual(res["versoes_do_redator"], 2)
+
+    def test_boletim_final_sai_com_separador_de_milhar(self):
+        r = Roteiro(analista=[analise()], redator=[{**boletim(), "panorama": ["Estoque de 25439."]}], revisor=[parecer()])
+        res = self.gerar(r)
+        self.assertEqual(res["boletim"]["panorama"], ["Estoque de 25.439."])
+        self.assertEqual(res["situacao"], "aguardando_aprovacao")
 
     def test_ids_inexistentes_no_analista_geram_nova_tentativa(self):
         r = Roteiro(analista=[analise(["nao.existe"]), analise()], redator=[boletim()], revisor=[parecer()])

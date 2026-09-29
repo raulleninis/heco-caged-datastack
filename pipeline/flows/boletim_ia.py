@@ -40,7 +40,10 @@ from pydantic_ai import Agent, ModelRetry, RunContext
 
 import fatos as fatos_mod
 import ia
-from verificador import avisos_de_estilo, rotulos_dos_fatos, verificar_texto
+from verificador import avisos_de_estilo, formatar_milhares, rotulos_dos_fatos, verificar_texto
+
+# Avisos de estilo que, sozinhos, justificam uma segunda versão do redator (~US$ 0,02).
+AVISOS_PARA_NOVA_VERSAO = 3
 
 # Modelos que devolvem decisões tipadas, não texto (ex.: typesafe/jev-1.13). Não servem para
 # os papéis deste módulo; entram na 3b-2 como juiz de afirmações.
@@ -92,6 +95,15 @@ class Boletim(BaseModel):
         for _, paragrafos in self.secoes():
             partes += paragrafos
         return "\n".join(partes + self.pontos_de_atencao + [self.nota_metodologica])
+
+    def com_milhares(self) -> "Boletim":
+        """Mesmo texto com separador de milhar (formatação por código, valor inalterado)."""
+        f = formatar_milhares
+        return self.model_copy(update={
+            "titulo": f(self.titulo), "sintese": f(self.sintese), "panorama": [f(x) for x in self.panorama],
+            "setores": [f(x) for x in self.setores], "contexto_regional": [f(x) for x in self.contexto_regional],
+            "perfil_e_remuneracao": [f(x) for x in self.perfil_e_remuneracao],
+            "pontos_de_atencao": [f(x) for x in self.pontos_de_atencao], "nota_metodologica": f(self.nota_metodologica)})
 
 
 class Problema(BaseModel):
@@ -323,15 +335,18 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
                                     f"Fatos completos (JSON):\n{base}\n\nBoletim (JSON):\n{boletim.model_dump_json(indent=2)}\n\n"
                                     f"Avisos de estilo do verificador:\n{_json(estilo)}")
         versoes = 1
-        if any(p.gravidade == "grave" for p in parecer.problemas):
+        # Segunda versão: problema grave do revisor OU estilo com vários avisos (a convenção de
+        # sinal e as expressões proibidas o redator costuma ignorar na primeira passada).
+        if any(p.gravidade == "grave" for p in parecer.problemas) or len(estilo) >= AVISOS_PARA_NOVA_VERSAO:
             boletim = ex.rodar(agentes["redator"], "redator",
                                f"{pedido}\n\nSua versão anterior (JSON):\n{boletim.model_dump_json(indent=2)}\n\n"
-                               f"Problemas apontados pelo revisor (corrija os graves):\n{parecer.model_dump_json(indent=2)}\n\n"
-                               f"Avisos de estilo:\n{_json(estilo)}",
+                               f"Problemas apontados pelo revisor (corrija os graves e os de estilo):\n{parecer.model_dump_json(indent=2)}\n\n"
+                               f"Avisos de estilo (corrija todos):\n{_json(estilo)}",
                                deps=contexto)
             versoes = 2
         execucao_id = ex.id
 
+    boletim = boletim.com_milhares()
     problemas = verificar_texto(boletim.texto(), fatos["numeros"], contexto.rotulos)
     reprovado = any(p["tipo"] == "numero_fora_dos_fatos" for p in problemas)
     resultado = {

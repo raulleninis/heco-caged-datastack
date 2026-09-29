@@ -145,8 +145,25 @@ def avisos_de_estilo(texto: str) -> list[dict]:
             aviso("percentual fora do padrão de 2 casas decimais", m)
     for m in re.finditer(r"mesmo mês do ano anterior", minusculo):
         aviso("use o nome do mês (ex.: 'julho de 2025') em vez de 'mesmo mês do ano anterior'", m)
+    for m in re.finditer(r"\b(saldo|perda|queda|variação|recuo)\s+(de\s+)?[−-]\s?\d", minusculo):
+        aviso("sinal de menos no texto: escreva 'perda de 83' ou 'saldo negativo de 83'", m)
     provisorio = list(re.finditer(r"provisóri", minusculo))
     if len(provisorio) > 1:
         aviso(f"o aviso de dados provisórios aparece {len(provisorio)} vezes; deve ficar só na nota metodológica",
               provisorio[1])
     return avisos
+
+
+_SEM_MILHAR = re.compile(r"(?<![\w.,])(R\$\s?)?(\d{4,})(,\d+)?(?![\w])")
+
+
+def formatar_milhares(texto: str) -> str:
+    """Põe o separador de milhar em números de 4+ dígitos ("25439" -> "25.439"; "R$ 1661,00" ->
+    "R$ 1.661,00"). Só formatação: o valor não muda. Anos (1990 a 2100) sem casas decimais e
+    sem "R$" ficam como estão."""
+    def trocar(m):
+        reais, inteiro, decimais = m.group(1) or "", m.group(2), m.group(3) or ""
+        if not reais and not decimais and len(inteiro) == 4 and 1990 <= int(inteiro) <= 2100:
+            return m.group(0)
+        return f"{reais}{int(inteiro):,}".replace(",", ".") + decimais
+    return _SEM_MILHAR.sub(trocar, texto)
