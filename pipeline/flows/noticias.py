@@ -24,6 +24,7 @@ import os
 import re
 import time
 import tomllib
+import unicodedata
 import urllib.request
 import urllib.robotparser
 import xml.etree.ElementTree as ET
@@ -135,6 +136,22 @@ def _id(link: str) -> str:
     return hashlib.sha1(link.encode()).hexdigest()[:16]
 
 
+def chave_titulo(titulo: str) -> str:
+    """Título normalizado para deduplicar a mesma notícia vinda por fontes diferentes (ex.:
+    pelo feed da Infonet e pelo Google News, com links diferentes)."""
+    s = unicodedata.normalize("NFKD", titulo.casefold())
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9]+", " ", s).strip()
+
+
+def separar_veiculo(item: dict) -> dict:
+    """Agregador (Google News): 'Título - Veículo' vira titulo + veiculo."""
+    titulo, sep, veiculo = item["titulo"].rpartition(" - ")
+    if sep and titulo and veiculo:
+        return {**item, "titulo": titulo.strip(), "veiculo": veiculo.strip()}
+    return item
+
+
 class Arquivo:
     """Os JSONL mensais, com deduplicação pelo link."""
 
@@ -142,24 +159,33 @@ class Arquivo:
         self.pasta = pasta
         self.pasta.mkdir(parents=True, exist_ok=True)
         self._vistos: set[str] | None = None
+        self._titulos: set[str] = set()
 
     def vistos(self) -> set[str]:
+        """ids (link) e títulos normalizados já gravados."""
         if self._vistos is None:
             self._vistos = set()
             for arq in self.pasta.glob("????-??.jsonl"):
                 with arq.open(encoding="utf-8") as f:
-                    self._vistos |= {json.loads(l)["id"] for l in f if l.strip()}
+                    for l in f:
+                        if l.strip():
+                            r = json.loads(l)
+                            self._vistos.add(r["id"])
+                            self._titulos.add(chave_titulo(r["titulo"]))
         return self._vistos
 
     def gravar(self, fonte: dict, item: dict, agora: str) -> bool:
-        ident = _id(item["link"])
-        if ident in self.vistos():
+        if fonte.get("agregador"):
+            item = separar_veiculo(item)
+        ident, titulo = _id(item["link"]), chave_titulo(item["titulo"])
+        if ident in self.vistos() or titulo in self._titulos:
             return False
         registro = {"id": ident, "fonte": fonte["nome"], "escala": fonte["escala"], **item, "coletado_em": agora}
         mes = (item["publicado_em"] or agora)[:7]
         with (self.pasta / f"{mes}.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(registro, ensure_ascii=False) + "\n")
         self._vistos.add(ident)
+        self._titulos.add(titulo)
         return True
 
     def ler(self, mes: str) -> list[dict]:

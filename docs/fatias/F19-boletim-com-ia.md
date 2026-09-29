@@ -136,6 +136,11 @@ tickets).
 - O feed "SE" do Sebrae mistura conteúdo de outros estados (itens de `sc.agenciasebrae`): a
   triagem precisa filtrar por território, não só por tema.
 - Primeira coleta: 49 notícias. 11 testes.
+- Acrescentadas (29/09/2026): g1 Sergipe (100 notícias em ~11 dias) e g1 Economia (nacional).
+  Recusadas: g1 geral (100 notícias em 3,5 horas, ruído) e a busca RSS do Google News, cujo
+  robots.txt proíbe robôs em todo o site (com bloqueio explícito a robôs de IA); o coletor
+  respeita o robots.txt. Deduplicação também pelo título normalizado, para a mesma notícia
+  vinda por duas fontes. Total acumulado: 247 notícias.
 
 ### 5. Aprovação e envio
 

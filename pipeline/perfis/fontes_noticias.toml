@@ -32,3 +32,22 @@ nome = "InfoMoney: comércio exterior"
 feed = "https://www.infomoney.com.br/tudo-sobre/comercio-exterior/feed/"
 escala = "nacional"
 intervalo_s = 2
+
+# Acrescentadas em 29/09/2026. O g1 geral ficou de fora: 100 notícias em 3,5 horas, nacional e
+# de todos os temas, ruído que nem a coleta diária acompanha.
+[[fontes]]
+nome = "g1 Sergipe"
+feed = "https://g1.globo.com/dynamo/se/sergipe/rss2.xml"
+escala = "estadual"
+intervalo_s = 2
+
+[[fontes]]
+nome = "g1 Economia"
+feed = "https://g1.globo.com/dynamo/economia/rss2.xml"
+escala = "nacional"
+intervalo_s = 2
+
+# Google News (busca RSS) avaliado e RECUSADO em 29/09/2026: o robots.txt do news.google.com
+# proíbe robôs em todo o site (User-agent: * / Disallow: /), com bloqueio explícito a robôs de
+# IA. O coletor respeita o robots.txt; não contornar. O suporte a agregador (agregador = true:
+# "Título - Veículo") continua no coletor para outra fonte do tipo.

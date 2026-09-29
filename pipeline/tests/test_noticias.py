@@ -99,6 +99,19 @@ class Coleta(unittest.TestCase):
         self.assertEqual((setembro[0]["fonte"], setembro[0]["escala"]), ("Fonte A", "regional"))
         self.assertEqual(len(noticias.Arquivo(self.pasta).ler("2026-08")), 1)
 
+    def test_agregador_separa_veiculo_e_titulo_repetido_nao_entra(self):
+        gn = {"nome": "GN", "feed": "https://news.example/rss", "escala": "estadual", "agregador": True}
+        rss_gn = RSS.replace(b"Empresa abre 200 vagas em Socorro</title><link>https://ex.com/a",
+                             b"Empresa abre 200 vagas em Socorro - Infonet</title><link>https://news.example/x")
+        resp = {"https://ex.com/robots.txt": ROBOTS_LIVRE, FONTE["feed"]: RSS,
+                "https://news.example/robots.txt": ROBOTS_LIVRE, gn["feed"]: rss_gn}
+        r = self.coletar([FONTE, gn], resp)
+        # as duas notícias do GN já vieram pela Fonte A: a de Socorro com OUTRO link (barrada
+        # pelo título, depois de separar " - Infonet") e a da feira com o mesmo link
+        self.assertEqual(r, {"Fonte A": 2, "GN": 0})
+        self.assertEqual(noticias.separar_veiculo({"titulo": "Pix cresce em Sergipe - Jornal X", "link": "l"}),
+                         {"titulo": "Pix cresce em Sergipe", "veiculo": "Jornal X", "link": "l"})
+
     def test_fonte_com_erro_nao_derruba_as_outras(self):
         outra = {**FONTE, "nome": "Fonte B", "feed": "https://ex.org/feed/"}
         resp = {"https://ex.com/robots.txt": ROBOTS_LIVRE, FONTE["feed"]: OSError("fora do ar"),
