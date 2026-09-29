@@ -27,7 +27,7 @@ from pathlib import Path
 
 import duckdb
 
-VERSAO = 1
+VERSAO = 2
 
 LIMIARES_PADRAO = {
     # |saldo| mínimo (vínculos) para um grupamento ou atividade virar destaque
@@ -51,6 +51,28 @@ LIMIARES_PADRAO = {
     "min_anos_sazonal": 3,
     # meses até uma competência deixar de ser provisória (var meses_para_consolidar do dbt)
     "meses_para_consolidar": 12,
+    # mudança de participação nas admissões (pontos percentuais) que torna uma categoria do
+    # perfil relevante, além de um saldo acima de destaque_min_abs
+    "perfil_variacao_pp_relevante": 5.0,
+}
+
+MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
+         "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+
+# Nomes curtos dos subgrupamentos (Tabela 1 do MTE) para a abertura do boletim; o nome oficial
+# completo continua em `nome`. Escolhidos aqui, não pelo LLM, para serem os mesmos todo mês.
+NOMES_CURTOS = {
+    "Informação, comunicação e atividades financeiras, imobiliárias, profissionais e administrativas":
+        "informação, comunicação, finanças e serviços profissionais e administrativos",
+    "Administração pública, defesa, seguridade social, educação, saúde humana e serviços sociais":
+        "administração pública, educação e saúde",
+    "Comércio, reparação de veículos automotores e motocicletas": "comércio",
+    "Transporte, armazenagem e correio": "transporte e armazenagem",
+    "Alojamento e alimentação": "alojamento e alimentação",
+    "Outros serviços": "outros serviços",
+    "Serviços domésticos": "serviços domésticos",
+    "Indústrias de Transformação": "indústria de transformação",
+    "Indústria geral": "indústria extrativa, energia e saneamento",
 }
 
 PERFIS = Path(__file__).resolve().parent.parent / "perfis"
@@ -82,6 +104,11 @@ def pct(numerador, denominador) -> float | None:
     return round(100.0 * numerador / denominador, 2)
 
 
+def rotulo_competencia(competencia: int) -> str:
+    """202607 -> 'julho de 2026'."""
+    return f"{MESES[competencia % 100 - 1]} de {competencia // 100}"
+
+
 def carregar_limiares(territorio: str, pasta: Path = PERFIS) -> tuple[dict, dict]:
     """(limiares, perfil textual) do perfis/<territorio>.toml, com os padrões por baixo."""
     caminho = pasta / f"{territorio}.toml"
@@ -109,13 +136,23 @@ class Numeros:
 
 def sazonalidade(valor, anteriores: dict[int, int], min_anos: int) -> dict:
     """Posição de `valor` na faixa mínimo–máximo do mesmo mês em anos anteriores (roteiro,
-    seção 3.2). Com poucos anos não se usa desvio-padrão."""
+    seção 3.2). Com poucos anos não se usa desvio-padrão. `anos` diz o período da faixa, para
+    o texto poder explicar o critério (revisão editorial, item 14)."""
     if len(anteriores) < min_anos or valor is None:
         return {"posicao": "historico_insuficiente", "anos": sorted(anteriores)}
     minimo, maximo = min(anteriores.values()), max(anteriores.values())
     posicao = "abaixo_da_faixa" if valor < minimo else "acima_da_faixa" if valor > maximo else "dentro_da_faixa"
-    return {"posicao": posicao, "minimo": minimo, "maximo": maximo,
-            "anos": {str(a): v for a, v in sorted(anteriores.items())}}
+    return {"posicao": posicao, "minimo": minimo, "maximo": maximo, "anos": sorted(anteriores)}
+
+
+def _faixa(n, prefixo: str, saz: dict, alvo: str) -> dict:
+    """Registra mínimo e máximo da faixa histórica, para poderem ser citados no texto."""
+    if "minimo" not in saz:
+        return saz
+    periodo = f"{saz['anos'][0]} a {saz['anos'][-1]}"
+    return {**saz,
+            "minimo": n(f"{prefixo}.minimo", saz["minimo"], "vinculos", f"menor saldo de {alvo} no mesmo mês, {periodo}"),
+            "maximo": n(f"{prefixo}.maximo", saz["maximo"], "vinculos", f"maior saldo de {alvo} no mesmo mês, {periodo}")}
 
 
 # --- leitura --------------------------------------------------------------------------------
@@ -168,6 +205,10 @@ def gerar_fatos(warehouse: Path, territorio: str, competencia: str | int,
             "versao": VERSAO,
             "territorio": {"codigo": territorio, "nome": info["nome"], "tipo": info["tipo"]},
             "competencia": str(comp),
+            # Rótulos para o texto: "julho de 2025" em vez de "o mesmo mês do ano anterior".
+            "rotulos": {"competencia": rotulo_competencia(comp),
+                        "ano_anterior": rotulo_competencia(deslocar(comp, -12)),
+                        "mes_anterior": rotulo_competencia(deslocar(comp, -1))},
             "ultima_competencia_carregada": str(ultima),
             "provisorio": meses_entre(comp, ultima) < limiares["meses_para_consolidar"],
             "limiares": limiares,
@@ -249,7 +290,14 @@ def _panorama(con, n, territorio, comp, serie, lim) -> dict:
         p["acumulado_12_meses"] = n("panorama.acumulado_12_meses", sum(doze), "vinculos", "saldo acumulado em 12 meses")
 
     anteriores = {c // 100: serie[c]["saldo"] for c in serie if c % 100 == comp % 100 and c < comp}
-    p["sazonalidade"] = sazonalidade(atual["saldo"], anteriores, lim["min_anos_sazonal"])
+    p["sazonalidade"] = _faixa(n, "panorama.faixa_historica",
+                               sazonalidade(atual["saldo"], anteriores, lim["min_anos_sazonal"]), "todo o município")
+    # Persistência (revisão editorial, item 20): o saldo dos dois meses anteriores.
+    p["meses_anteriores"] = [
+        {"competencia": rotulo_competencia(c),
+         "saldo": n(f"panorama.saldo_{c}", serie[c]["saldo"], "vinculos", f"saldo de {rotulo_competencia(c)}")}
+        for c in (deslocar(comp, -1), deslocar(comp, -2)) if c in serie
+    ]
     return p
 
 
@@ -294,13 +342,14 @@ def _setorial(con, n, territorio, comp, panorama, lim) -> dict:
             if estoque_total:
                 item["participacao_estoque"] = n(f"{k}.participacao_estoque", pct(e["estoque"], estoque_total), "pct",
                                                  f"participação de {nome} no estoque do território")
-        # Contribuição só com saldo total longe de zero (roteiro 1.2): perto de zero, as
-        # participações explodem e trocam de sinal.
+        # `apoio`: números que servem ao CÓDIGO para escolher destaques, mas não entram no texto
+        # (fora de `numeros`, o verificador os recusa). A contribuição percentual confunde o
+        # leitor quando o saldo total é negativo ("108,43%"; revisão editorial, item 8).
+        item["apoio"] = {}
         if abs(saldo_total) >= lim["contribuicao_saldo_min"]:
-            item["contribuicao_saldo"] = n(f"{k}.contribuicao_saldo", pct(g["saldo"], saldo_total), "pct",
-                                           f"contribuição de {nome} para o saldo do mês")
+            item["apoio"]["contribuicao_saldo_pct"] = pct(g["saldo"], saldo_total)
         if soma_abs:
-            item["participacao_movimento_liquido"] = round(abs(g["saldo"]) / soma_abs, 4)
+            item["apoio"]["participacao_movimento_liquido"] = round(abs(g["saldo"]) / soma_abs, 4)
         anteriores = {h["competencia_mov"] // 100: h["saldo"] for h in historico
                       if h["grupamento"] == nome and h["competencia_mov"] < comp}
         item["sazonalidade"] = sazonalidade(g["saldo"], anteriores, lim["min_anos_sazonal"])
@@ -316,7 +365,37 @@ def _setorial(con, n, territorio, comp, panorama, lim) -> dict:
     for nome, it in candidatos:
         if nome not in destaques and it["sazonalidade"]["posicao"] in ("abaixo_da_faixa", "acima_da_faixa"):
             destaques.append(nome)
-    return {"grupamentos": saida, "destaques": destaques}
+
+    # Faixa histórica citável só para os destaques; nos demais fica só a posição.
+    for nome, it in saida.items():
+        if nome in destaques:
+            it["sazonalidade"] = _faixa(n, f"setorial.{chave(nome)}.faixa_historica", it["sazonalidade"], nome)
+        else:
+            it["sazonalidade"] = {"posicao": it["sazonalidade"]["posicao"]}
+
+    # Persistência dos destaques: saldo dos dois meses anteriores.
+    anteriores = (deslocar(comp, -1), deslocar(comp, -2))
+    for r in _linhas(con, "select grupamento, competencia_mov, sum(saldo) saldo from mart_fluxo "
+                          "where territorio = ? and competencia_mov in (?, ?) group by 1, 2 order by 2 desc",
+                     [territorio, *anteriores]):
+        if r["grupamento"] in destaques:
+            c = r["competencia_mov"]
+            saida[r["grupamento"]].setdefault("meses_anteriores", []).append({
+                "competencia": rotulo_competencia(c),
+                "saldo": n(f"setorial.{chave(r['grupamento'])}.saldo_{c}", r["saldo"], "vinculos",
+                           f"saldo de {r['grupamento']} em {rotulo_competencia(c)}")})
+
+    resultado = {"grupamentos": saida, "destaques": destaques}
+    # "Nos demais setores, saldo conjunto de +7" (revisão editorial, itens 6 e 8): por código.
+    fora = [nome for nome in saida if nome not in destaques]
+    if destaques and fora:
+        resultado["fora_dos_destaques"] = {
+            "grupamentos": [nome for nome in fora if nome != "Não Identificado"],
+            "saldo": n("setorial.fora_dos_destaques.saldo",
+                       sum(saida[nome]["saldo"]["valor"] for nome in fora), "vinculos",
+                       "saldo conjunto dos grupamentos que não são destaque"),
+        }
+    return resultado
 
 
 def _desagregacao(con, n, territorio, comp, setorial, lim) -> list[dict]:
@@ -349,14 +428,20 @@ def _desagregacao(con, n, territorio, comp, setorial, lim) -> list[dict]:
                 if part < lim["participacao_dominante"] or r["codigo"] in (None, "NI"):
                     continue
                 k = f"desagregacao.{chave(grupamento)}.{nivel}.{chave(str(r['codigo']))}"
+                saldo_grupamento = setorial["grupamentos"][grupamento]["saldo"]["valor"]
                 sugestoes.append({
                     "grupamento": grupamento,
                     "nivel": nivel,
                     "codigo": r["codigo"],
                     "nome": r["nome"],
-                    "participacao_movimentacoes_12m": n(f"{k}.participacao_12m", round(100.0 * part, 2), "pct",
-                                                        f"participação de {r['nome']} nas movimentações de {grupamento} em 12 meses (aproximação do peso)"),
+                    "nome_curto": NOMES_CURTOS.get(r["nome"], r["nome"]),
+                    # só para escolher a atividade (revisão editorial, item 8): não vai ao texto
+                    "apoio": {"participacao_movimentacoes_12m_pct": round(100.0 * part, 2)},
                     "saldo": n(f"{k}.saldo", r["saldo"] or 0, "vinculos", f"saldo de {r['nome']} no mês"),
+                    # "os demais subgrupamentos de Serviços somaram +46" (revisão, item 12)
+                    "saldo_restante_do_grupamento": n(
+                        f"{k}.saldo_restante", saldo_grupamento - (r["saldo"] or 0), "vinculos",
+                        f"saldo do restante de {grupamento}, sem {r['nome']}"),
                     "admissoes": n(f"{k}.admissoes", r["admissoes"] or 0, "vinculos", f"admissões de {r['nome']} no mês"),
                     "desligamentos": n(f"{k}.desligamentos", r["desligamentos"] or 0, "vinculos", f"desligamentos de {r['nome']} no mês"),
                     "saldo_ano_anterior": n(f"{k}.saldo_ano_anterior", r["saldo_ano_anterior"] or 0, "vinculos",
@@ -427,10 +512,22 @@ def _perfil(con, n, territorio, comp, lim) -> dict:
                 "base_pequena": r["admissoes"] < lim["base_pequena_perfil"],
             }
             a = ant.get(r["categoria"])
+            variacao_pp = None
             if a and total_adm_ant:
+                antes = pct(a["admissoes"], total_adm_ant)
                 item["participacao_admissoes_ano_anterior"] = n(
-                    f"{k}.participacao_admissoes_ano_anterior", pct(a["admissoes"], total_adm_ant), "pct",
+                    f"{k}.participacao_admissoes_ano_anterior", antes, "pct",
                     f"participação de {r['categoria']} nas admissões do mesmo mês do ano anterior")
+                variacao_pp = round(item["participacao_admissoes"]["valor"] - antes, 2)
+                item["variacao_participacao_pp"] = n(
+                    f"{k}.variacao_participacao_pp", variacao_pp, "pp",
+                    f"variação da participação de {r['categoria']} nas admissões, em pontos percentuais")
+            # Sem identificação vai para a nota metodológica, não para a análise (revisão, item 17).
+            item["sem_identificacao"] = r["categoria"].startswith("Não identificad")
+            # Só categorias relevantes são comentadas no texto (revisão, item 7).
+            item["relevante"] = (not item["base_pequena"] and not item["sem_identificacao"] and (
+                abs(r["saldo"]) >= lim["destaque_min_abs"]
+                or (variacao_pp is not None and abs(variacao_pp) >= lim["perfil_variacao_pp_relevante"])))
             cats[r["categoria"]] = item
         saida[dim] = cats
     return saida
@@ -454,8 +551,11 @@ def _salario(con, n, territorio, comp, lim) -> dict | None:
     }
     ant = linhas.get(deslocar(comp, -12))
     if ant:
-        s["mediana_ano_anterior"] = n("salario.mediana_ano_anterior", float(ant["salario_mediano_admissao"]), "brl",
+        m, m_ant = float(atual["salario_mediano_admissao"]), float(ant["salario_mediano_admissao"])
+        s["mediana_ano_anterior"] = n("salario.mediana_ano_anterior", m_ant, "brl",
                                       "salário mediano de admissão no mesmo mês do ano anterior (valor nominal)")
+        s["variacao_nominal_mediana"] = n("salario.variacao_nominal_mediana", pct(m - m_ant, m_ant), "pct",
+                                          "variação NOMINAL da mediana em 12 meses, sem correção pela inflação")
     return s
 
 
@@ -472,11 +572,11 @@ def _gatilhos(fatos: dict, lim: dict) -> list[dict]:
         if nome in fatos["setorial"]["destaques"] and it["sazonalidade"]["posicao"] in ("abaixo_da_faixa", "acima_da_faixa"):
             g.append({"tipo": "sazonal_grupamento", "grupamento": nome, "posicao": it["sazonalidade"]["posicao"],
                       "ids": [it["saldo"]["id"]]})
-        if it.get("participacao_movimento_liquido", 0) >= lim["concentracao"] and abs(it["saldo"]["valor"]) >= lim["destaque_min_abs"]:
+        if it.get("apoio", {}).get("participacao_movimento_liquido", 0) >= lim["concentracao"] and abs(it["saldo"]["valor"]) >= lim["destaque_min_abs"]:
             g.append({"tipo": "concentracao", "grupamento": nome, "ids": [it["saldo"]["id"]]})
     for s in fatos["desagregacao"]:
         g.append({"tipo": "atividade_dominante", "grupamento": s["grupamento"], "nivel": s["nivel"],
-                  "codigo": s["codigo"], "ids": [s["saldo"]["id"], s["participacao_movimentacoes_12m"]["id"]]})
+                  "codigo": s["codigo"], "ids": [s["saldo"]["id"]]})
     pequenas = [f"{dim}:{cat}" for dim, cats in fatos["perfil"].items() for cat, it in cats.items() if it["base_pequena"]]
     if pequenas:
         g.append({"tipo": "base_pequena_perfil", "categorias": pequenas})

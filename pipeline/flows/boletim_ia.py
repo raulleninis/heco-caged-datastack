@@ -1,22 +1,27 @@
 """
-Boletim com IA (F19 parte 3): analista → redator → revisor, sobre os fatos da parte 1, dentro
-das proteções da parte 2. Resultado fica AGUARDANDO APROVAÇÃO humana; nada é enviado aqui.
+Boletim com IA (F19 parte 3, revista na 3b-1): analista → redator → revisor, sobre os fatos da
+parte 1, dentro das proteções da parte 2. Resultado fica AGUARDANDO APROVAÇÃO humana; nada é
+enviado aqui.
 
 Fluxo fixo, sem agente decidindo chamar outro (docs/fatias/F19-boletim-com-ia.md):
 
 1. fatos (flows/fatos.py), com hash. Mesmo hash e resultado já gerado: reaproveita, sem LLM
    (só gera de novo com --refazer).
-2. analista: escolhe até 5 destaques e até 3 hipóteses a investigar, citando ids de `numeros`.
-3. redator: escreve o boletim. O verificador de números é o seu output_validator: número fora
-   dos fatos gera UMA nova tentativa; na última, o texto é aceito e segue com o relatório de
-   problemas para a revisão humana (em vez de abortar e perder o que foi pago).
-4. revisor (outra família de modelo): parecer sobre causalidade, fontes, rótulos, identificação.
-   Havendo problema grave, o redator faz uma segunda versão, verificada de novo.
-5. grava fatos.json, resultado.json e boletim.md, com situação `aguardando_aprovacao` ou
-   `reprovado_no_verificador`.
+2. analista: escolhe até 5 destaques, citando ids de `numeros`.
+3. redator: escreve o texto na estrutura do roteiro (síntese, panorama, setores, contexto
+   regional, perfil e remuneração, pontos de atenção, nota metodológica). O verificador de
+   números é o seu output_validator: número fora dos fatos gera UMA nova tentativa; na última,
+   o texto é aceito e segue com o relatório para a revisão humana (em vez de abortar e perder o
+   que foi pago). As rejeições de cada tentativa ficam registradas.
+4. revisor (outra família de modelo, com os fatos COMPLETOS e os avisos de estilo): parecer
+   sobre causalidade, fontes, rótulos, identificação e estilo. Problema grave gera uma segunda
+   versão do redator, verificada de novo.
+5. grava fatos.json, resultado.json e boletim.md. As TABELAS do boletim.md são geradas por
+   código a partir dos fatos (dois níveis: o texto interpreta, a tabela detalha); o LLM nunca
+   monta tabela.
 
 Pior caso de requisições: analista 2 + redator 2 + revisor 1 + redator 2 = 7, dentro do
-request_limit de 8 da Execucao. O pesquisador (evidências externas) entra na parte 4.
+request_limit de 8 da Execucao. Hipóteses ficam fora até existirem evidências externas (parte 4).
 
 Uso:
     python flows/boletim_ia.py 280480 202607 [--refazer] [--warehouse ...]
@@ -25,6 +30,7 @@ Uso:
 import argparse
 import json
 import os
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -34,7 +40,16 @@ from pydantic_ai import Agent, ModelRetry, RunContext
 
 import fatos as fatos_mod
 import ia
-from verificador import verificar_texto
+from verificador import avisos_de_estilo, rotulos_dos_fatos, verificar_texto
+
+# Modelos que devolvem decisões tipadas, não texto (ex.: typesafe/jev-1.13). Não servem para
+# os papéis deste módulo; entram na 3b-2 como juiz de afirmações.
+PREFIXOS_MODELOS_DE_DECISAO = ("typesafe/",)
+
+
+def e_modelo_de_decisao(modelo: str) -> bool:
+    return modelo.startswith(PREFIXOS_MODELOS_DE_DECISAO)
+
 
 # --- saídas tipadas ---------------------------------------------------------------------------
 
@@ -45,7 +60,8 @@ class Destaque(BaseModel):
     por_que: str = Field(description="qual regra ou gatilho o torna destaque")
 
 
-class HipoteseAInvestigar(BaseModel):
+class PerguntaParaEvidencia(BaseModel):
+    """Para o pesquisador (parte 4): o que uma evidência externa poderia esclarecer."""
     tema: str
     pergunta: str
     escala: Literal["municipal", "regional", "estadual", "nacional"]
@@ -54,46 +70,32 @@ class HipoteseAInvestigar(BaseModel):
 class Analise(BaseModel):
     destaques: list[Destaque] = Field(max_length=5)
     desagregacoes: list[str] = Field(default_factory=list, description="códigos de `desagregacao` a usar no texto")
-    hipoteses_a_investigar: list[HipoteseAInvestigar] = Field(default_factory=list, max_length=3)
-
-
-class Secao(BaseModel):
-    titulo: str
-    paragrafos: list[str]
-
-
-class Hipotese(BaseModel):
-    texto: str = Field(description="rotulada como hipótese; nunca como causa comprovada")
-    apoio: list[str] = Field(default_factory=list, description="ids de `numeros` ou fontes citadas")
+    perguntas_para_evidencias: list[PerguntaParaEvidencia] = Field(default_factory=list, max_length=3)
 
 
 class Boletim(BaseModel):
     titulo: str
-    sintese: str
-    secoes: list[Secao]
-    hipoteses: list[Hipotese] = Field(default_factory=list, max_length=3)
-    limitacoes: list[str] = Field(default_factory=list)
+    sintese: str = Field(description="até 3 frases: o que aconteceu, onde se concentrou, o estoque")
+    panorama: list[str] = Field(description="parágrafos: mês, comparação com o mesmo mês do ano anterior, acumulado no ano, 12 meses")
+    setores: list[str] = Field(description="parágrafos: o destaque em detalhe; os demais numa frase")
+    contexto_regional: list[str] = Field(description="parágrafos: taxas do município, da região e da UF")
+    perfil_e_remuneracao: list[str] = Field(description="parágrafos: só as categorias relevantes; salário mediano")
+    pontos_de_atencao: list[str] = Field(max_length=4, description="indicadores a acompanhar nos próximos meses")
+    nota_metodologica: str = Field(description="provisoriedade, faixa histórica, bases pequenas, sem identificação, base do salário")
+
+    def secoes(self) -> list[tuple[str, list[str]]]:
+        return [("Panorama", self.panorama), ("Setores", self.setores),
+                ("Contexto regional", self.contexto_regional), ("Perfil e remuneração", self.perfil_e_remuneracao)]
 
     def texto(self) -> str:
         partes = [self.titulo, self.sintese]
-        for s in self.secoes:
-            partes += [s.titulo, *s.paragrafos]
-        partes += [h.texto for h in self.hipoteses] + self.limitacoes
-        return "\n".join(partes)
-
-    def markdown(self) -> str:
-        md = [f"# {self.titulo}", "", self.sintese, ""]
-        for s in self.secoes:
-            md += [f"## {s.titulo}", "", *[p + "\n" for p in s.paragrafos]]
-        if self.hipoteses:
-            md += ["## Hipóteses (não comprovadas)", ""] + [f"- {h.texto}" for h in self.hipoteses] + [""]
-        if self.limitacoes:
-            md += ["## Limitações", ""] + [f"- {l}" for l in self.limitacoes] + [""]
-        return "\n".join(md)
+        for _, paragrafos in self.secoes():
+            partes += paragrafos
+        return "\n".join(partes + self.pontos_de_atencao + [self.nota_metodologica])
 
 
 class Problema(BaseModel):
-    tipo: Literal["numero", "causalidade", "fonte", "rotulo", "identificacao", "estilo"]
+    tipo: Literal["numero", "causalidade", "fonte", "rotulo", "identificacao", "estilo", "estrutura"]
     gravidade: Literal["grave", "menor"]
     trecho: str
     sugestao: str
@@ -104,36 +106,79 @@ class Parecer(BaseModel):
     resumo: str
 
 
-# --- instruções (resumo das regras de docs/boletim-ia/roteiro.md) -----------------------------
+@dataclass
+class Contexto:
+    """deps dos agentes: a tabela de números, os rótulos aceitos e o registro das rejeições."""
+    fatos: dict
+    rejeicoes: list[list[str]] = field(default_factory=list)
+
+    @property
+    def numeros(self) -> dict:
+        return self.fatos["numeros"]
+
+    @property
+    def rotulos(self) -> list[str]:
+        return rotulos_dos_fatos(self.fatos)
+
+
+# --- instruções (resumo de docs/boletim-ia/roteiro.md e da revisão editorial de 29/09/2026) ---
 
 REGRAS = """\
 Regras obrigatórias:
-- Todo número que você escrever tem de estar na tabela `numeros` dos fatos, com o mesmo valor
-  (formato brasileiro: 25.439; 0,33%; R$ 1.661,00). NUNCA calcule, some, subtraia ou derive
-  números novos, nem diferenças de percentuais. Se um número não está nos fatos, não o use.
-- Unidade de análise: o município. Região e UF são contexto, não explicação do município.
-- Análise setorial pelos grandes grupamentos; desagregue só as atividades listadas em
-  `desagregacao`. Nunca identifique, sugira ou insinue empresas ou estabelecimentos.
-- Separe fato observado, evidência complementar e hipótese. Não atribua causa sem evidência;
-  hipótese sempre rotulada como hipótese.
-- Se o resultado está dentro da faixa histórica do mês, diga isso sem inventar explicação.
-- Competência provisória: diga que o número ainda pode ser revisado.
-- Salário: a mediana é a referência; a média só para comparação.
-- Recortes marcados como base pequena não são interpretados.
+- Todo número tem de estar na tabela `numeros` dos fatos, com o mesmo valor. NUNCA calcule,
+  some, subtraia ou derive números, nem diferenças de percentuais. Se o número que você quer
+  não está na tabela, não o use. Campos dentro de `apoio` não são publicáveis.
+- Unidade de análise: o município. Região e UF são contexto, não explicação.
+- Análise setorial pelos grandes grupamentos; desagregue só as atividades de `desagregacao`
+  (use `nome_curto` na síntese, `nome` na seção de setores). Nunca identifique ou insinue
+  empresas ou estabelecimentos.
+- Não atribua causa. Descreva o que os dados mostram. Não há hipóteses nesta versão: não
+  especule sobre motivos.
+- Salário: a mediana é a referência. A comparação com o ano anterior é NOMINAL (sem correção
+  pela inflação): diga isso. A média não precisa aparecer.
+- Categorias com `base_pequena` ou `sem_identificacao` não são interpretadas; vão para a nota.
+"""
+
+EDITORIAL = """\
+Estilo e estrutura (leitor: gestor público; objetivo: entender rápido o que aconteceu, onde se
+concentrou, como se compara e o que acompanhar):
+- Síntese: no máximo 3 frases. O resultado do mês, onde a perda ou o ganho se concentrou, o
+  estoque. Não repita a síntese no panorama.
+- Panorama, nesta ordem: o mês; o mesmo mês do ano anterior (pelo nome, ex.: "julho de 2025",
+  do campo `rotulos`) e o que mudou em admissões e desligamentos; o acumulado no ano; o
+  acumulado em 12 meses. Se ano e 12 meses tiverem sinais opostos, explique que medem
+  períodos diferentes.
+- Setores: o destaque em detalhe; os demais grupamentos numa única frase, usando
+  `fora_dos_destaques`. Não comente grupamento sem movimento. A tabela completa é gerada à
+  parte, não a reproduza.
+- Faixa histórica: ao citá-la, diga o critério (mínimo e máximo do mesmo mês nos anos de `anos`).
+- Contexto regional: compare TAXAS (mês e 12 meses); o município faz parte da região e da UF.
+- Perfil: comente só categorias com `relevante` = true.
+- Pontos de atenção: 2 a 4 indicadores para acompanhar nos próximos meses, sem especular causas.
+- Nota metodológica: um único parágrafo com a provisoriedade (a ÚNICA menção a ela), o
+  critério da faixa histórica, as categorias sem identificação e a base do salário.
+- Convenções: no texto, "perda de 83 vínculos" ou "saldo negativo de 83", sem sinal de menos;
+  percentuais SEMPRE com 2 casas decimais (0,33%); "vínculos" para tudo (não alterne com
+  postos, vagas, empregos). Títulos só com a primeira letra maiúscula.
+- Frases diretas ("teve", "foi", "caiu"). Sem travessão. Sem gerúndio decorativo
+  ("destacando-se", "evidenciando"). Sem "vale ressaltar", "no tocante", "cenário",
+  "impulsionado". Não repita um mesmo número em duas seções.
 """
 
 INSTRUCOES = {
     "analista": "Você é o analista de um boletim mensal de emprego formal (Novo CAGED). Recebe os fatos já "
                 "calculados e escolhe o que merece destaque, seguindo os `gatilhos` e os `destaques` setoriais. "
-                "Cada destaque cita ids da tabela `numeros`. Proponha no máximo 3 hipóteses a investigar, com a "
-                "escala da evidência que as testaria.\n" + REGRAS,
-    "redator": "Você redige, em português do Brasil, um boletim mensal de emprego formal de 3 a 4 páginas: "
-               "síntese; panorama; desempenho setorial; contexto regional (município × região × UF); perfil das "
-               "contratações; interpretação com no máximo 3 hipóteses. Tom técnico e claro.\n" + REGRAS,
-    "revisor": "Você revisa um boletim de emprego formal escrito por outro modelo. Aponte problemas de: número "
-               "que não confere com os fatos; linguagem causal sem evidência; hipótese não rotulada; fonte ou "
-               "período ausente; qualquer identificação de empresa; estilo. Marque como grave o que não pode "
-               "sair publicado. Não reescreva o texto.\n" + REGRAS,
+                "Cada destaque cita ids da tabela `numeros`. Pode sugerir até 3 perguntas que uma evidência "
+                "externa (notícia, indicador oficial) ajudaria a esclarecer.\n" + REGRAS,
+    "redator": "Você redige, em português do Brasil, o texto de um boletim mensal de emprego formal para "
+               "gestores públicos. Os números sustentam as conclusões; não os enumere em sequência.\n"
+               + REGRAS + EDITORIAL,
+    "revisor": "Você revisa um boletim de emprego formal escrito por outro modelo, com os fatos completos à mão. "
+               "Aponte: número que não confere; linguagem causal ou especulação; afirmação sem base nos fatos "
+               "(confira nos fatos antes de apontar: faixa histórica, gatilhos e sazonalidade estão lá); "
+               "identificação de empresa; estrutura fora do pedido; estilo (considere os avisos de estilo "
+               "recebidos). Marque como grave só o que não pode ser publicado. Não reescreva o texto.\n"
+               + REGRAS + EDITORIAL,
 }
 
 
@@ -141,22 +186,23 @@ def criar_agentes(criar_modelo) -> dict[str, Agent]:
     """Os três agentes. `criar_modelo(papel)` devolve o modelo de cada papel (OpenRouter em
     produção; FunctionModel nos testes)."""
     analista = Agent(criar_modelo("analista"), output_type=Analise, instructions=INSTRUCOES["analista"],
-                     deps_type=dict, retries=1)
+                     deps_type=Contexto, retries=1)
     redator = Agent(criar_modelo("redator"), output_type=Boletim, instructions=INSTRUCOES["redator"],
-                    deps_type=dict, retries=1)
+                    deps_type=Contexto, retries=1)
     revisor = Agent(criar_modelo("revisor"), output_type=Parecer, instructions=INSTRUCOES["revisor"], retries=1)
 
     @analista.output_validator
-    def ids_existem(ctx: RunContext[dict], saida: Analise) -> Analise:
-        faltando = sorted({i for d in saida.destaques for i in d.ids} - set(ctx.deps["numeros"]))
+    def ids_existem(ctx: RunContext[Contexto], saida: Analise) -> Analise:
+        faltando = sorted({i for d in saida.destaques for i in d.ids} - set(ctx.deps.numeros))
         if faltando and ctx.retry < ctx.max_retries:
             raise ModelRetry(f"Estes ids não existem na tabela `numeros`: {faltando}. Use só ids existentes.")
         return saida
 
     @redator.output_validator
-    def numeros_conferem(ctx: RunContext[dict], saida: Boletim) -> Boletim:
-        problemas = [p for p in verificar_texto(saida.texto(), ctx.deps["numeros"])
+    def numeros_conferem(ctx: RunContext[Contexto], saida: Boletim) -> Boletim:
+        problemas = [p for p in verificar_texto(saida.texto(), ctx.deps.numeros, ctx.deps.rotulos)
                      if p["tipo"] == "numero_fora_dos_fatos"]
+        ctx.deps.rejeicoes.append([p["numero"] for p in problemas])
         if problemas and ctx.retry < ctx.max_retries:
             lista = "; ".join(f"{p['numero']} em \"…{p['trecho']}…\"" for p in problemas[:15])
             raise ModelRetry("Estes números não estão na tabela `numeros` dos fatos (não calcule nem derive "
@@ -166,18 +212,75 @@ def criar_agentes(criar_modelo) -> dict[str, Agent]:
     return {"analista": analista, "redator": redator, "revisor": revisor}
 
 
+# --- tabelas (código, não LLM) -------------------------------------------------------------------
+
+def _int(v) -> str:
+    return "n/d" if v is None else f"{int(v):+,}".replace(",", ".") if v else "0"
+
+
+def _qtd(v) -> str:
+    return "n/d" if v is None else f"{int(v):,}".replace(",", ".")
+
+
+def _pct(v) -> str:
+    return "n/d" if v is None else f"{v:.2f}%".replace(".", ",")
+
+
+def _v(item: dict | None, chave: str):
+    x = (item or {}).get(chave)
+    return x["valor"] if isinstance(x, dict) and "valor" in x else None
+
+
+def tabelas(fatos: dict) -> str:
+    """Tabelas de detalhe do boletim, geradas a partir dos fatos (revisão editorial, itens 10 e 19)."""
+    md = ["## Tabelas", "", "### Grupamentos", "",
+          "| grupamento | saldo | admissões | desligamentos | estoque | variação no mês |",
+          "|---|---:|---:|---:|---:|---:|"]
+    for nome, it in fatos["setorial"]["grupamentos"].items():
+        md.append(f"| {nome} | {_int(_v(it, 'saldo'))} | {_qtd(_v(it, 'admissoes'))} | "
+                  f"{_qtd(_v(it, 'desligamentos'))} | {_qtd(_v(it, 'estoque'))} | {_pct(_v(it, 'taxa_mes'))} |")
+    c = fatos["comparacao"]
+    blocos = [b for b in [c.get("territorio"), *c.get("regioes", []), c.get("uf")] if b]
+    if blocos:
+        md += ["", "### Comparação regional", "", "| território | saldo | estoque | variação no mês | variação em 12 meses |",
+               "|---|---:|---:|---:|---:|"]
+        for b in blocos:
+            md.append(f"| {b['nome']} | {_int(_v(b, 'saldo'))} | {_qtd(_v(b, 'estoque'))} | "
+                      f"{_pct(_v(b, 'taxa_mes'))} | {_pct(_v(b, 'taxa_12_meses'))} |")
+    for dim, titulo in (("sexo", "Admissões por sexo"), ("faixa_etaria", "Admissões por faixa etária")):
+        cats = fatos["perfil"].get(dim) or {}
+        if not cats:
+            continue
+        md += ["", f"### {titulo}", "", f"| categoria | admissões | participação | {fatos['rotulos']['ano_anterior']} | saldo |",
+               "|---|---:|---:|---:|---:|"]
+        for cat, it in cats.items():
+            md.append(f"| {cat} | {_qtd(_v(it, 'admissoes'))} | {_pct(_v(it, 'participacao_admissoes'))} | "
+                      f"{_pct(_v(it, 'participacao_admissoes_ano_anterior'))} | {_int(_v(it, 'saldo'))} |")
+    return "\n".join(md) + "\n"
+
+
+def markdown(boletim: Boletim, fatos: dict) -> str:
+    md = [f"# {boletim.titulo}", "", boletim.sintese, ""]
+    for titulo, paragrafos in boletim.secoes():
+        md += [f"## {titulo}", "", *[p + "\n" for p in paragrafos]]
+    if boletim.pontos_de_atencao:
+        md += ["## Pontos de atenção", ""] + [f"- {p}" for p in boletim.pontos_de_atencao] + [""]
+    md += [tabelas(fatos), "## Nota metodológica", "", boletim.nota_metodologica, ""]
+    return "\n".join(md)
+
+
 # --- orquestração --------------------------------------------------------------------------------
 
 def modelos_do_ambiente(cfg: ia.ConfigIA) -> dict[str, str]:
-    """IA_MODELO_<PAPEL>; sem eles: redator = 1º permitido, analista e revisor = último (outra
-    família, se a lista tiver duas)."""
-    if not cfg.modelos_permitidos:
-        raise RuntimeError("IA_MODELOS_PERMITIDOS vazio: nenhum modelo pode rodar.")
-    primeiro, ultimo = cfg.modelos_permitidos[0], cfg.modelos_permitidos[-1]
+    """IA_MODELO_<PAPEL>; sem eles, entre os permitidos que geram TEXTO: redator = 1º, analista e
+    revisor = último (outra família, se houver duas). Modelos de decisão nunca são escolhidos."""
+    texto = [m for m in cfg.modelos_permitidos if not e_modelo_de_decisao(m)]
+    if not texto:
+        raise RuntimeError("IA_MODELOS_PERMITIDOS sem nenhum modelo de texto: nenhum modelo pode redigir.")
     return {
-        "analista": os.environ.get("IA_MODELO_ANALISTA") or ultimo,
-        "redator": os.environ.get("IA_MODELO_REDATOR") or primeiro,
-        "revisor": os.environ.get("IA_MODELO_REVISOR") or ultimo,
+        "analista": os.environ.get("IA_MODELO_ANALISTA") or texto[-1],
+        "redator": os.environ.get("IA_MODELO_REDATOR") or texto[0],
+        "revisor": os.environ.get("IA_MODELO_REVISOR") or texto[-1],
     }
 
 
@@ -193,6 +296,9 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
           precos: ia.Precos | None = None, registro: ia.RegistroCustos | None = None,
           refazer: bool = False) -> dict:
     """Gera (ou reaproveita) o boletim com IA de um JSON de fatos. Devolve o resultado gravado."""
+    decisao = {p: m for p, m in modelos.items() if e_modelo_de_decisao(m)}
+    if decisao:
+        raise ValueError(f"Modelos de decisão não redigem texto: {decisao}. Use-os como juiz (3b-2).")
     territorio, competencia = fatos["territorio"]["codigo"], fatos["competencia"]
     pasta = cfg.pasta / "boletins" / f"{territorio}_{competencia}" / fatos["hash"][:16]
     arquivo = pasta / "resultado.json"
@@ -204,26 +310,29 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
 
     criar_modelo = criar_modelo or (lambda papel: ia.modelo_openrouter(cfg, modelos[papel], papel))
     agentes = criar_agentes(criar_modelo)
+    contexto = Contexto(fatos)
     with ia.Execucao(cfg, modelos, precos=precos, registro=registro,
                      territorio=territorio, competencia=competencia) as ex:
         base = _fatos_para_prompt(fatos)
-        analise: Analise = ex.rodar(agentes["analista"], "analista", f"Fatos do mês (JSON):\n{base}", deps=fatos)
+        analise: Analise = ex.rodar(agentes["analista"], "analista", f"Fatos do mês (JSON):\n{base}", deps=contexto)
         pedido = (f"Fatos do mês (JSON):\n{base}\n\nAnálise do analista (JSON):\n{analise.model_dump_json(indent=2)}\n\n"
                   "Evidências externas: nenhuma nesta versão. Não cite fontes externas nem acontecimentos.")
-        boletim: Boletim = ex.rodar(agentes["redator"], "redator", pedido, deps=fatos)
-        tabela = _json({"numeros": fatos["numeros"], "gatilhos": fatos["gatilhos"], "provisorio": fatos["provisorio"]})
+        boletim: Boletim = ex.rodar(agentes["redator"], "redator", pedido, deps=contexto)
+        estilo = avisos_de_estilo(boletim.texto())
         parecer: Parecer = ex.rodar(agentes["revisor"], "revisor",
-                                    f"Fatos (tabela de números e gatilhos):\n{tabela}\n\nBoletim (JSON):\n{boletim.model_dump_json(indent=2)}")
+                                    f"Fatos completos (JSON):\n{base}\n\nBoletim (JSON):\n{boletim.model_dump_json(indent=2)}\n\n"
+                                    f"Avisos de estilo do verificador:\n{_json(estilo)}")
         versoes = 1
         if any(p.gravidade == "grave" for p in parecer.problemas):
             boletim = ex.rodar(agentes["redator"], "redator",
                                f"{pedido}\n\nSua versão anterior (JSON):\n{boletim.model_dump_json(indent=2)}\n\n"
-                               f"Problemas apontados pelo revisor (corrija os graves):\n{parecer.model_dump_json(indent=2)}",
-                               deps=fatos)
+                               f"Problemas apontados pelo revisor (corrija os graves):\n{parecer.model_dump_json(indent=2)}\n\n"
+                               f"Avisos de estilo:\n{_json(estilo)}",
+                               deps=contexto)
             versoes = 2
         execucao_id = ex.id
 
-    problemas = verificar_texto(boletim.texto(), fatos["numeros"])
+    problemas = verificar_texto(boletim.texto(), fatos["numeros"], contexto.rotulos)
     reprovado = any(p["tipo"] == "numero_fora_dos_fatos" for p in problemas)
     resultado = {
         "territorio": territorio,
@@ -235,20 +344,22 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
         "situacao": "reprovado_no_verificador" if reprovado else "aguardando_aprovacao",
         "versoes_do_redator": versoes,
         "verificador": problemas,
+        "rejeicoes_do_verificador": contexto.rejeicoes,  # números reprovados em cada tentativa
+        "avisos_de_estilo": avisos_de_estilo(boletim.texto()),
         "parecer_revisor": parecer.model_dump(),
         "analise": analise.model_dump(),
         "boletim": boletim.model_dump(),
     }
     pasta.mkdir(parents=True, exist_ok=True)
     (pasta / "fatos.json").write_text(_json(fatos) + "\n", encoding="utf-8")
-    (pasta / "boletim.md").write_text(boletim.markdown(), encoding="utf-8")
+    (pasta / "boletim.md").write_text(markdown(boletim, fatos), encoding="utf-8")
     arquivo.write_text(_json(resultado) + "\n", encoding="utf-8")
     resultado["pasta"] = str(pasta)
     return resultado
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Gera o boletim com IA (F19 parte 3); fica aguardando aprovação.")
+    ap = argparse.ArgumentParser(description="Gera o boletim com IA (F19); fica aguardando aprovação.")
     ap.add_argument("territorio")
     ap.add_argument("competencia")
     ap.add_argument("--warehouse", default="/data/warehouse/caged.duckdb")
@@ -268,6 +379,7 @@ def main():
         raise
     print(json.dumps({k: r[k] for k in ("situacao", "execucao", "modelos", "versoes_do_redator")}
                      | {"reaproveitado": r.get("reaproveitado", False), "problemas_verificador": len(r["verificador"]),
+                        "rejeicoes": r.get("rejeicoes_do_verificador"), "avisos_de_estilo": len(r.get("avisos_de_estilo", [])),
                         "problemas_revisor": len(r["parecer_revisor"]["problemas"]), "pasta": r.get("pasta")},
                      ensure_ascii=False, indent=2))
 

@@ -126,6 +126,24 @@ APIs oficiais (SIDRA/IBGE, SGS/Banco Central) buscadas por código, e a busca na
 da revisão do primeiro boletim) → parte 4 (triagem pelo Jev, pesquisador) → 3b-2 (advisor e
 tickets).
 
+**3b-1, editorial e fatos (feita, 29/09/2026)**, a partir da revisão editorial do primeiro boletim:
+- Fatos: rótulos de mês ("julho de 2025"), faixa histórica citável com o período, saldo dos dois
+  meses anteriores, saldo dos grupamentos fora dos destaques e do restante de um grupamento,
+  variação nominal da mediana, variação de participação em pontos percentuais, categorias
+  relevantes do perfil e nomes curtos dos subgrupamentos, todos por código. A contribuição
+  percentual e a participação nas movimentações em 12 meses passaram para `apoio` (uso interno,
+  não publicáveis).
+- Verificador: números de rótulos ("18 a 24 anos") só valem nessa posição; avisos de estilo
+  (travessão, expressões de IA, percentual sem 2 casas, "mesmo mês do ano anterior",
+  provisório repetido), que nunca geram nova tentativa.
+- Redator: estrutura fixa (síntese, panorama, setores, contexto regional, perfil e remuneração,
+  pontos de atenção, nota metodológica), sem hipóteses, regras editoriais com a versão compacta
+  da humanizer. Tabelas geradas por código. Revisor com os fatos completos e os avisos de estilo.
+  Modelos de decisão recusados nos papéis de texto. Rejeições do verificador registradas.
+- Segunda execução real (202607, mesmos modelos): US$ 0,028 (a primeira custou US$ 0,094), 1 min
+  55 s, nenhuma rejeição do verificador, uma versão só (nenhum problema grave), 7 apontamentos
+  menores do revisor, 2 avisos de estilo.
+
 **Coletor diário (feito, 29/09/2026):** `flows/noticias.py`, no início do flow diário.
 - Fontes avaliadas: Sebrae SE, Faxaju, Infonet e InfoMoney têm RSS; Observatório FIES e
   Fecomércio SE não têm (ficam para a busca na web restrita, se o plugin permitir); a lista da

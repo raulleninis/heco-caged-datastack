@@ -136,6 +136,15 @@ class Panorama(Base):
         self.assertIsNotNone(p["estoque"]["valor"])
         self.assertTrue(f["provisorio"])
 
+    def test_rotulos_faixa_e_meses_anteriores(self):
+        f = self.gerar()
+        self.assertEqual(f["rotulos"], {"competencia": "julho de 2026", "ano_anterior": "julho de 2025",
+                                        "mes_anterior": "junho de 2026"})
+        faixa = f["panorama"]["sazonalidade"]
+        self.assertEqual((faixa["minimo"]["valor"], faixa["maximo"]["valor"], faixa["anos"]),
+                         (15, 15, [2021, 2022, 2023, 2024, 2025]))
+        self.assertEqual([m["saldo"]["valor"] for m in f["panorama"]["meses_anteriores"]], [15, 15])
+
     def test_motor_da_variacao(self):
         # admissões iguais (300 x 300); desligamentos sobem de 285 para 410: motor = desligamentos
         f = self.gerar()
@@ -155,11 +164,26 @@ class Setorial(Base):
         f = self.gerar()
         s = f["setorial"]
         self.assertEqual(s["destaques"], ["Serviços"])
-        self.assertAlmostEqual(s["grupamentos"]["Serviços"]["contribuicao_saldo"]["valor"], 109.09, places=2)
+        # a contribuição serve ao código, mas não é publicável (fora de `numeros`)
+        self.assertAlmostEqual(s["grupamentos"]["Serviços"]["apoio"]["contribuicao_saldo_pct"], 109.09, places=2)
+        self.assertFalse(any("contribuicao" in i for i in f["numeros"]))
         d = f["desagregacao"]
         self.assertEqual(len(d), 1)
         self.assertEqual((d[0]["nivel"], d[0]["codigo"]), ("subgrupamento", "Informação"))
         self.assertEqual(d[0]["saldo"]["valor"], -150)
+        # restante de Serviços sem 'Informação': −120 − (−150) = +30 (calculado por código)
+        self.assertEqual(d[0]["saldo_restante_do_grupamento"]["valor"], 30)
+        self.assertNotIn("participacao_movimentacoes_12m", d[0])
+
+    def test_fora_dos_destaques_e_faixa_so_dos_destaques(self):
+        s = self.gerar()["setorial"]
+        # Comércio +5 e Indústria +5
+        self.assertEqual(s["fora_dos_destaques"]["saldo"]["valor"], 10)
+        self.assertEqual(s["fora_dos_destaques"]["grupamentos"], ["Comércio", "Indústria"])
+        self.assertEqual(s["grupamentos"]["Serviços"]["sazonalidade"]["minimo"]["valor"], 5)
+        self.assertEqual(s["grupamentos"]["Comércio"]["sazonalidade"], {"posicao": "dentro_da_faixa"})
+        self.assertEqual([m["competencia"] for m in s["grupamentos"]["Serviços"]["meses_anteriores"]],
+                         ["junho de 2026", "maio de 2026"])
 
     def test_saldo_perto_de_zero_nao_calcula_contribuicao(self):
         f = self.gerar(servicos_jul_2026=-5)  # total = 5 + 5 − 5 = 5
@@ -187,6 +211,14 @@ class ComparacaoPerfilSalario(Base):
         self.assertEqual(s["mediana"]["valor"], 1661.0)
         self.assertEqual(s["media"]["valor"], 1808.87)
         self.assertEqual(s["mediana_ano_anterior"]["valor"], 1518.0)
+        self.assertEqual(s["variacao_nominal_mediana"]["valor"], 9.42)  # (1661 − 1518) ÷ 1518
+
+    def test_perfil_relevancia_e_variacao_em_pontos_percentuais(self):
+        p = self.gerar()["perfil"]
+        homem = p["sexo"]["Homem"]
+        self.assertEqual(homem["variacao_participacao_pp"]["unidade"], "pp")
+        self.assertTrue(homem["relevante"])            # saldo 30 ≥ 20
+        self.assertFalse(p["faixa_etaria"]["65 ou mais"]["relevante"])  # base pequena
 
 
 class Registro(Base):

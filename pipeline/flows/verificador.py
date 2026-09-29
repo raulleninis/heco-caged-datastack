@@ -12,8 +12,15 @@ Fica de fora da checagem o que não é dado: anos (2019 a 2035) e inteiros de 1 
 "três fatores", "12 meses"). O custo dessa folga: um "5 vínculos" inventado passaria; um
 percentual ou um saldo inventado, não.
 
+Números que fazem parte de RÓTULOS dos fatos ("18 a 24", "65 ou mais", "até 17") são aceitos
+só nessa posição, com ou sem "anos" (`rotulos_dos_fatos`); soltos, continuam reprovados.
+
 Também sinaliza forma jurídica de empresa ou CNPJ no texto: o boletim nunca identifica empresas
 (D10). É um aviso para a revisão humana, não uma prova.
+
+`avisos_de_estilo` faz uma checagem determinística de estilo (versão compacta da skill
+humanizer + revisão editorial de 29/09/2026). Gera avisos para o revisor, nunca uma nova
+tentativa: estilo não justifica gastar tokens.
 """
 
 import re
@@ -48,7 +55,7 @@ def permitidos(numeros: dict) -> tuple[set[Decimal], set[Decimal]]:
             continue
         v = abs(Decimal(str(v)))
         unidade = item["unidade"]
-        if unidade == "pct":
+        if unidade in ("pct", "pp"):
             aceitos |= {_arredondar(v, c) for c in (0, 1, 2)}
         elif unidade == "brl":
             aceitos |= {_arredondar(v, 2), _arredondar(v, 0)}
@@ -66,10 +73,24 @@ def _livre(v: Decimal) -> bool:
     return False
 
 
-def verificar_texto(texto: str, numeros: dict) -> list[dict]:
+def rotulos_dos_fatos(fatos: dict) -> list[str]:
+    """Rótulos com dígitos que podem aparecer no texto: categorias do perfil (faixas etárias)."""
+    return sorted({cat for dim in fatos.get("perfil", {}).values() for cat in dim if re.search(r"\d", cat)})
+
+
+def _mascarar_rotulos(texto: str, rotulos) -> str:
+    """Troca cada rótulo (com "anos" opcional depois de cada número) por um marcador sem dígitos."""
+    for rotulo in rotulos:
+        partes = [re.escape(t) + (r"(?:\s+anos)?" if t.isdigit() else "") for t in rotulo.split()]
+        texto = re.sub(r"\s+".join(partes), "‹rótulo›", texto, flags=re.IGNORECASE)
+    return texto
+
+
+def verificar_texto(texto: str, numeros: dict, rotulos=()) -> list[dict]:
     """Problemas do texto: números fora da tabela de fatos e possíveis identificações de empresa."""
     aceitos, em_mil = permitidos(numeros)
     problemas = []
+    texto = _mascarar_rotulos(texto, rotulos)
     for m in _NUMERO.finditer(texto):
         valor = _decimal(m.group())
         if valor is None:
@@ -93,3 +114,39 @@ def verificar_texto(texto: str, numeros: dict) -> list[dict]:
             "trecho": texto[max(0, m.start() - 60): m.end() + 40].replace("\n", " "),
         })
     return problemas
+
+
+_EXPRESSOES_IA = [
+    "vale ressaltar", "vale destacar", "cabe destacar", "cabe ressaltar", "é importante notar",
+    "é importante destacar", "no tocante", "destaca-se", "destacando-se", "evidenciando",
+    "evidencia-se", "cenário", "impulsionad", "robust", "desafiador", "em suma", "nesse sentido",
+    "vale notar", "sublinha", "ressalta-se",
+]
+_PERCENTUAL = re.compile(r"(?<![\w.,])[−-]?\d{1,3}(?:\.\d{3})*(?:,(\d+))?\s?%")
+
+
+def avisos_de_estilo(texto: str) -> list[dict]:
+    """Avisos de estilo (não reprovam): travessão, expressões típicas de IA, percentual fora do
+    padrão de 2 casas, "mesmo mês do ano anterior" em vez do mês, aviso de provisório repetido."""
+    avisos = []
+
+    def aviso(motivo, m=None):
+        trecho = texto[max(0, m.start() - 50): m.end() + 30].replace("\n", " ") if m else ""
+        avisos.append({"tipo": "estilo", "motivo": motivo, "trecho": trecho})
+
+    for m in re.finditer(r"[—–]", texto):
+        aviso("travessão", m)
+    minusculo = texto.casefold()
+    for expr in _EXPRESSOES_IA:
+        for m in re.finditer(re.escape(expr), minusculo):
+            aviso(f"expressão típica de texto gerado: '{expr}'", m)
+    for m in _PERCENTUAL.finditer(texto):
+        if m.group(1) is None or len(m.group(1)) != 2:
+            aviso("percentual fora do padrão de 2 casas decimais", m)
+    for m in re.finditer(r"mesmo mês do ano anterior", minusculo):
+        aviso("use o nome do mês (ex.: 'julho de 2025') em vez de 'mesmo mês do ano anterior'", m)
+    provisorio = list(re.finditer(r"provisóri", minusculo))
+    if len(provisorio) > 1:
+        aviso(f"o aviso de dados provisórios aparece {len(provisorio)} vezes; deve ficar só na nota metodológica",
+              provisorio[1])
+    return avisos

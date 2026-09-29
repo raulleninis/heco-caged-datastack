@@ -20,6 +20,32 @@
 O boletim deve ser curto e comparável entre edições: de preferência **3 a 4 páginas**, com gráficos
 e indicadores fixos e uma interpretação econômica voltada aos destaques do mês.
 
+### 1.0. Critérios editoriais (revisão do primeiro boletim, 29/09/2026)
+
+Leitor: gestor público. Cada edição deixa claro, rápido, **o que aconteceu, onde se concentrou,
+como se compara com períodos anteriores e o que acompanhar**.
+
+- **Seções fixas:** síntese; panorama; setores; contexto regional; perfil e remuneração; pontos de
+  atenção; nota metodológica. Não há seção de hipóteses (ver 1.5).
+- **Dois níveis:** o texto interpreta; **tabelas e gráficos, gerados por código a partir dos
+  fatos**, detalham. O LLM nunca monta tabela. O texto pode omitir o que está na tabela.
+- **Critério para um número entrar no texto:** descrever a dimensão de um resultado,
+  contextualizá-lo ou mostrar uma mudança relevante. Números de uso interno (contribuição
+  percentual de cada setor para o saldo, participação de uma atividade nas movimentações em 12
+  meses) servem para escolher destaques, não para o texto.
+- **Síntese** em até 3 frases, sem repetição no panorama. **Panorama** na ordem: mês, mesmo mês
+  do ano anterior (pelo nome: "julho de 2025"), acumulado no ano, 12 meses.
+- **Setores:** o destaque em detalhe; os demais numa frase ("nos demais setores, saldo conjunto
+  de..."). Números como o saldo conjunto dos demais setores ou do restante de um grupamento são
+  **calculados por código** e entram nos fatos; o redator não os calcula.
+- **Faixa histórica:** ao citar, dizer o critério (mínimo e máximo do mesmo mês nos anos
+  anteriores disponíveis).
+- **Uma única menção à provisoriedade**, na nota metodológica. Categorias sem identificação,
+  bases pequenas e a base do salário também vão para a nota.
+- **Convenções:** "perda de 83 vínculos" ou "saldo negativo de 83" no texto (sinal só em
+  tabela); **percentuais com 2 casas decimais**; "vínculos" para tudo; títulos em caixa de
+  frase; sem travessão; sem expressões de preenchimento ("vale ressaltar", "no tocante").
+
 ### 1.1. Panorama do emprego municipal (obrigatório)
 
 **Indicadores**
@@ -87,8 +113,11 @@ a UF com os seus municípios.
 
 - Admissões por sexo.
 - Admissões por faixa etária.
-- Salário de admissão: **mediana** como referência e **média** para comparação, com a evolução em
-  relação a períodos comparáveis.
+- Salário de admissão: **mediana** como referência, com a **variação nominal** frente ao mesmo mês
+  do ano anterior, dita como nominal (sem correção pela inflação). A média fica fora do texto, a
+  menos que tenha finalidade analítica.
+- Só as categorias **relevantes** são comentadas: saldo acima do limiar de destaque ou mudança de
+  participação nas admissões acima do limiar em pontos percentuais (calculada por código).
 
 Quando houver mudança relevante, investigar a atividade econômica responsável, respeitando as regras
 de desagregação da seção 1.2. Interpretar diferenças salariais com cautela, porque o perfil dos
@@ -96,6 +125,12 @@ contratados muda entre os meses. **Regra de base pequena:** recortes com poucas 
 sinalizados e não interpretados.
 
 ### 1.5. Interpretação da conjuntura (direcionada)
+
+> **Decisão de 29/09/2026:** **sem hipóteses** enquanto não houver evidência externa (notícias,
+> indicadores oficiais) que as sustente. Até lá, o boletim termina em **pontos de atenção**:
+> indicadores a acompanhar nos próximos meses, sem especular causas. Com evidência, uma hipótese
+> entra dentro dos pontos de atenção, nunca numa seção própria, com fonte e data, e só se a
+> evidência a sustentar (julgamento na parte 3b-2).
 
 Investigar **no máximo três fatores** com potencial para explicar os movimentos selecionados. Não é
 necessário abordar todas as dimensões em todas as edições.
@@ -213,7 +248,7 @@ mesmo mês.
    associados aos destaques.
 5. **Investigar pontualmente:** recuperar apenas evidências e acontecimentos pertinentes, com fonte
    e data.
-6. **Redigir com IA:** produzir texto curto, distinguindo fatos, associações e hipóteses.
+6. **Redigir com IA:** produzir texto curto, distinguindo fatos e associações; hipóteses só com evidência (1.5).
 7. **Validar:** confrontar todos os números com as tabelas e verificar fontes, datas e linguagem
    causal.
 8. **Aprovar e enviar:** **aprovação humana explícita** antes de qualquer envio. O boletim com IA
@@ -253,7 +288,7 @@ destaques; a IA organiza a interpretação e redige; uma pessoa revisa e aprova.
 - [ ] Verificar concentração, sazonalidade e efeitos de bases pequenas.
 - [ ] Produzir a comparação sintética com a região e a UF.
 - [ ] Atualizar o perfil das contratações e os salários de admissão (mediana e média).
-- [ ] Consultar o perfil econômico municipal e selecionar até três hipóteses.
+- [ ] Consultar o perfil econômico municipal e definir os pontos de atenção (hipóteses só com evidência).
 - [ ] Buscar evidências e acontecimentos com fonte e período identificados.
 - [ ] Redigir a interpretação sem confundir associação com causalidade.
 - [ ] Validar números, gráficos, fontes, datas e conclusões.
