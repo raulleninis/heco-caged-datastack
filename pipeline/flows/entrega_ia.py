@@ -201,7 +201,10 @@ def _mensagem(cfg: Config, para: str, assunto: str, corpo: list[str], pdf: bytes
 
 
 def _relatorio_de_revisao(r: dict) -> str:
-    linhas = [f"Situação: {r['situacao']} | versões do redator: {r['versoes_do_redator']} | modelos: {r['modelos']}",
+    linhas = [f"Situação: {r['situacao']} | versões do redator: {r['versoes_do_redator']} | modelos: {r['modelos']}"]
+    if r.get("revisor_falhou"):
+        linhas += ["ATENÇÃO: o revisor automático falhou nesta geração; só o verificador e o juiz conferiram o texto."]
+    linhas += [
               "", "PARECER DO REVISOR (modelo):", r["parecer_revisor"]["resumo"], ""]
     for p in r["parecer_revisor"]["problemas"]:
         linhas.append(f"- [{p['gravidade']}/{p['tipo']}] {p['trecho']}  ->  {p['sugestao']}")

@@ -246,6 +246,20 @@ administradores pedida pelo usuário:
 
 O boletim de 2 ou 3 competências passadas gerado com 3 candidatos, comparados pelo verificador e por leitura humana. Custo esperado: menos de US$ 1. Define os modelos do redator e do revisor.
 
+**Calibração do Jev (feita, 29/09/2026):** `flows/calibracao.py`. 130 afirmações de resposta
+conhecida (7 competências) e 19 notícias rotuladas (rótulos propostos, a revisar em
+`perfis/calibracao_noticias.jsonl`). Acima de 0,6, todas as afirmações eram verdadeiras; o Jev
+recusou as 14 com causa; excelente em sinal, faixa e perfil, razoável em comparação, falha em
+direção temporal (mesmo citando os níveis). Limiar das afirmações 0,6; "subiu/caiu" fora da
+lista do redator; notícias 0,7 (provisório).
+
+**Comparação de redatores (rodada em 29/09/2026):** `flows/comparacao_modelos.py`, Gemini 3.7
+Flash, Sonnet 5.5 e GLM 5.3 Flash, junho e julho de 2026, às cegas (leitura.md, métricas e
+gabarito em arquivos separados). US$ 0,36. Uma geração falhou no ANALISTA (fixo em todas), não no
+redator: o GLM 5.3 Flash devolveu saída fora do esquema 3 vezes no dia (2 como revisor, 1 como
+analista). Revisor e advisor passaram a não ser fatais (boletim segue com o aviso). Escolha do
+redator pendente da leitura humana.
+
 ## Fora de escopo
 
 - Consultas SQL geradas pelo LLM.

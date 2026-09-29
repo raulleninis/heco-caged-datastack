@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai import Agent, ModelRetry, RunContext, UnexpectedModelBehavior
 
 import fatos as fatos_mod
 import ia
@@ -129,7 +129,8 @@ class Boletim(BaseModel):
 
 
 class Problema(BaseModel):
-    tipo: Literal["numero", "causalidade", "fonte", "rotulo", "identificacao", "estilo", "estrutura"]
+    # Texto livre: só informa. Um Literal aqui derrubou o parecer do GLM 5.3 Flash (29/09/2026).
+    tipo: str = Field(description="numero, causalidade, fonte, rotulo, identificacao, estilo ou estrutura")
     gravidade: Literal["grave", "menor"]
     trecho: str
     sugestao: str
@@ -548,10 +549,13 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
                 decisoes.append({"tipo": "triagem_de_duvida", **t, "destino": tipo})
                 if tipo == "metodo" and "advisor" in agentes and "advisor" in modelos \
                         and sum(1 for o in orientacoes) < MAX_ADVISOR:
-                    o: Orientacao = ex.rodar(agentes["advisor"], "advisor",
-                                             f"Dúvida: {d.pergunta}\nPor quê: {d.por_que}\n"
-                                             f"Fatos relacionados: {_json(_numeros_de(fatos, d.ids))}")
-                    orientacoes.append({"pergunta": d.pergunta, **o.model_dump()})
+                    try:
+                        o: Orientacao = ex.rodar(agentes["advisor"], "advisor",
+                                                 f"Dúvida: {d.pergunta}\nPor quê: {d.por_que}\n"
+                                                 f"Fatos relacionados: {_json(_numeros_de(fatos, d.ids))}")
+                        orientacoes.append({"pergunta": d.pergunta, **o.model_dump()})
+                    except UnexpectedModelBehavior as e:  # advisor é ajuda, não requisito
+                        decisoes.append({"tipo": "advisor_falhou", "pergunta": d.pergunta, "erro": str(e)[:200]})
                 elif tipo == "fato_local":
                     locais.append({"pergunta": d.pergunta, "por_que": d.por_que, "ids": d.ids})
             if locais and not sem_tickets:
@@ -584,9 +588,16 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
                   + bloco_evid + extras)
         boletim: Boletim = ex.rodar(agentes["redator"], "redator", pedido, deps=contexto)
         estilo = avisos_de_estilo(boletim.texto())
-        parecer: Parecer = ex.rodar(agentes["revisor"], "revisor",
-                                    f"Fatos completos (JSON):\n{base}\n\n{bloco_evid}\n\nBoletim (JSON):\n{boletim.model_dump_json(indent=2)}\n\n"
-                                    f"Avisos de estilo do verificador:\n{_json(estilo)}")
+        revisor_falhou = None
+        try:
+            parecer: Parecer = ex.rodar(agentes["revisor"], "revisor",
+                                        f"Fatos completos (JSON):\n{base}\n\n{bloco_evid}\n\nBoletim (JSON):\n{boletim.model_dump_json(indent=2)}\n\n"
+                                        f"Avisos de estilo do verificador:\n{_json(estilo)}")
+        except UnexpectedModelBehavior as e:
+            # O revisor é uma camada a mais, não um requisito: o verificador e o juiz continuam
+            # valendo, e a falha vai destacada para a revisão humana.
+            revisor_falhou = str(e)[:300]
+            parecer = Parecer(problemas=[], resumo=f"REVISOR AUTOMÁTICO FALHOU ({revisor_falhou}); revise com atenção redobrada.")
         versoes = 1
         # Segunda versão: problema grave do revisor OU estilo com vários avisos (a convenção de
         # sinal e as expressões proibidas o redator costuma ignorar na primeira passada).
@@ -621,6 +632,7 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
         "respostas_humanas": respostas,
         "decisoes": decisoes,  # registro de decisões (3b-2): triagens, retomadas, julgamentos
         "parecer_revisor": parecer.model_dump(),
+        "revisor_falhou": revisor_falhou,
         "analise": analise.model_dump(),
         "evidencias_usadas": lista_evid,
         "leituras": [{"titulo": t["titulo"], "link": t["link"], "fonte": t.get("veiculo") or t["fonte"],

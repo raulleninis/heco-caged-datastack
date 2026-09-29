@@ -211,6 +211,14 @@ class Fluxo(unittest.TestCase):
         sem = self.gerar(Roteiro(analista=[analise()], redator=[boletim()], revisor=[parecer()]))
         self.assertNotEqual(sem["pasta"], res["pasta"])
 
+    def test_revisor_que_falha_nao_derruba_o_boletim(self):
+        invalido = {"resumo": "x", "problemas": [{"tipo": "estilo", "gravidade": "altissima", "trecho": "a", "sugestao": "b"}]}
+        r = Roteiro(analista=[analise()], redator=[boletim()], revisor=[invalido])
+        res = self.gerar(r)
+        self.assertEqual(res["situacao"], "aguardando_aprovacao")
+        self.assertTrue(res["revisor_falhou"])
+        self.assertIn("REVISOR AUTOMÁTICO FALHOU", res["parecer_revisor"]["resumo"])
+
     def test_ids_inexistentes_no_analista_geram_nova_tentativa(self):
         r = Roteiro(analista=[analise(["nao.existe"]), analise()], redator=[boletim()], revisor=[parecer()])
         res = self.gerar(r)
