@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | 🟡 em andamento (29/09/2026): parte 1 |
+| **Status** | 🟡 em andamento: parte 1 ✅ (29/09/2026); parte 2 a seguir |
 | **Esforço** | XL, em partes independentes |
 | **Fase** | produção / vitrine |
 | **Depende de** | [F16](F16-estoque-a-partir-do-marco-zero.md) (estoque e territórios), [F15](F15-entrega-por-email-e-arquivo.md) (arquivo e envio) |
@@ -67,6 +67,19 @@ Tudo por código, testado, e útil mesmo sem IA:
 - **Limiares** num arquivo do perfil municipal, da instância.
 
 **Aceite:** os fatos de uma competência passada batem com o boletim atual onde se sobrepõem, e os testes cobrem os gatilhos.
+
+**Feito (29/09/2026):**
+- Marts `mart_fluxo`, `mart_perfil_movimentacoes`, `mart_estoque_regiao` e
+  `mart_salario_admissao`, com a regra do estoque (`efeito_no_saldo(colunas)`). Testes
+  singulares conferem o fluxo com o `mart_estoque` e com o `mart_caged_reconciliado`, o
+  perfil com o fluxo, a região com a soma dos membros e o salário com a base por
+  grupamento. Mutação de controle: com o peso do EXC quebrado,
+  `test_fluxo_confere_reconciliado` acusa 55 linhas.
+- `pipeline/flows/fatos.py`: o JSON de fatos, com 127 números registrados para Socorro em
+  202607. Panorama idêntico ao painel do MTE (882 admissões, 965 desligamentos, saldo −83,
+  estoque 25.439). 15 testes.
+- Perfil de Socorro em `pipeline/perfis/280480.toml` só com limiares; a parte textual
+  (cadeias produtivas, sazonalidades conhecidas) fica para a implantação, com fontes.
 
 ### 2. Cliente e proteções
 

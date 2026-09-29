@@ -302,3 +302,12 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   nunca empresa. Acontecimentos conforme noticiados, com fonte; ligação = hipótese
 - Aprovação humana antes do envio; o boletim com IA nunca sai sozinho
 - Vive no produto neutro (F18); o resultado de Socorro fica na instância
+- Parte 1 (fatos) feita: marts `mart_fluxo` (território × competência × grupamento ×
+  subgrupamento × divisão CNAE, reconciliado), `mart_perfil_movimentacoes` (sexo, faixa
+  etária), `mart_estoque_regiao` (seed `regioes.csv`: RMA) e `mart_salario_admissao` (D05,
+  por território). Todos usam a regra do macro `efeito_no_saldo(colunas)` +
+  `contagens_reconciliadas()`; testes conferem com mart_estoque e mart_caged_reconciliado.
+  Seed `cnae_divisoes.csv` (API do IBGE); subclasse 9999999 = 'NI', não a divisão 99
+- `flows/fatos.py <territorio> <competencia>`: JSON de fatos; cada número registrado com id
+  em `numeros` (tabela do verificador). Limiares em `pipeline/perfis/<territorio>.toml`
+  (instância), padrões em `LIMIARES_PADRAO`. Sazonalidade = faixa mín–máx do mesmo mês

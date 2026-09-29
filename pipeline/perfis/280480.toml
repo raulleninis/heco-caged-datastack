@@ -1,0 +1,13 @@
+# Perfil econômico permanente de Nossa Senhora do Socorro (F19; roteiro, seção 2).
+# Arquivo da INSTÂNCIA: sai do produto na separação (F18).
+#
+# [limiares] sobrescreve LIMIARES_PADRAO de flows/fatos.py; o que não estiver aqui usa o padrão.
+# Calibrar ao porte do município (estoque ~25 mil vínculos em 2026).
+[limiares]
+destaque_min_abs = 20
+base_pequena_perfil = 30
+
+# [perfil] é texto para os agentes (cadeias produtivas, sazonalidades conhecidas, relações com a
+# região). Cada item com fonte e data. Nada aqui é inferido dos dados de empresas.
+# Preencher na implantação; vazio não impede os fatos.
+[perfil]

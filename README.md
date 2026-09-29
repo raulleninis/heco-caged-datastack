@@ -349,7 +349,7 @@ arquivo foi de fato publicado só se confirma logado.
 ### 6. Testes do projeto
 
 ```bash
-# Python: 56 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo). Sem rede e sem Prefect rodando
+# Python: 71 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos do boletim com IA). Sem rede e sem Prefect rodando
 docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -B -m unittest discover -s /app/tests -v
 
 # dbt: testes de qualidade sobre o warehouse real (inclui 2 testes unitários do estoque)
@@ -392,6 +392,19 @@ python3 marco-zero/normalizar.py --coleta marco-zero/coletor/saida/marco-zero-ID
 O `normalizar.py` grava `marco-zero/estoque/` (202003) e `marco-zero/validacao/` (competências
 posteriores). Depois, ative o território em `dbt/seeds/territorios.csv`. Sem `--coleta`, ele
 regenera a partir dos originais manuais já versionados.
+
+### 7c. Fatos do boletim com IA (`fatos.py`, F19)
+
+O boletim com IA recebe um JSON de fatos calculados por código; nenhum número vem do LLM
+([F19](docs/fatias/F19-boletim-com-ia.md), [roteiro](docs/boletim-ia/roteiro.md)).
+
+```bash
+docker compose run --rm pipeline python flows/fatos.py 280480 202607 --saida /data/fatos_280480_202607.json
+```
+
+Precisa dos marts da F19 (`mart_fluxo`, `mart_perfil_movimentacoes`, `mart_estoque_regiao`,
+`mart_salario_admissao`), que o flow cria no próximo `dbt run` dos marts. Limiares dos gatilhos em
+`pipeline/perfis/<territorio>.toml`.
 
 ### 8. Alertas e observabilidade
 
@@ -470,8 +483,10 @@ mantendo o pico em ~500 MB (medido: 405 MiB por arquivo MOV com limite de 830 Mi
 │   │   ├── alertas.py            # ntfy e heartbeat (F11)
 │   │   ├── boletim.py            # gera o PDF e o XLSX a partir do mart (F15/F12)
 │   │   ├── arquivo.py            # clone do repositório do arquivo, envios.json, índice (git)
-│   │   └── entrega.py            # SMTP, envio idempotente e o CLI: teste/enviar/arquivar/remover
-│   └── tests/                    # 56 testes Python (ingestão, boletim, entrega/arquivo)
+│   │   ├── entrega.py            # SMTP, envio idempotente e o CLI: teste/enviar/arquivar/remover
+│   │   └── fatos.py              # JSON de fatos do boletim com IA (F19 parte 1), cada número com id
+│   ├── perfis/                   # perfil econômico por território (limiares dos gatilhos; F19)
+│   └── tests/                    # 71 testes Python (ingestão, boletim, entrega/arquivo, fatos)
 ├── dbt/
 │   ├── macros/caged.sql          # colunas, CAST e grupamento compartilhados pelas 3 staging
 │   ├── macros/estoque.sql        # efeito no saldo (MOV +, FOR +, EXC −), usado pelo estoque (F16)
@@ -574,7 +589,7 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [x] Coletor reproduzível do marco zero (`marco-zero/coletor/`) e `normalizar.py --coleta`: um território novo sem digitar número
 - [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
 - [ ] Boletim analítico com IA ([F19](docs/fatias/F19-boletim-com-ia.md), [roteiro](docs/boletim-ia/roteiro.md))
-  - [ ] Fatos por código: fluxo reconciliado por subgrupamento e divisão CNAE, perfil das admissões, região, acumulados e gatilhos
+  - [x] Fatos por código: fluxo reconciliado por subgrupamento e divisão CNAE, perfil das admissões, região, acumulados e gatilhos
   - [ ] Cliente OpenRouter no PydanticAI com limites de uso, registro mensal de custo (US$ 2/mês) e modelos permitidos
   - [ ] Agentes (analista, pesquisador, redator, revisor) e verificador de números
   - [ ] Evidências externas (IBGE, Banco Central, busca na web com teto)

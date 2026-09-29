@@ -27,6 +27,17 @@ seeds:
         nome: varchar
         tipo: varchar
         ativo: boolean
+    # F19: nomes oficiais das divisões CNAE 2.0 (API de CNAE do IBGE) e regiões de comparação
+    cnae_divisoes:
+      +column_types:
+        divisao: varchar
+        secao: varchar
+        descricao: varchar
+    regioes:
+      +column_types:
+        regiao: varchar
+        nome: varchar
+        territorio: varchar
 
 models:
   caged_analytics:

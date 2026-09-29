@@ -24,3 +24,37 @@ seeds:
       - name: ativo
         tests:
           - not_null
+
+  - name: cnae_divisoes
+    description: >
+      As 87 divisões da CNAE 2.0 (2 dígitos), com a seção e a descrição oficiais, obtidas da
+      API de CNAE do IBGE (servicodados.ibge.gov.br/api/v2/cnae/divisoes) em 29/09/2026. Dá
+      nome à `divisao_cnae` do mart_fluxo (F19). A subclasse 9999999 do CAGED ("não
+      identificado") NÃO é a divisão 99 (organismos internacionais): o mart a trata à parte.
+    columns:
+      - name: divisao
+        tests:
+          - not_null
+          - unique
+      - name: descricao
+        tests:
+          - not_null
+
+  - name: regioes
+    description: >
+      Regiões de comparação (F19, roteiro seção 1.3): um agrupamento de municípios, com o
+      estoque somado no mart_estoque_regiao. Cada membro precisa estar ativo em
+      territorios.csv (test_regiao_membros_ativos). Configuração da instância; na de Socorro,
+      a Região Metropolitana de Aracaju.
+    columns:
+      - name: regiao
+        tests:
+          - not_null
+      - name: territorio
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('territorios')
+                field: territorio
+

@@ -14,6 +14,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --no-compile -r requirements.txt
 
 COPY flows/ /app/flows/
+COPY perfis/ /app/perfis/
 COPY prefect.yaml /app/prefect.yaml
 COPY start.sh /app/start.sh
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

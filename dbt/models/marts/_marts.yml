@@ -106,6 +106,49 @@ models:
       - name: competencia_marco_zero
         description: "Competência do marco zero do território (NULL se não houver)."
 
+  - name: mart_fluxo
+    description: >
+      F19 parte 1. Admissões, desligamentos e saldo reconciliados (MOV + FOR − EXC) por
+      território × competência × grupamento × subgrupamento × divisão CNAE (2 dígitos), para
+      os territórios ativos. Mesma regra do estoque (efeito_no_saldo): somado por grupamento,
+      é o saldo do mart_estoque. Base setorial do boletim com IA; nunca desce a subclasse.
+    columns:
+      - name: territorio
+        tests: [not_null]
+      - name: competencia_mov
+        tests: [not_null]
+      - name: grupamento
+        tests: [not_null]
+      - name: divisao_cnae
+        description: "2 dígitos da CNAE 2.0; 'NI' = subclasse não identificada (9999999)"
+        tests: [not_null]
+
+  - name: mart_perfil_movimentacoes
+    description: >
+      F19 parte 1. Movimentações reconciliadas por território × competência, em duas
+      dimensões independentes (sexo; faixa etária). As categorias de cada dimensão somam o
+      total do mart_fluxo (test_perfil_confere_fluxo).
+    columns:
+      - name: dimensao
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['sexo', 'faixa_etaria']
+      - name: categoria
+        tests: [not_null]
+
+  - name: mart_estoque_regiao
+    description: >
+      F19 parte 1. Estoque e taxa de cada região de seeds/regioes.csv, como soma dos
+      municípios membros no mart_estoque. Estoque NULL quando algum membro não tem estoque na
+      competência (sem estoque parcial com cara de completo).
+
+  - name: mart_salario_admissao
+    description: >
+      F19 parte 1. Salário de admissão (mediana e média) por território × competência, com
+      as regras da D05 (só MOV, mensal, valor > 0). Mediana calculada sobre os registros, não
+      a partir das medianas por grupamento.
+
 unit_tests:
   - name: exclusao_de_admissao_reduz_estoque
     description: >
