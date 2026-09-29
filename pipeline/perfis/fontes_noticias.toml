@@ -1,0 +1,34 @@
+# Fontes de notícias do boletim com IA (F19 parte 4). Arquivo da INSTÂNCIA: sai do produto na
+# separação (F18). Só feeds RSS/Atom: sites sem feed exigiriam ler HTML, que quebra quando o
+# site muda (avaliado em 29/09/2026: Observatório FIES e Fecomércio SE não têm feed; a lista
+# da Prefeitura de Socorro é montada por JavaScript).
+#
+# escala: municipal | regional | estadual | nacional (o boletim nunca usa estadual ou nacional
+# como explicação direta do município; roteiro, seção 4).
+# intervalo_s: espera mínima entre requisições ao mesmo host (robots.txt da Faxaju pede 10 s).
+#
+# Os feeds guardam poucas notícias (a Infonet, 10 em ~2 dias): por isso a coleta é DIÁRIA.
+
+[[fontes]]
+nome = "Agência Sebrae SE: economia e política"
+feed = "https://se.agenciasebrae.com.br/editorias/economia-e-politica/feed/"
+escala = "estadual"
+intervalo_s = 2
+
+[[fontes]]
+nome = "Faxaju: economia"
+feed = "https://www.faxaju.com.br/categoria/economia/feed/"
+escala = "regional"
+intervalo_s = 10
+
+[[fontes]]
+nome = "Infonet: economia"
+feed = "https://infonet.com.br/categoria/noticias/economia/feed/"
+escala = "regional"
+intervalo_s = 2
+
+[[fontes]]
+nome = "InfoMoney: comércio exterior"
+feed = "https://www.infomoney.com.br/tudo-sobre/comercio-exterior/feed/"
+escala = "nacional"
+intervalo_s = 2

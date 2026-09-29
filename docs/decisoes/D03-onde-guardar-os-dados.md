@@ -106,3 +106,10 @@ ver nada sem rodar" da [F10](../fatias/F10-camada-analitica.md).
    Medido em 28/09/2026, com o histórico completo (79 competências, 1,49 milhão de linhas
    de MOV): o `.duckdb` tem **50,5 MiB** (era 5,5). Com limite de 830 MiB, o pico é de
    405 MiB por arquivo MOV e 398 MiB nos marts.
+
+**Ressalva (29/09/2026): o primeiro dado que não se regenera.** O coletor de notícias da
+[F19](../fatias/F19-boletim-com-ia.md) grava em `/data/noticias/AAAA-MM.jsonl` o que os feeds
+publicam. Os feeds esquecem em dias, então esse arquivo **não se reconstrói**: perder o disco
+é perder o histórico de notícias. Também `/data/ia/custos.jsonl` (o registro do orçamento) é
+estado próprio. O "sem backup" continua valendo para o warehouse; para essas duas pastas, um
+backup simples (cópia periódica para fora da VM) passa a fazer sentido. Ainda não decidido.

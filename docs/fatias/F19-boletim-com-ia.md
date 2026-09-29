@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | 🟡 em andamento: partes 1, 2 e 3 ✅ (29/09/2026); parte 4 a seguir |
+| **Status** | 🟡 em andamento: partes 1, 2 e 3 ✅; parte 4 começou pelo coletor de notícias (29/09/2026) |
 | **Esforço** | XL, em partes independentes |
 | **Fase** | produção / vitrine |
 | **Depende de** | [F16](F16-estoque-a-partir-do-marco-zero.md) (estoque e territórios), [F15](F15-entrega-por-email-e-arquivo.md) (arquivo e envio) |
@@ -121,6 +121,21 @@ Os quatro agentes, o verificador de números como `output_validator` e as instru
 ### 4. Evidências externas
 
 APIs oficiais (SIDRA/IBGE, SGS/Banco Central) buscadas por código, e a busca na web do pesquisador com teto de resultados. Cada evidência traz fonte, período e escala.
+
+**Ordem revista (29/09/2026):** coletor diário de notícias → 3b-1 (editorial e fatos, a partir
+da revisão do primeiro boletim) → parte 4 (triagem pelo Jev, pesquisador) → 3b-2 (advisor e
+tickets).
+
+**Coletor diário (feito, 29/09/2026):** `flows/noticias.py`, no início do flow diário.
+- Fontes avaliadas: Sebrae SE, Faxaju, Infonet e InfoMoney têm RSS; Observatório FIES e
+  Fecomércio SE não têm (ficam para a busca na web restrita, se o plugin permitir); a lista da
+  Prefeitura de Socorro é montada por JavaScript. NewsAPI descartada: o plano gratuito é
+  proibido em produção e o pago custa US$ 449/mês.
+- Os feeds guardam pouco (Infonet: 10 notícias em 2 dias): por isso a coleta é diária e
+  acumula em `/data/noticias/AAAA-MM.jsonl`, que **não se regenera** (ressalva na D03).
+- O feed "SE" do Sebrae mistura conteúdo de outros estados (itens de `sc.agenciasebrae`): a
+  triagem precisa filtrar por território, não só por tema.
+- Primeira coleta: 49 notícias. 11 testes.
 
 ### 5. Aprovação e envio
 

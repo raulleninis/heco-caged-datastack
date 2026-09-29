@@ -329,3 +329,11 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   (`--refazer` força). Modelos: IA_MODELO_<PAPEL>, ou 1º permitido = redator e último =
   analista/revisor. Chave com limite VITALÍCIO na OpenRouter, reajustado à mão todo mês
   (decisão do usuário: limita perda em vazamento); 401/402/403 viram mensagem clara
+- Parte 4 começou pelo coletor de notícias (`flows/noticias.py`), task `coletar_noticias` no
+  INÍCIO do flow diário, que nunca falha (feed esquece em dias; um dia de FTP fora do ar não
+  pode custar as notícias). Só feeds RSS/Atom de `pipeline/perfis/fontes_noticias.toml`
+  (instância); grava /data/noticias/AAAA-MM.jsonl (mês em UTC), dedup por link; robots.txt e
+  intervalo por host; 3 falhas seguidas de uma fonte = alerta `low`. Tolera documentos XML
+  colados (feed do Sebrae SE). /data/noticias NÃO se regenera (ressalva na D03)
+- Decisões editoriais (29/09/2026): hipóteses fora até existir evidência externa, depois só
+  em "Pontos de atenção"; percentuais com 2 casas decimais
