@@ -43,13 +43,13 @@ intervalo_s = 2
 # de todos os temas, ruído que nem a coleta diária acompanha.
 [[fontes]]
 nome = "g1 Sergipe"
-feed = "https://g1.globo.com/dynamo/se/sergipe/rss2.xml"
+feed = "https://g1.globo.com/rss/g1/se/sergipe/"  # endereço novo (o antigo redireciona, 29/09/2026)
 escala = "estadual"
 intervalo_s = 2
 
 [[fontes]]
 nome = "g1 Economia"
-feed = "https://g1.globo.com/dynamo/economia/rss2.xml"
+feed = "https://g1.globo.com/rss/g1/economia/"
 escala = "nacional"
 intervalo_s = 2
 
@@ -57,3 +57,15 @@ intervalo_s = 2
 # proíbe robôs em todo o site (User-agent: * / Disallow: /), com bloqueio explícito a robôs de
 # IA. O coletor respeita o robots.txt; não contornar. O suporte a agregador (agregador = true:
 # "Título - Veículo") continua no coletor para outra fonte do tipo.
+
+# API oficial de notícias e releases do IBGE (sem robots.txt; JSON, não RSS: formato próprio).
+# A busca "sergipe" traz sobretudo releases NACIONAIS (varejo, safra, construção) que citam o
+# estado nas tabelas: por isso escala "nacional". Os demais dados do IBGE não descem a município
+# ou saem com pouca frequência (avaliação do usuário, 29/09/2026).
+[[fontes]]
+nome = "IBGE: notícias e releases (busca: Sergipe)"
+feed = "https://servicodados.ibge.gov.br/api/v3/noticias/?busca=sergipe&qtd=30"
+escala = "nacional"
+intervalo_s = 2
+formato = "ibge_noticias"
+

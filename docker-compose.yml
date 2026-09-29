@@ -46,6 +46,11 @@ services:
       IA_MODELOS_PERMITIDOS: ${IA_MODELOS_PERMITIDOS:-}
       IA_ORCAMENTO_MENSAL_USD: ${IA_ORCAMENTO_MENSAL_USD:-2}
       IA_PRECO_MAX_SAIDA_USD_MTOK: ${IA_PRECO_MAX_SAIDA_USD_MTOK:-15}
+      # Modelo de cada papel; vazio = escolha automática entre os permitidos de texto.
+      IA_MODELO_ANALISTA: ${IA_MODELO_ANALISTA:-}
+      IA_MODELO_REDATOR: ${IA_MODELO_REDATOR:-}
+      IA_MODELO_REVISOR: ${IA_MODELO_REVISOR:-}
+      IA_MODELO_PESQUISADOR: ${IA_MODELO_PESQUISADOR:-}
     volumes:
       - ./data:/data
       - ./dbt:/dbt

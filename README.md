@@ -341,6 +341,22 @@ docker compose run --rm pipeline python flows/entrega_ia.py aprovar 280480 20260
 docker compose run --rm pipeline python flows/entrega_ia.py enviar  280480 202607             # lista principal + arquivo
 ```
 
+**Primeiro uso:** crie `secrets/destinatarios_admin.txt` (um e-mail por linha, fora do git) e
+defina no `.env` a lista `IA_MODELOS_PERMITIDOS` e, de preferência, o modelo de cada papel. Exemplo
+usado nos testes reais de 29/09/2026 (~US$ 0,03 por boletim):
+
+```
+IA_MODELOS_PERMITIDOS=anthropic/claude-sonnet-5.5,google/gemini-3.7-flash,z-ai/glm-5.3-flash,typesafe/jev-1.13
+IA_MODELO_REDATOR=google/gemini-3.7-flash
+IA_MODELO_ANALISTA=z-ai/glm-5.3-flash
+IA_MODELO_REVISOR=z-ai/glm-5.3-flash
+IA_MODELO_PESQUISADOR=z-ai/glm-5.3-flash
+```
+
+O Jev (`typesafe/jev-1.13`) entra sozinho como juiz da triagem de notícias; nunca redige. A chave da
+OpenRouter tem limite vitalício de crédito, reajustado à mão todo mês (limita a perda num
+vazamento); se ele se esgotar, a OpenRouter recusa a chamada e o comando avisa.
+
 - O PDF é gerado uma vez, na revisão; o envio confere o sha256 e manda exatamente o que foi aprovado.
 - Resultado reprovado no verificador não vai à revisão: gere de novo com `--refazer`.
 - O envio usa as garantias da F15 com a chave `ia-AAAAMM` no `envios.json` (idempotente; órfão não se
@@ -366,7 +382,7 @@ arquivo foi de fato publicado só se confirma logado.
 ### 6. Testes do projeto
 
 ```bash
-# Python: 148 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos e proteções de gasto do boletim com IA). Sem rede e sem Prefect rodando
+# Python: 150 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos e proteções de gasto do boletim com IA). Sem rede e sem Prefect rodando
 docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -B -m unittest discover -s /app/tests -v
 
 # dbt: testes de qualidade sobre o warehouse real (inclui 2 testes unitários do estoque)
@@ -479,6 +495,9 @@ Tudo em `.env` (nunca commitado; `.env.example` é o modelo). Os segredos em **a
 | `IA_MODELOS_PERMITIDOS` | ids da OpenRouter que podem rodar, separados por vírgula | vazio = nenhum |
 | `IA_ORCAMENTO_MENSAL_USD` | orçamento do mês; cada execução reserva o seu pior caso antes de começar | `2` |
 | `IA_PRECO_MAX_SAIDA_USD_MTOK` | teto do preço de saída de um modelo (US$ por milhão de tokens) | `15` |
+| `IA_MODELO_REDATOR` | modelo que redige o boletim com IA | 1º modelo de texto de `IA_MODELOS_PERMITIDOS` |
+| `IA_MODELO_ANALISTA` / `IA_MODELO_REVISOR` / `IA_MODELO_PESQUISADOR` | modelos dos demais papéis; use outra família que a do redator no revisor | último modelo de texto da lista |
+| `DESTINATARIOS_ADMIN_ARQUIVO` | lista dos administradores que revisam o boletim com IA | `/secrets/destinatarios_admin.txt` |
 
 | arquivo em `./secrets/` | conteúdo |
 |---|---|
@@ -528,7 +547,7 @@ mantendo o pico em ~500 MB (medido: 405 MiB por arquivo MOV com limite de 830 Mi
 │   │   ├── evidencias.py         # seleção por janela, triagem pelo Jev e pesquisador (F19 parte 4)
 │   │   └── entrega_ia.py         # revisão pelos admins, aprovação e envio do boletim com IA (F19 parte 5)
 │   ├── perfis/                   # perfil econômico por território e fontes de notícias (F19)
-│   └── tests/                    # 148 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
+│   └── tests/                    # 150 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
 ├── dbt/
 │   ├── macros/caged.sql          # colunas, CAST e grupamento compartilhados pelas 3 staging
 │   ├── macros/estoque.sql        # efeito no saldo (MOV +, FOR +, EXC −), usado pelo estoque (F16)

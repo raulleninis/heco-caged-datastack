@@ -193,6 +193,10 @@ tickets).
   robots.txt proíbe robôs em todo o site (com bloqueio explícito a robôs de IA); o coletor
   respeita o robots.txt. Deduplicação também pelo título normalizado, para a mesma notícia
   vinda por duas fontes. Total acumulado: 247 notícias.
+- Acrescentada (29/09/2026): API oficial de notícias do IBGE (busca "Sergipe"; releases
+  nacionais que citam o estado; formato próprio, JSON). O g1 mudou o endereço dos feeds
+  (`/rss/g1/...`) e às vezes manda gzip sem o cliente pedir; o coletor descomprime pela
+  assinatura.
 
 ### 5. Aprovação e envio
 

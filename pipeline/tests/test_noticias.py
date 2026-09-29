@@ -62,9 +62,25 @@ class Leitura(unittest.TestCase):
         with self.assertRaises(Exception):
             noticias.ler_feed(b"<rss><channel><item>")
 
+    def test_gzip_sem_pedir_e_descomprimido(self):
+        import gzip
+        self.assertEqual(noticias.descomprimir(gzip.compress(RSS)), RSS)
+        self.assertEqual(noticias.descomprimir(RSS), RSS)
+
     def test_atom(self):
         itens = noticias.ler_feed(ATOM)
         self.assertEqual((itens[0]["link"], itens[0]["publicado_em"]), ("https://ex.org/c", "2026-09-20T12:00:00+00:00"))
+
+    def test_api_de_noticias_do_ibge_com_data_de_brasilia_em_utc(self):
+        conteudo = json.dumps({"items": [
+            {"titulo": "Em julho, vendas no varejo caem 0,8%", "introducao": "<p>Em julho de 2026...</p>",
+             "data_publicacao": "15/09/2026 09:00:00", "link": "http://agenciadenoticias.ibge.gov.br/a"},
+            {"titulo": "", "data_publicacao": "15/09/2026 09:00:00", "link": "http://x"}]}).encode()
+        itens = noticias.ler_ibge_noticias(conteudo)
+        self.assertEqual(len(itens), 1)
+        self.assertEqual(itens[0]["publicado_em"], "2026-09-15T12:00:00+00:00")
+        self.assertEqual(itens[0]["link"], "https://agenciadenoticias.ibge.gov.br/a")
+        self.assertEqual(itens[0]["resumo"], "Em julho de 2026...")
 
     def test_fonte_com_escala_invalida_e_erro(self):
         with tempfile.TemporaryDirectory() as d:

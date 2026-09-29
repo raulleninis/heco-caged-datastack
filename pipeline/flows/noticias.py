@@ -17,6 +17,7 @@ Uso manual:
     python flows/noticias.py            # coleta agora
 """
 
+import gzip
 import hashlib
 import html
 import json
@@ -28,7 +29,7 @@ import unicodedata
 import urllib.request
 import urllib.robotparser
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -50,6 +51,8 @@ def carregar_fontes(caminho: Path = FONTES) -> list[dict]:
             raise ValueError(f"{caminho}: fonte {f.get('nome')} sem {sorted(faltando)}")
         if f["escala"] not in ("municipal", "regional", "estadual", "nacional"):
             raise ValueError(f"{caminho}: escala inválida em {f['nome']}: {f['escala']}")
+        if f.get("formato", "rss") not in LEITORES:
+            raise ValueError(f"{caminho}: formato desconhecido em {f['nome']}: {f['formato']}")
     return fontes
 
 
@@ -116,10 +119,38 @@ def _ler_documento(raiz) -> list[dict]:
     return [i for i in itens if i["titulo"] and i["link"]]
 
 
+def ler_ibge_noticias(conteudo: bytes) -> list[dict]:
+    """Itens da API de notícias do IBGE (servicodados.ibge.gov.br/api/v3/noticias): releases e
+    notícias oficiais. A data vem em horário de Brasília ("15/09/2026 09:00:00") e vira UTC."""
+    itens = []
+    for i in json.loads(conteudo).get("items", []):
+        try:
+            local = datetime.strptime(i["data_publicacao"], "%d/%m/%Y %H:%M:%S")
+            publicado = (local + timedelta(hours=3)).replace(tzinfo=timezone.utc).isoformat(timespec="seconds")
+        except (KeyError, ValueError):
+            publicado = None
+        itens.append({
+            "titulo": _texto_limpo(i.get("titulo")),
+            "link": (i.get("link") or "").replace("http://", "https://", 1),
+            "publicado_em": publicado,
+            "resumo": _texto_limpo(i.get("introducao")),
+        })
+    return [i for i in itens if i["titulo"] and i["link"]]
+
+
+LEITORES = {"rss": ler_feed, "ibge_noticias": ler_ibge_noticias}
+
+
 def _baixar(url: str) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": AGENTE})
     with urllib.request.urlopen(req, timeout=30) as r:
-        return r.read()
+        return descomprimir(r.read())
+
+
+def descomprimir(corpo: bytes) -> bytes:
+    """Alguns servidores (a CDN do g1, 29/09/2026) mandam gzip mesmo sem o cliente pedir, e só
+    às vezes. Reconhece pela assinatura do gzip."""
+    return gzip.decompress(corpo) if corpo[:2] == b"\x1f\x8b" else corpo
 
 
 def _permitido(url: str, baixar=_baixar) -> bool:
@@ -214,7 +245,7 @@ def coletar(fontes: list[dict] | None = None, arquivo: Arquivo | None = None, ba
         try:
             if not _permitido(fonte["feed"], baixar):
                 raise PermissionError("robots.txt não permite")
-            itens = ler_feed(baixar(fonte["feed"]))
+            itens = LEITORES[fonte.get("formato", "rss")](baixar(fonte["feed"]))
             novos = sum(arquivo.gravar(fonte, i, agora) for i in itens)
             resumo[fonte["nome"]] = novos
             estado[fonte["nome"]] = {"ultimo_sucesso": agora, "falhas_seguidas": 0}
