@@ -103,8 +103,10 @@ class Boletim(BaseModel):
     pontos_de_atencao: list[str] = Field(max_length=4, description="indicadores a acompanhar nos próximos meses")
     nota_metodologica: str = Field(description="provisoriedade, faixa histórica, bases pequenas, sem identificação, base do salário")
     afirmacoes: list[Afirmacao] = Field(default_factory=list, max_length=10,
-                                        description="as afirmações interpretativas do texto (comparações, posição na "
-                                                    "faixa histórica, concentração, direção), cada uma com seus ids")
+                                        description="as afirmações INTERPRETATIVAS do texto (posição na faixa histórica, "
+                                                    "concentração, comparação entre territórios, perfil), cada uma com os "
+                                                    "ids que a sustentam. Não liste 'subiu/caiu' frente ao ano anterior: "
+                                                    "isso o verificador de números já confere")
 
     def secoes(self) -> list[tuple[str, list[str]]]:
         return [("Panorama", self.panorama), ("Setores", self.setores),
@@ -387,7 +389,9 @@ def _fatos_para_prompt(f: dict) -> str:
     return _json({k: v for k, v in f.items() if k != "hash"})
 
 
-LIMIAR_AFIRMACAO = 0.5   # abaixo disso, a afirmação vai destacada para a revisão humana
+# Calibrado em 29/09/2026 (flows/calibracao.py, 130 afirmações de 7 competências, peso 3 para
+# falso positivo): com 0,6, nenhuma afirmação falsa passou em três rodadas; com 0,5, duas numa delas.
+LIMIAR_AFIRMACAO = 0.6   # abaixo disso, a afirmação vai destacada para a revisão humana
 LIMIAR_TRIAGEM = 0.6     # confiança mínima do Jev para descartar uma dúvida como "nenhuma"
 MAX_ADVISOR = 2
 CONHECIMENTO_NO_PROMPT = 20

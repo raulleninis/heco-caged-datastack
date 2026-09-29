@@ -72,7 +72,9 @@ PALAVRAS_SETOR = {
 PATROCINADO = re.compile(r"especial[-_ ]publicitario|publieditorial|conteudo[-_ ]patrocinado|patrocinad|publicidade")
 
 # Limiares iniciais, conservadores; calibrar com casos rotulados (parte 6).
-LIMIAR_EMPREGO = 0.6
+# 0,7 na calibração de 29/09/2026 (19 notícias rotuladas, só 4 positivas: PROVISÓRIO; revisar
+# os rótulos em perfis/calibracao_noticias.jsonl e recalibrar com mais casos).
+LIMIAR_EMPREGO = 0.7
 LIMIAR_HIPOTESE = 0.7
 MAX_CANDIDATAS = {"competencia": 20, "recente": 15}
 MAX_PARA_LER = 8          # notícias relevantes lidas pelo pesquisador por execução
