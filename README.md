@@ -349,7 +349,7 @@ arquivo foi de fato publicado só se confirma logado.
 ### 6. Testes do projeto
 
 ```bash
-# Python: 88 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos e proteções de gasto do boletim com IA). Sem rede e sem Prefect rodando
+# Python: 99 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos e proteções de gasto do boletim com IA). Sem rede e sem Prefect rodando
 docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -B -m unittest discover -s /app/tests -v
 
 # dbt: testes de qualidade sobre o warehouse real (inclui 2 testes unitários do estoque)
@@ -405,6 +405,15 @@ docker compose run --rm pipeline python flows/fatos.py 280480 202607 --saida /da
 Precisa dos marts da F19 (`mart_fluxo`, `mart_perfil_movimentacoes`, `mart_estoque_regiao`,
 `mart_salario_admissao`), que o flow cria no próximo `dbt run` dos marts. Limiares dos gatilhos em
 `pipeline/perfis/<territorio>.toml`.
+
+O boletim com IA em si (analista → redator → revisor) fica **aguardando aprovação**; nada é enviado:
+
+```bash
+docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607   # --refazer para gerar de novo
+```
+
+Mesmos fatos reaproveitam o resultado sem chamar o modelo. Custos em `/data/ia/custos.jsonl`; resultado,
+fatos e `boletim.md` em `/data/ia/boletins/<territorio>_<competencia>/<hash>/`.
 
 ### 8. Alertas e observabilidade
 
@@ -489,9 +498,11 @@ mantendo o pico em ~500 MB (medido: 405 MiB por arquivo MOV com limite de 830 Mi
 │   │   ├── arquivo.py            # clone do repositório do arquivo, envios.json, índice (git)
 │   │   ├── entrega.py            # SMTP, envio idempotente e o CLI: teste/enviar/arquivar/remover
 │   │   ├── fatos.py              # JSON de fatos do boletim com IA (F19 parte 1), cada número com id
-│   │   └── ia.py                 # cliente OpenRouter (PydanticAI) e proteções de gasto (F19 parte 2)
+│   │   ├── ia.py                 # cliente OpenRouter (PydanticAI) e proteções de gasto (F19 parte 2)
+│   │   ├── boletim_ia.py         # analista → redator → revisor; resultado aguardando aprovação (F19 parte 3)
+│   │   └── verificador.py        # todo número do texto tem de estar nos fatos (F19 parte 3)
 │   ├── perfis/                   # perfil econômico por território (limiares dos gatilhos; F19)
-│   └── tests/                    # 88 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
+│   └── tests/                    # 99 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
 ├── dbt/
 │   ├── macros/caged.sql          # colunas, CAST e grupamento compartilhados pelas 3 staging
 │   ├── macros/estoque.sql        # efeito no saldo (MOV +, FOR +, EXC −), usado pelo estoque (F16)
@@ -596,7 +607,7 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [ ] Boletim analítico com IA ([F19](docs/fatias/F19-boletim-com-ia.md), [roteiro](docs/boletim-ia/roteiro.md))
   - [x] Fatos por código: fluxo reconciliado por subgrupamento e divisão CNAE, perfil das admissões, região, acumulados e gatilhos
   - [x] Cliente OpenRouter no PydanticAI com limites de uso, registro mensal de custo (US$ 2/mês) e modelos permitidos
-  - [ ] Agentes (analista, pesquisador, redator, revisor) e verificador de números
+  - [x] Agentes (analista, redator, revisor) e verificador de números; o pesquisador entra com as evidências externas
   - [ ] Evidências externas (IBGE, Banco Central, busca na web com teto)
   - [ ] Aprovação humana antes do envio
   - [ ] Comparação prática de modelos

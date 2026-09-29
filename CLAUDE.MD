@@ -319,3 +319,13 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   `provider_details['cost']`. Por isso: reserva do pior caso (limites × preço da API pública
   da OpenRouter, cache 7 dias, falha fechado) antes de rodar, e registro JSONL em
   /data/ia/custos.jsonl (reserva aberta conta pelo máximo)
+- Parte 3 (agentes) feita: `flows/boletim_ia.py` (analista → redator → revisor, saídas
+  Pydantic; `retries=1` em cada; pior caso 7 requisições ≤ 8) e `flows/verificador.py`
+  (todo número do texto tem de estar em `numeros`, a menos de formato BR, sinal e
+  arredondamento; anos e inteiros 1–12 livres; sinaliza LTDA/S.A./CNPJ). O verificador é o
+  output_validator do redator: na ÚLTIMA tentativa aceita e grava situação
+  `reprovado_no_verificador` para a revisão humana (não aborta). Resultado em
+  /data/ia/boletins/<territorio>_<comp>/<hash[:16]>/; mesmo hash reaproveita sem LLM
+  (`--refazer` força). Modelos: IA_MODELO_<PAPEL>, ou 1º permitido = redator e último =
+  analista/revisor. Chave com limite VITALÍCIO na OpenRouter, reajustado à mão todo mês
+  (decisão do usuário: limita perda em vazamento); 401/402/403 viram mensagem clara

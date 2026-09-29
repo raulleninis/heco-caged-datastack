@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | 🟡 em andamento: partes 1 e 2 ✅ (29/09/2026); parte 3 a seguir |
+| **Status** | 🟡 em andamento: partes 1, 2 e 3 ✅ (29/09/2026); parte 4 a seguir |
 | **Esforço** | XL, em partes independentes |
 | **Fase** | produção / vitrine |
 | **Depende de** | [F16](F16-estoque-a-partir-do-marco-zero.md) (estoque e territórios), [F15](F15-entrega-por-email-e-arquivo.md) (arquivo e envio) |
@@ -104,6 +104,19 @@ Configuração da OpenRouter no PydanticAI, `UsageLimits`, registro mensal de cu
 ### 3. Agentes e verificador
 
 Os quatro agentes, o verificador de números como `output_validator` e as instruções derivadas do roteiro. **Aceite:** com um modelo falso que inventa um número, o verificador o rejeita e a execução termina em revisão humana, sem passar do teto.
+
+**Feito (29/09/2026)**, com 11 testes (`FunctionModel` roteirizado, sem rede):
+
+- `flows/verificador.py`: todo número do texto está em `numeros` (formato BR, sinal por
+  extenso, arredondamento de % e R$, "mil"); anos e inteiros de 1 a 12 livres; sinaliza
+  forma jurídica e CNPJ.
+- `flows/boletim_ia.py`: analista, redator e revisor com saídas Pydantic, `retries=1`. O
+  verificador é o validador do redator; na última tentativa o texto é aceito como
+  `reprovado_no_verificador`, com o relatório, em vez de abortar. Problema grave do revisor
+  gera uma segunda versão, verificada de novo. Pior caso: 7 requisições (limite 8).
+- Reaproveitamento pelo hash dos fatos; `--refazer` força.
+- O pesquisador fica para a parte 4, junto com as evidências externas: sem elas, o redator
+  é instruído a não citar fonte nem acontecimento.
 
 ### 4. Evidências externas
 
