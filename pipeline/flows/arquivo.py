@@ -151,6 +151,16 @@ class Arquivo:
         self._gravar_indice(envios)
         self._commit_push(mensagem)
 
+    def arquivar_extra(self, competencia: str, origem: Path, mensagem: str) -> Path:
+        """Copia um arquivo a mais para public/AAAA-MM/ (ex.: o boletim com IA, F19), regenera o
+        índice e dá push. Devolve o caminho DENTRO do arquivo: são esses bytes que se anexam."""
+        pasta = self._pasta(competencia)
+        pasta.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(origem, pasta / origem.name)
+        self._gravar_indice()
+        self._commit_push(mensagem)
+        return pasta / origem.name
+
     def remover_lote(self, competencias: list[str], mensagem: str) -> None:
         """Apaga as competências do arquivo (arquivos e envios.json) num único commit. O que
         foi apagado continua no histórico do git."""
@@ -193,10 +203,14 @@ class Arquivo:
             info = envios.get(c, {})
             quando = info.get("enviado_em")
             situacao = f"enviado em {quando[:10]}" if info.get("status") == "enviado" and quando else "arquivado"
+            # Boletim com IA (F19), quando aprovado e enviado: link a mais na mesma linha.
+            com_ia = (raiz / pasta / f"boletim-ia-{c}.pdf").exists()
             itens.append(
                 f'<li><strong>{html.escape(nome_competencia(c))}</strong> — {situacao}: '
                 f'<a href="{pasta}/boletim-{c}.pdf">boletim (PDF)</a> · '
-                f'<a href="{pasta}/planilha-{c}.xlsx">planilha (XLSX)</a></li>'
+                f'<a href="{pasta}/planilha-{c}.xlsx">planilha (XLSX)</a>'
+                + (f' · <a href="{pasta}/boletim-ia-{c}.pdf">boletim com análise (PDF)</a>' if com_ia else "")
+                + "</li>"
             )
         corpo = "\n".join(itens) or "<li>Nenhum boletim arquivado ainda.</li>"
         (raiz / "index.html").write_text(

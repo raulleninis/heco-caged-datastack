@@ -398,6 +398,9 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
         "parecer_revisor": parecer.model_dump(),
         "analise": analise.model_dump(),
         "evidencias_usadas": lista_evid,
+        "leituras": [{"titulo": t["titulo"], "link": t["link"], "fonte": t.get("veiculo") or t["fonte"],
+                      "data": t["publicado_em"][:10]}
+                     for t in (evidencias or {}).get("triadas", []) if t.get("relevante")],
         "boletim": boletim.model_dump(),
     }
     pasta.mkdir(parents=True, exist_ok=True)

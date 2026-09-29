@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | 🟡 em andamento: partes 1, 2 e 3 ✅; parte 4 começou pelo coletor de notícias (29/09/2026) |
+| **Status** | 🟡 em andamento: partes 1 a 5 ✅ (29/09/2026); faltam indicadores oficiais, 3b-2 e parte 6 |
 | **Esforço** | XL, em partes independentes |
 | **Fase** | produção / vitrine |
 | **Depende de** | [F16](F16-estoque-a-partir-do-marco-zero.md) (estoque e territórios), [F15](F15-entrega-por-email-e-arquivo.md) (arquivo e envio) |
@@ -197,6 +197,18 @@ tickets).
 ### 5. Aprovação e envio
 
 Estado `aguardando_aprovacao` no arquivo da F15, um comando de aprovação e o PDF do boletim com IA. O envio automático ignora esse estado.
+
+**Feita (29/09/2026)**, com 7 testes, em `flows/entrega_ia.py`, com uma lista de
+administradores pedida pelo usuário:
+- `revisar`: gera o PDF uma única vez e envia só aos administradores
+  (`secrets/destinatarios_admin.txt`), com o relatório de revisão (parecer, verificador,
+  avisos de estilo, evidências). O PDF não leva marca de rascunho: ela vai no e-mail, porque
+  regenerar o PDF mudaria os bytes.
+- `aprovar --por "Nome"`: só o que está em revisão, com o sha256 do PDF revisado.
+- `enviar`: arquiva e envia à lista principal o mesmo PDF (confere o sha256), com as
+  garantias da F15 e a chave `ia-AAAAMM`; o índice do arquivo ganha o link.
+- Resultado reprovado no verificador não vai à revisão. Nada é automático.
+- PDF do resultado real de 202607: duas páginas, texto e tabelas por código, aviso de uso de IA.
 
 ### 6. Comparação de modelos
 

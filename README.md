@@ -329,6 +329,23 @@ o warehouse ou fazer backfill de anos antigos **nunca** dispara e-mail.
 **Envio órfão** (`enviando` que não virou `enviado`): o processo caiu no meio e ninguém sabe quem recebeu. Não é
 reenviado sozinho; o alerta se repete a cada run. Como resolver está em [arquivo/README.md](arquivo/README.md#resolver-um-envio-órfão).
 
+### 4b. Boletim com IA: revisão, aprovação e envio (`entrega_ia.py`, F19)
+
+Nada é automático. Os administradores (`secrets/destinatarios_admin.txt`) recebem o rascunho
+primeiro; só depois da aprovação o boletim vai para a lista principal e para o arquivo.
+
+```bash
+docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607 --com-evidencias   # gera
+docker compose run --rm pipeline python flows/entrega_ia.py revisar 280480 202607             # PDF + relatório só aos admins
+docker compose run --rm pipeline python flows/entrega_ia.py aprovar 280480 202607 --por "Nome"
+docker compose run --rm pipeline python flows/entrega_ia.py enviar  280480 202607             # lista principal + arquivo
+```
+
+- O PDF é gerado uma vez, na revisão; o envio confere o sha256 e manda exatamente o que foi aprovado.
+- Resultado reprovado no verificador não vai à revisão: gere de novo com `--refazer`.
+- O envio usa as garantias da F15 com a chave `ia-AAAAMM` no `envios.json` (idempotente; órfão não se
+  reenvia sozinho). O índice do arquivo ganha o link "boletim com análise (PDF)".
+
 ### 5. O arquivo protegido (Netlify)
 
 O esqueleto está em [`arquivo/`](arquivo/) (o repositório privado real é separado: [F15](docs/fatias/F15-entrega-por-email-e-arquivo.md)).
@@ -349,7 +366,7 @@ arquivo foi de fato publicado só se confirma logado.
 ### 6. Testes do projeto
 
 ```bash
-# Python: 110 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos e proteções de gasto do boletim com IA). Sem rede e sem Prefect rodando
+# Python: 148 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos e proteções de gasto do boletim com IA). Sem rede e sem Prefect rodando
 docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -B -m unittest discover -s /app/tests -v
 
 # dbt: testes de qualidade sobre o warehouse real (inclui 2 testes unitários do estoque)
@@ -467,6 +484,7 @@ Tudo em `.env` (nunca commitado; `.env.example` é o modelo). Os segredos em **a
 |---|---|
 | `arquivo_deploy_key` | chave SSH **com escrita**, restrita ao repositório do arquivo (`chmod 600`) |
 | `destinatarios.txt` | um e-mail por linha (`#` comenta). **Dado pessoal (LGPD)**: nunca no git, nunca em log |
+| `destinatarios_admin.txt` | administradores que recebem o rascunho do boletim com IA para revisão (F19). Mesmo formato e mesmos cuidados |
 
 ### Permissões
 
@@ -507,9 +525,10 @@ mantendo o pico em ~500 MB (medido: 405 MiB por arquivo MOV com limite de 830 Mi
 │   │   ├── boletim_ia.py         # analista → redator → revisor; resultado aguardando aprovação (F19 parte 3)
 │   │   ├── verificador.py        # todo número do texto tem de estar nos fatos (F19 parte 3)
 │   │   ├── noticias.py           # coletor diário de feeds RSS para o boletim com IA (F19 parte 4)
-│   │   └── evidencias.py         # seleção por janela e triagem das notícias pelo Jev (F19 parte 4)
+│   │   ├── evidencias.py         # seleção por janela, triagem pelo Jev e pesquisador (F19 parte 4)
+│   │   └── entrega_ia.py         # revisão pelos admins, aprovação e envio do boletim com IA (F19 parte 5)
 │   ├── perfis/                   # perfil econômico por território e fontes de notícias (F19)
-│   └── tests/                    # 110 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
+│   └── tests/                    # 148 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
 ├── dbt/
 │   ├── macros/caged.sql          # colunas, CAST e grupamento compartilhados pelas 3 staging
 │   ├── macros/estoque.sql        # efeito no saldo (MOV +, FOR +, EXC −), usado pelo estoque (F16)
@@ -617,5 +636,5 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
   - [x] Agentes (analista, redator, revisor) e verificador de números; o pesquisador entra com as evidências externas
   - [x] Evidências externas: coletor diário, triagem pelo Jev, pesquisador, leituras relacionadas
   - [ ] Indicadores oficiais por API (IBGE, Banco Central)
-  - [ ] Aprovação humana antes do envio
+  - [x] Aprovação humana antes do envio: rascunho aos administradores, aprovação com nome, envio do mesmo PDF
   - [ ] Comparação prática de modelos

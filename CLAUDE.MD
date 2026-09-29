@@ -345,5 +345,10 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   -> `apoia_hipotese`. Boletim: `--com-evidencias`; hipótese só com apoia_hipotese, recente só
   como "acompanhar"; "Leituras relacionadas" por código; patrocinado excluído; datas mascaradas
   no verificador
+- Parte 5 (feita): `flows/entrega_ia.py` revisar -> aprovar --por -> enviar. Rascunho só para
+  `secrets/destinatarios_admin.txt`; PDF gerado UMA vez (fpdf grava data: regenerar muda os
+  bytes) e o envio confere o sha256 aprovado; estado local em estado.json ao lado do resultado
+  e, no envio, no envios.json do arquivo com a chave `ia-AAAAMM` (garantias da F15).
+  Reprovado no verificador não vai à revisão. Nada automático
 - Decisões editoriais (29/09/2026): hipóteses fora até existir evidência externa, depois só
   em "Pontos de atenção"; percentuais com 2 casas decimais
