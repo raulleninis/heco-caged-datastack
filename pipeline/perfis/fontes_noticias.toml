@@ -9,11 +9,17 @@
 #
 # Os feeds guardam poucas notícias (a Infonet, 10 em ~2 dias): por isso a coleta é DIÁRIA.
 
+# O feed da editoria "economia e política" só trazia conteúdo de OUTROS estados (19 de 19 itens
+# em sc., es., pa., df.agenciasebrae...; verificado em 29/09/2026). O feed geral do site de SE
+# traz conteúdo de Sergipe. O nome fica igual para a exclusão valer também para o já coletado.
+# excluir_links: regex sobre o link; usado na seleção das evidências (flows/evidencias.py).
 [[fontes]]
 nome = "Agência Sebrae SE: economia e política"
-feed = "https://se.agenciasebrae.com.br/editorias/economia-e-politica/feed/"
+feed = "https://se.agenciasebrae.com.br/feed/"
 escala = "estadual"
 intervalo_s = 2
+excluir_links = '^https?://(?!se\.)[a-z]{2}\.agenciasebrae\.com\.br'
+
 
 [[fontes]]
 nome = "Faxaju: economia"

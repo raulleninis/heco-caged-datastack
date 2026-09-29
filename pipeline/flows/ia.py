@@ -26,6 +26,7 @@ import fcntl
 import json
 import os
 import time
+import urllib.error
 import urllib.request
 import uuid
 from dataclasses import dataclass
@@ -38,6 +39,13 @@ from pydantic_ai.messages import ModelResponse
 from pydantic_ai.usage import RunUsage, UsageLimits
 
 URL_MODELOS = "https://openrouter.ai/api/v1/models"
+URL_ENDPOINTS = "https://openrouter.ai/api/v1/models/{}/endpoints"
+URL_DECISOES = "https://openrouter.ai/api/alpha/decisions"
+
+# Modelos de decisão (Jev): endpoint próprio, sem saída de texto. Teto de chamadas e de tamanho
+# por execução; o contexto do jev-1.13 é de 32 mil tokens.
+MAX_DECISOES = 60
+ENTRADA_MAX_DECISAO = 30_000
 
 
 class OrcamentoExcedido(RuntimeError):
@@ -46,6 +54,10 @@ class OrcamentoExcedido(RuntimeError):
 
 class ModeloNaoPermitido(ValueError):
     pass
+
+
+class LimiteDeDecisoes(RuntimeError):
+    """Teto de chamadas (ou de tamanho) do modelo de decisão atingido nesta execução."""
 
 
 @dataclass(frozen=True)
@@ -61,6 +73,8 @@ LIMITES_PAPEL = {
     "pesquisador": LimitesPapel(max_tokens=3_000, timeout=120, raciocinio="low"),
     "redator": LimitesPapel(max_tokens=8_000, timeout=180, raciocinio="low"),
     "revisor": LimitesPapel(max_tokens=3_000, timeout=120, raciocinio="low"),
+    # modelo de decisão (Jev): não gera texto; limites próprios em MAX_DECISOES
+    "juiz": LimitesPapel(max_tokens=0, timeout=30, raciocinio=None),
 }
 
 # Por execução (todos os agentes juntos). Uma execução normal: ~35 mil tokens de entrada e ~8
@@ -102,15 +116,43 @@ def _baixar_modelos() -> dict:
         return json.load(r)
 
 
+def _baixar_endpoints(modelo: str) -> dict:
+    req = urllib.request.Request(URL_ENDPOINTS.format(modelo), headers={"User-Agent": "boletim-caged"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.load(r)
+
+
+def _preco(pricing: dict) -> tuple[Decimal, Decimal] | None:
+    """(entrada, saída) por token; None se ausente ou VARIÁVEL (a OpenRouter devolve −1 para
+    roteadores que escolhem o modelo a cada chamada: sem preço fixo, não há pior caso)."""
+    try:
+        entrada, saida = Decimal(str(pricing["prompt"])), Decimal(str(pricing["completion"]))
+    except (KeyError, TypeError, ArithmeticError):
+        return None
+    return None if entrada < 0 or saida < 0 else (entrada, saida)
+
+
+def _post_decisoes(api_key: str, corpo: dict, timeout: float) -> dict:
+    req = urllib.request.Request(URL_DECISOES, data=json.dumps(corpo).encode(), headers={
+        "Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": "boletim-caged"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"Decisões da OpenRouter: HTTP {e.code}: {e.read()[:300]!r}") from e
+
+
 class Precos:
     """Preço por token (USD) de cada modelo, da API pública da OpenRouter (sem chave).
 
     Guarda uma cópia em disco. Se a API falhar, usa a cópia de até `validade_dias`; sem preço
     confiável, NÃO roda (falha fechado): gastar sem saber quanto custa é o que se quer evitar."""
 
-    def __init__(self, pasta: Path, baixar=_baixar_modelos, validade_dias: int = 7):
+    def __init__(self, pasta: Path, baixar=_baixar_modelos, validade_dias: int = 7,
+                 baixar_endpoints=_baixar_endpoints):
         self.arquivo = pasta / "precos_openrouter.json"
         self.baixar = baixar
+        self.baixar_endpoints = baixar_endpoints
         self.validade = validade_dias * 86400
         self._tabela: dict[str, tuple[Decimal, Decimal]] | None = None
 
@@ -126,17 +168,28 @@ class Precos:
             if time.time() - copia["baixado_em"] > self.validade:
                 raise RuntimeError(f"Sem preços da OpenRouter ({e}) e a cópia local está vencida: execução recusada.") from e
             dados = copia["dados"]
-        return {
-            m["id"]: (Decimal(str(m["pricing"]["prompt"])), Decimal(str(m["pricing"]["completion"])))
-            for m in dados["data"] if "pricing" in m
-        }
+        tabela = {}
+        for m in dados["data"]:
+            preco = _preco(m.get("pricing") or {})
+            if preco:
+                tabela[m["id"]] = preco
+        return tabela
 
     def de(self, modelo: str) -> tuple[Decimal, Decimal]:
         """(entrada, saída) em USD por token."""
         if self._tabela is None:
             self._tabela = self._carregar()
         if modelo not in self._tabela:
-            raise ModeloNaoPermitido(f"Modelo {modelo} não existe na OpenRouter (ou está sem preço).")
+            # Alguns modelos (ex.: typesafe/jev-1.13) não aparecem na listagem geral; o preço
+            # vem da consulta pelo id.
+            try:
+                pontos = self.baixar_endpoints(modelo)["data"]["endpoints"]
+                preco = _preco(pontos[0]["pricing"]) if pontos else None
+            except Exception:
+                preco = None
+            if not preco:
+                raise ModeloNaoPermitido(f"Modelo {modelo} não existe na OpenRouter, está sem preço ou tem preço variável.")
+            self._tabela[modelo] = preco
         return self._tabela[modelo]
 
 
@@ -235,6 +288,8 @@ class Execucao:
         self.uso = RunUsage()
         self.maximo = self._validar_e_calcular_maximo()
         self._aberta = False
+        self.decisoes = 0
+        self.post_decisoes = _post_decisoes
 
     def _validar_e_calcular_maximo(self) -> Decimal:
         pior_entrada = pior_saida = Decimal(0)
@@ -246,10 +301,17 @@ class Execucao:
                 raise ModeloNaoPermitido(
                     f"{nome}: US$ {saida * 1_000_000:.2f}/M tokens de saída, acima do teto "
                     f"IA_PRECO_MAX_SAIDA_USD_MTOK={self.cfg.preco_max_saida_usd_mtok}.")
+            if papel == "juiz":
+                continue  # modelo de decisão: pior caso próprio, abaixo
             pior_entrada, pior_saida = max(pior_entrada, entrada), max(pior_saida, saida)
-        # Pior caso: todos os tokens permitidos, ao preço do modelo mais caro da execução.
-        return (LIMITES_EXECUCAO["input_tokens_limit"] * pior_entrada
-                + LIMITES_EXECUCAO["output_tokens_limit"] * pior_saida)
+        # Pior caso: todos os tokens permitidos, ao preço do modelo mais caro da execução...
+        maximo = (LIMITES_EXECUCAO["input_tokens_limit"] * pior_entrada
+                  + LIMITES_EXECUCAO["output_tokens_limit"] * pior_saida)
+        # ...mais todas as decisões permitidas, cada uma no tamanho máximo.
+        if "juiz" in self.modelos:
+            entrada, saida = self.precos.de(self.modelos["juiz"])
+            maximo += MAX_DECISOES * ENTRADA_MAX_DECISAO * entrada + MAX_DECISOES * 1_000 * saida
+        return maximo
 
     def __enter__(self) -> "Execucao":
         gasto = self.registro.gasto_mes()
@@ -308,3 +370,29 @@ class Execucao:
         self.registro.chamada(
             self.id, papel=papel, modelo=self.modelos[papel], tokens_entrada=d_in, tokens_saida=d_out,
             custo_usd=str(d_in * entrada + d_out * saida), custo_fonte="estimado", motivo=motivo, **self.contexto)
+
+    def decidir(self, estado: dict, perguntas: dict) -> dict:
+        """Uma chamada ao modelo de decisão do papel "juiz" (endpoint /api/alpha/decisions).
+        Devolve `answers` (probabilidades por pergunta). Registra o custo real da resposta.
+        Recusa antes de chamar se passar do teto de chamadas ou do tamanho máximo."""
+        if not self._aberta:
+            raise RuntimeError("Execucao.decidir fora do bloco `with`.")
+        if "juiz" not in self.modelos:
+            raise ValueError("Esta execução não tem modelo de decisão (papel 'juiz').")
+        if self.decisoes >= MAX_DECISOES:
+            raise LimiteDeDecisoes(f"Teto de {MAX_DECISOES} decisões por execução atingido.")
+        corpo = {"model": self.modelos["juiz"], "state": estado, "questions": perguntas}
+        estimativa = len(json.dumps(corpo, ensure_ascii=False)) // 3  # ~3 caracteres por token
+        if estimativa > ENTRADA_MAX_DECISAO:
+            raise LimiteDeDecisoes(f"Entrada de ~{estimativa} tokens passa do máximo de {ENTRADA_MAX_DECISAO}.")
+        self.decisoes += 1
+        resposta = self.post_decisoes(self.cfg.api_key, corpo, LIMITES_PAPEL["juiz"].timeout)
+        uso = resposta.get("usage") or {}
+        entrada, saida = self.precos.de(self.modelos["juiz"])
+        custo, fonte = uso.get("cost"), "provedor"
+        if custo is None:
+            custo, fonte = uso.get("input_tokens", estimativa) * entrada + uso.get("output_tokens", 0) * saida, "estimado"
+        self.registro.chamada(self.id, papel="juiz", modelo=self.modelos["juiz"],
+                              tokens_entrada=uso.get("input_tokens"), tokens_saida=uso.get("output_tokens"),
+                              custo_usd=str(custo), custo_fonte=fonte, **self.contexto)
+        return resposta.get("answers") or {}

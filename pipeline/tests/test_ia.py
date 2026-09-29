@@ -198,5 +198,58 @@ class PrecosTeste(Base):
             self.precos.de("nao/existe")
 
 
+JEV = "typesafe/jev-1.13"
+
+
+class Decisoes(Base):
+    def setUp(self):
+        super().setUp()
+        self.cfg = ia.ConfigIA(**{**self.cfg.__dict__, "modelos_permitidos": (BARATO, JEV, "teste/router")})
+        listagem = {"data": [*MODELOS_API["data"],
+                             {"id": "teste/router", "pricing": {"prompt": "-1", "completion": "-1"}}]}
+        endpoints = {JEV: {"data": {"endpoints": [{"pricing": {"prompt": "0.000000042", "completion": "0"}}]}}}
+        self.precos = ia.Precos(self.pasta, baixar=lambda: listagem, baixar_endpoints=lambda m: endpoints[m])
+
+    def execucao_juiz(self, resposta=None):
+        ex = ia.Execucao(self.cfg, {"juiz": JEV}, precos=self.precos, registro=self.registro)
+        chamadas = []
+
+        def post(chave, corpo, timeout):
+            chamadas.append(corpo)
+            return resposta or {"answers": {"x": {"type": "noul", "noul": 0.9}},
+                                "usage": {"input_tokens": 900, "output_tokens": 100, "cost": 4e-05}}
+        ex.post_decisoes = post
+        ex.chamadas = chamadas
+        return ex
+
+    def test_preco_do_jev_vem_da_consulta_pelo_id(self):
+        self.assertEqual(self.precos.de(JEV), (Decimal("0.000000042"), Decimal("0")))
+
+    def test_preco_variavel_e_recusado(self):
+        with self.assertRaises(ia.ModeloNaoPermitido):
+            self.precos.de("teste/router")
+
+    def test_decisao_registra_custo_do_provedor(self):
+        with self.execucao_juiz() as ex:
+            respostas = ex.decidir({"a": 1}, {"x": {"type": "noul", "instructions": "?"}})
+        self.assertEqual(respostas["x"]["noul"], 0.9)
+        chamada = [l for l in self.linhas() if l["tipo"] == "chamada"][0]
+        self.assertEqual((chamada["papel"], chamada["custo_usd"], chamada["custo_fonte"]), ("juiz", "4e-05", "provedor"))
+
+    def test_teto_de_decisoes_e_de_tamanho(self):
+        with self.execucao_juiz() as ex:
+            ex.decisoes = ia.MAX_DECISOES
+            with self.assertRaises(ia.LimiteDeDecisoes):
+                ex.decidir({"a": 1}, {})
+            ex.decisoes = 0
+            with self.assertRaises(ia.LimiteDeDecisoes):
+                ex.decidir({"texto": "x" * (ia.ENTRADA_MAX_DECISAO * 4)}, {})
+            self.assertEqual(ex.chamadas, [])
+
+    def test_reserva_inclui_o_pior_caso_das_decisoes(self):
+        ex = self.execucao_juiz()
+        self.assertEqual(ex.maximo, Decimal(ia.MAX_DECISOES * ia.ENTRADA_MAX_DECISAO) * Decimal("0.000000042"))
+
+
 if __name__ == "__main__":
     unittest.main()

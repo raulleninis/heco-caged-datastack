@@ -505,7 +505,8 @@ mantendo o pico em ~500 MB (medido: 405 MiB por arquivo MOV com limite de 830 Mi
 │   │   ├── ia.py                 # cliente OpenRouter (PydanticAI) e proteções de gasto (F19 parte 2)
 │   │   ├── boletim_ia.py         # analista → redator → revisor; resultado aguardando aprovação (F19 parte 3)
 │   │   ├── verificador.py        # todo número do texto tem de estar nos fatos (F19 parte 3)
-│   │   └── noticias.py           # coletor diário de feeds RSS para o boletim com IA (F19 parte 4)
+│   │   ├── noticias.py           # coletor diário de feeds RSS para o boletim com IA (F19 parte 4)
+│   │   └── evidencias.py         # seleção por janela e triagem das notícias pelo Jev (F19 parte 4)
 │   ├── perfis/                   # perfil econômico por território e fontes de notícias (F19)
 │   └── tests/                    # 110 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
 ├── dbt/

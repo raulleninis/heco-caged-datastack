@@ -335,5 +335,10 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   (instância); grava /data/noticias/AAAA-MM.jsonl (mês em UTC), dedup por link; robots.txt e
   intervalo por host; 3 falhas seguidas de uma fonte = alerta `low`. Tolera documentos XML
   colados (feed do Sebrae SE). /data/noticias NÃO se regenera (ressalva na D03)
+- Evidências (`flows/evidencias.py`): janelas "competencia" (mês anterior até 15 dias após a
+  competência; só ela sustenta hipótese) e "recente" (30 dias antes da geração; só sinal para
+  acompanhar); seleção por código e triagem pelo Jev (`Execucao.decidir`, papel `juiz`,
+  endpoint /api/alpha/decisions, teto 60 decisões). Jev é sensível à redação: calibrar com
+  casos rotulados, não por intuição. Preço −1 (variável) = recusado
 - Decisões editoriais (29/09/2026): hipóteses fora até existir evidência externa, depois só
   em "Pontos de atenção"; percentuais com 2 casas decimais

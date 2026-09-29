@@ -144,6 +144,24 @@ tickets).
   55 s, nenhuma rejeição do verificador, uma versão só (nenhum problema grave), 7 apontamentos
   menores do revisor, 2 avisos de estilo.
 
+**Seleção e triagem (feitas, 29/09/2026):** `flows/evidencias.py`.
+- Janelas: "competência" (mês anterior até 15 dias após o fim da competência; única que pode
+  sustentar hipótese), "recente" (30 dias antes da geração; só sinal para acompanhar). Todas
+  podem virar "leituras relacionadas". O arquivo diário resolve a defasagem do CAGED a partir
+  da competência de outubro de 2026; julho a setembro ficam só com a janela recente.
+- Seleção por código: território (município, membros das regiões e UF, do warehouse), tema
+  (emprego e palavras por grupamento), `excluir_links` por fonte.
+- O feed da editoria de economia do Sebrae SE só trazia conteúdo de outros estados (19 de 19):
+  trocado pelo feed geral do site de SE, com exclusão dos links de outros estados.
+- Triagem pelo Jev (papel `juiz` da Execucao: preço pela consulta direta ao modelo, teto de
+  60 decisões e de 30 mil tokens por decisão, custo real registrado). Preço variável (−1,
+  roteadores) passou a ser recusado: antes passaria pela checagem de teto.
+- Primeira triagem real (202607, geração em 29/09): 257 notícias, 15 candidatas, US$ 0,0006.
+  O Jev descartou bem o ruído (Mega-Sena 0,04; trânsito 0,15), mas é sensível à redação da
+  pergunta: ao incluir "CLT; estatutário não conta", acertou os professores da rede pública e
+  errou a campanha de esgoto. Perguntas e limiares precisam de calibração com casos rotulados
+  (parte 6); as triagens gravadas em /data/ia/evidencias/ são o início desse conjunto.
+
 **Coletor diário (feito, 29/09/2026):** `flows/noticias.py`, no início do flow diário.
 - Fontes avaliadas: Sebrae SE, Faxaju, Infonet e InfoMoney têm RSS; Observatório FIES e
   Fecomércio SE não têm (ficam para a busca na web restrita, se o plugin permitir); a lista da
