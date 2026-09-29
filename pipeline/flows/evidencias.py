@@ -26,18 +26,26 @@ Uso:
 """
 
 import argparse
+import html
+import os
 import json
 import re
+import time
 import tomllib
 import unicodedata
 from datetime import date, datetime, timedelta, timezone
+from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import duckdb
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent, ModelRetry, RunContext
 
 import fatos as fatos_mod
 import ia
-from noticias import FONTES, Arquivo, carregar_fontes
+from noticias import FONTES, Arquivo, _baixar, _permitido, carregar_fontes
+from verificador import _NUMERO
 
 PERFIS = Path(__file__).resolve().parent.parent / "perfis"
 
@@ -59,9 +67,16 @@ PALAVRAS_SETOR = {
                      "cana-de-acucar", "cana de acucar"],
 }
 
+# Conteúdo patrocinado nunca é evidência nem leitura (visto em 29/09/2026: matéria da Iguá em
+# g1.globo.com/.../especial-publicitario/). Checado no link e no título, normalizados.
+PATROCINADO = re.compile(r"especial[-_ ]publicitario|publieditorial|conteudo[-_ ]patrocinado|patrocinad|publicidade")
+
 # Limiares iniciais, conservadores; calibrar com casos rotulados (parte 6).
 LIMIAR_EMPREGO = 0.6
+LIMIAR_HIPOTESE = 0.7
 MAX_CANDIDATAS = {"competencia": 20, "recente": 15}
+MAX_PARA_LER = 8          # notícias relevantes lidas pelo pesquisador por execução
+TEXTO_MAX = 4_000         # caracteres do texto de cada notícia enviados ao pesquisador
 
 
 def normalizar(texto: str) -> str:
@@ -126,6 +141,8 @@ def selecionar(noticias: list[dict], js: dict, termos: list[str], destaques: lis
             continue
         padrao = exclusoes.get(n["fonte"])
         if padrao and re.search(padrao, n["link"]):
+            continue
+        if PATROCINADO.search(normalizar(f"{n['link']} {n['titulo']}")):
             continue
         texto = normalizar(f"{n['titulo']} {n.get('resumo', '')}")
         territorio = _contem(texto, termos)
@@ -199,6 +216,151 @@ def triar(ex: ia.Execucao, candidatas: list[dict], fatos: dict) -> list[dict]:
     return triadas
 
 
+# --- leitura do texto (código) --------------------------------------------------------------------
+
+class _Paragrafos(HTMLParser):
+    """Texto dos <p> de uma página, sem scripts. Suficiente para matérias jornalísticas."""
+
+    def __init__(self):
+        super().__init__()
+        self.dentro, self.ignorar, self.atual, self.paragrafos = False, 0, [], []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("script", "style", "noscript"):
+            self.ignorar += 1
+        elif tag == "p":
+            self.dentro, self.atual = True, []
+
+    def handle_endtag(self, tag):
+        if tag in ("script", "style", "noscript"):
+            self.ignorar = max(0, self.ignorar - 1)
+        elif tag == "p" and self.dentro:
+            texto = re.sub(r"\s+", " ", "".join(self.atual)).strip()
+            if len(texto) >= 40:
+                self.paragrafos.append(texto)
+            self.dentro = False
+
+    def handle_data(self, data):
+        if self.dentro and not self.ignorar:
+            self.atual.append(data)
+
+
+def texto_da_noticia(n: dict, baixar=_baixar, dormir=time.sleep, ultimo_acesso: dict | None = None) -> str:
+    """Texto da matéria (parágrafos), respeitando robots.txt e 2 s por host. Sem acesso,
+    fica o resumo do feed. O texto é só lido, nunca republicado."""
+    ultimo_acesso = ultimo_acesso if ultimo_acesso is not None else {}
+    host = urlsplit(n["link"]).netloc
+    espera = 2 - (time.monotonic() - ultimo_acesso.get(host, -1e9))
+    if espera > 0:
+        dormir(espera)
+    try:
+        if not _permitido(n["link"], baixar):
+            return n.get("resumo", "")
+        leitor = _Paragrafos()
+        leitor.feed(html.unescape(baixar(n["link"]).decode("utf-8", "ignore")))
+        texto = " ".join(leitor.paragrafos)
+    except Exception:
+        texto = ""
+    finally:
+        ultimo_acesso[host] = time.monotonic()
+    return (texto or n.get("resumo", ""))[:TEXTO_MAX]
+
+
+# --- pesquisador (LLM) e juiz de hipóteses (Jev) ---------------------------------------------------
+
+class Evidencia(BaseModel):
+    id: str = Field(description="id da notícia, como recebido")
+    fato: str = Field(description="1 ou 2 frases, parafraseadas, só com o que o texto afirma")
+    numeros: list[str] = Field(default_factory=list, description="números citados no fato, exatamente como no texto")
+    territorio: str = Field(description="município, região ou estado de que o fato trata, segundo o texto")
+    setor: str
+
+
+class Pesquisa(BaseModel):
+    evidencias: list[Evidencia] = Field(max_length=MAX_PARA_LER)
+
+
+INSTRUCOES_PESQUISADOR = """Você lê notícias e extrai, de cada uma, o fato que pode afetar empregos com carteira assinada.
+Regras:
+- Use só o que o texto afirma. Não conclua nada sobre o CAGED nem sobre causas.
+- 1 ou 2 frases por notícia, com suas palavras (não copie parágrafos).
+- Número só se estiver no texto, escrito igual; liste-os em `numeros`.
+- Nunca nomeie empresas pelo nome se a notícia não tratar de anúncio público da própria empresa.
+- Se a notícia não traz fato relevante para o emprego, não gere evidência para ela.
+"""
+
+
+def criar_pesquisador(modelo) -> Agent:
+    agente = Agent(modelo, output_type=Pesquisa, instructions=INSTRUCOES_PESQUISADOR, deps_type=dict, retries=1)
+
+    @agente.output_validator
+    def numeros_do_texto(ctx: RunContext[dict], saida: Pesquisa) -> Pesquisa:
+        erros = []
+        for e in saida.evidencias:
+            fonte = ctx.deps.get(e.id)
+            if fonte is None:
+                erros.append(f"id {e.id} não existe")
+                continue
+            for m in _NUMERO.finditer(e.fato):
+                if m.group().replace("−", "-").lstrip("-") not in fonte:
+                    erros.append(f"{e.id}: número {m.group()} não está no texto da notícia")
+        if erros and ctx.retry < ctx.max_retries:
+            raise ModelRetry("Corrija: " + "; ".join(erros[:10]) + ". Use só números escritos no texto.")
+        return saida
+
+    return agente
+
+
+def julgar_hipotese(ex: ia.Execucao, evidencia: dict, fatos: dict) -> float | None:
+    """Probabilidade (Jev) de a evidência ser compatível, em período, setor e direção, com o
+    movimento do CAGED no setor. Só para a janela da competência."""
+    setor = evidencia["setor"] if evidencia["setor"] in fatos["setorial"]["grupamentos"] else None
+    if not setor:
+        return None
+    g = fatos["setorial"]["grupamentos"][setor]
+    estado = {"movimento_no_caged": {"setor": setor, "competencia": fatos["rotulos"]["competencia"],
+                                     "saldo": g["saldo"]["valor"],
+                                     "posicao_na_faixa_historica": g.get("sazonalidade", {}).get("posicao")},
+              "evidencia": {"fato": evidencia["fato"], "data": evidencia["data"], "fonte": evidencia["fonte"]}}
+    r = ex.decidir(estado, {"compativel": {
+        "type": "noul",
+        "instructions": "O fato da evidência aconteceu no período da competência, no mesmo setor, e tem a mesma "
+                        "direção do saldo do CAGED (fato de contratação com saldo positivo, de demissão ou "
+                        "fechamento com saldo negativo)?",
+        "criteria": {"true": "Período, setor e direção compatíveis.",
+                     "false": "Período, setor ou direção incompatíveis, ou o fato não afeta o número de vínculos."}}})
+    return (r.get("compativel") or {}).get("noul")
+
+
+def pesquisar(ex: ia.Execucao, agente: Agent, relevantes: list[dict], fatos: dict, baixar=_baixar,
+              dormir=time.sleep) -> list[dict]:
+    """Lê as notícias relevantes, extrai as evidências (pesquisador) e julga as da janela da
+    competência como possível apoio a hipótese (Jev)."""
+    lidas = sorted(relevantes, key=lambda n: (n["janela"] == "competencia", n["prioridade"]), reverse=True)[:MAX_PARA_LER]
+    if not lidas:
+        return []
+    acessos: dict = {}
+    textos = {n["id"]: texto_da_noticia(n, baixar, dormir, acessos) for n in lidas}
+    entrada = [{"id": n["id"], "titulo": n["titulo"], "data": n["publicado_em"][:10],
+                "fonte": n.get("veiculo") or n["fonte"], "texto": textos[n["id"]]} for n in lidas]
+    pesquisa: Pesquisa = ex.rodar(agente, "pesquisador",
+                                  "Notícias (JSON):\n" + json.dumps(entrada, ensure_ascii=False, indent=2), deps=textos)
+    por_id = {n["id"]: n for n in lidas}
+    saida = []
+    for e in pesquisa.evidencias:
+        n = por_id.get(e.id)
+        if not n:
+            continue
+        ev = {**e.model_dump(), "titulo": n["titulo"], "link": n["link"], "fonte": n.get("veiculo") or n["fonte"],
+              "data": n["publicado_em"][:10], "janela": n["janela"], "escala": n["escala"], "apoia_hipotese": False}
+        if n["janela"] == "competencia":
+            p = julgar_hipotese(ex, ev, fatos)
+            ev["prob_compativel"] = p
+            ev["apoia_hipotese"] = p is not None and p >= LIMIAR_HIPOTESE
+        saida.append(ev)
+    return saida
+
+
 def gerar_evidencias(fatos: dict, warehouse: Path, cfg: ia.ConfigIA, gerado_em: date, *,
                      arquivo: Arquivo | None = None, execucao_kw: dict | None = None,
                      fontes: list[dict] | None = None, perfis: Path = PERFIS) -> dict:
@@ -215,10 +377,21 @@ def gerar_evidencias(fatos: dict, warehouse: Path, cfg: ia.ConfigIA, gerado_em: 
     exclusoes = {f["nome"]: f["excluir_links"] for f in fontes if f.get("excluir_links")}
     candidatas = selecionar(noticias, js, termos, fatos["setorial"]["destaques"], exclusoes)
 
-    modelos = {"juiz": next(m for m in cfg.modelos_permitidos if m.startswith("typesafe/"))}
-    with ia.Execucao(cfg, modelos, territorio=fatos["territorio"]["codigo"], competencia=str(comp),
-                     **(execucao_kw or {})) as ex:
+    juiz = next((m for m in cfg.modelos_permitidos if ia.e_modelo_de_decisao(m)), None)
+    if not juiz:
+        raise RuntimeError("Nenhum modelo de decisão (ex.: typesafe/jev-1.13) em IA_MODELOS_PERMITIDOS.")
+    texto = [m for m in cfg.modelos_permitidos if not ia.e_modelo_de_decisao(m)]
+    modelos = {"juiz": juiz, "pesquisador": os.environ.get("IA_MODELO_PESQUISADOR") or texto[-1]}
+    kw = dict(execucao_kw or {})
+    criar_modelo = kw.pop("criar_modelo", None) or (lambda papel: ia.modelo_openrouter(cfg, modelos[papel], papel))
+    baixar, dormir = kw.pop("baixar", _baixar), kw.pop("dormir", time.sleep)
+    post = kw.pop("post_decisoes", None)
+    with ia.Execucao(cfg, modelos, territorio=fatos["territorio"]["codigo"], competencia=str(comp), **kw) as ex:
+        if post:
+            ex.post_decisoes = post
         triadas = triar(ex, candidatas, fatos)
+        relevantes = [t for t in triadas if t["relevante"]]
+        evid = pesquisar(ex, criar_pesquisador(criar_modelo("pesquisador")), relevantes, fatos, baixar, dormir)
     return {
         "competencia": str(comp),
         "gerado_em": gerado_em.isoformat(),
@@ -226,7 +399,9 @@ def gerar_evidencias(fatos: dict, warehouse: Path, cfg: ia.ConfigIA, gerado_em: 
         "noticias_no_periodo": len(noticias),
         "candidatas_por_codigo": len(candidatas),
         "limiar_emprego": LIMIAR_EMPREGO,
+        "limiar_hipotese": LIMIAR_HIPOTESE,
         "triadas": triadas,
+        "evidencias": evid,
     }
 
 
@@ -246,6 +421,7 @@ def main():
     destino.write_text(json.dumps(r, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
     print(json.dumps({k: r[k] for k in ("janelas", "noticias_no_periodo", "candidatas_por_codigo")}
                      | {"relevantes": [(t["janela"], t["publicado_em"][:10], t["titulo"][:80]) for t in r["triadas"] if t["relevante"]],
+                        "evidencias": [(e["janela"], e["data"], e["fato"][:120], e["apoia_hipotese"]) for e in r["evidencias"]],
                         "arquivo": str(destino)}, ensure_ascii=False, indent=2))
 
 

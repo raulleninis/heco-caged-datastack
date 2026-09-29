@@ -410,6 +410,7 @@ O boletim com IA em si (analista → redator → revisor) fica **aguardando apro
 
 ```bash
 docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607   # --refazer para gerar de novo
+docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607 --com-evidencias   # com notícias (parte 4)
 ```
 
 O flow diário também coleta notícias dos feeds de `pipeline/perfis/fontes_noticias.toml` em
@@ -614,6 +615,7 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
   - [x] Fatos por código: fluxo reconciliado por subgrupamento e divisão CNAE, perfil das admissões, região, acumulados e gatilhos
   - [x] Cliente OpenRouter no PydanticAI com limites de uso, registro mensal de custo (US$ 2/mês) e modelos permitidos
   - [x] Agentes (analista, redator, revisor) e verificador de números; o pesquisador entra com as evidências externas
-  - [ ] Evidências externas: coletor diário de notícias (feito); triagem pelo Jev, pesquisador, IBGE e Banco Central (a seguir)
+  - [x] Evidências externas: coletor diário, triagem pelo Jev, pesquisador, leituras relacionadas
+  - [ ] Indicadores oficiais por API (IBGE, Banco Central)
   - [ ] Aprovação humana antes do envio
   - [ ] Comparação prática de modelos

@@ -162,6 +162,22 @@ tickets).
   errou a campanha de esgoto. Perguntas e limiares precisam de calibração com casos rotulados
   (parte 6); as triagens gravadas em /data/ia/evidencias/ são o início desse conjunto.
 
+**Pesquisador e evidências no boletim (feitos, 29/09/2026):**
+- O texto das notícias relevantes é lido por código (parágrafos, robots.txt, 2 s por host) e
+  nunca republicado. O pesquisador (LLM barato) extrai um fato por notícia; o validador exige
+  que todo número do fato esteja escrito no texto da notícia.
+- O Jev julga as evidências da janela da competência: período, setor e direção compatíveis com
+  o saldo do CAGED. Só acima de 0,7 a evidência pode virar UMA hipótese nos pontos de atenção.
+  Evidência recente só vira algo a acompanhar, com fonte e data.
+- "Leituras relacionadas" gerada por código a partir da triagem. Conteúdo patrocinado
+  (especial publicitário, publieditorial) fica de fora por código.
+- O verificador aceita os números das notícias (unidade "fonte") e mascara datas ("20 de
+  setembro"), que não são dado.
+- Execução real completa (202607, geração em 29/09): nenhuma evidência extraída, e com razão:
+  a única notícia triada como relevante era publicidade (daí a exclusão acima). O fluxo
+  funciona; o conteúdo depende do arquivo de notícias, que só cobre a janela da competência a
+  partir de outubro de 2026. Gasto acumulado no mês com todas as execuções: US$ 0,18.
+
 **Coletor diário (feito, 29/09/2026):** `flows/noticias.py`, no início do flow diário.
 - Fontes avaliadas: Sebrae SE, Faxaju, Infonet e InfoMoney têm RSS; Observatório FIES e
   Fecomércio SE não têm (ficam para a busca na web restrita, se o plugin permitir); a lista da

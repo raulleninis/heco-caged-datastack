@@ -340,5 +340,10 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   acompanhar); seleção por código e triagem pelo Jev (`Execucao.decidir`, papel `juiz`,
   endpoint /api/alpha/decisions, teto 60 decisões). Jev é sensível à redação: calibrar com
   casos rotulados, não por intuição. Preço −1 (variável) = recusado
+- Pesquisador (`evidencias.pesquisar`): lê o texto por código, extrai um fato por notícia; número
+  do fato tem de estar no texto. Jev julga compatibilidade (só janela competência, limiar 0,7)
+  -> `apoia_hipotese`. Boletim: `--com-evidencias`; hipótese só com apoia_hipotese, recente só
+  como "acompanhar"; "Leituras relacionadas" por código; patrocinado excluído; datas mascaradas
+  no verificador
 - Decisões editoriais (29/09/2026): hipóteses fora até existir evidência externa, depois só
   em "Pontos de atenção"; percentuais com 2 casas decimais

@@ -28,6 +28,7 @@ Uso:
 """
 
 import argparse
+import hashlib
 import json
 import os
 from dataclasses import dataclass, field
@@ -40,18 +41,12 @@ from pydantic_ai import Agent, ModelRetry, RunContext
 
 import fatos as fatos_mod
 import ia
-from verificador import avisos_de_estilo, formatar_milhares, rotulos_dos_fatos, verificar_texto
+from verificador import _decimal, avisos_de_estilo, formatar_milhares, rotulos_dos_fatos, verificar_texto
 
 # Avisos de estilo que, sozinhos, justificam uma segunda versão do redator (~US$ 0,02).
 AVISOS_PARA_NOVA_VERSAO = 3
 
-# Modelos que devolvem decisões tipadas, não texto (ex.: typesafe/jev-1.13). Não servem para
-# os papéis deste módulo; entram na 3b-2 como juiz de afirmações.
-PREFIXOS_MODELOS_DE_DECISAO = ("typesafe/",)
-
-
-def e_modelo_de_decisao(modelo: str) -> bool:
-    return modelo.startswith(PREFIXOS_MODELOS_DE_DECISAO)
+e_modelo_de_decisao = ia.e_modelo_de_decisao  # modelos de decisão (Jev) não redigem
 
 
 # --- saídas tipadas ---------------------------------------------------------------------------
@@ -120,13 +115,21 @@ class Parecer(BaseModel):
 
 @dataclass
 class Contexto:
-    """deps dos agentes: a tabela de números, os rótulos aceitos e o registro das rejeições."""
+    """deps dos agentes: a tabela de números, os rótulos aceitos e o registro das rejeições.
+    Números citados nas evidências (notícias) entram na verificação como unidade "fonte"."""
     fatos: dict
+    evidencias: list[dict] = field(default_factory=list)
     rejeicoes: list[list[str]] = field(default_factory=list)
 
     @property
     def numeros(self) -> dict:
-        return self.fatos["numeros"]
+        extras = {}
+        for i, e in enumerate(self.evidencias):
+            for j, bruto in enumerate(e.get("numeros", [])):
+                valor = _decimal(str(bruto).strip().rstrip("%"))
+                if valor is not None:
+                    extras[f"evidencia.{i}.{j}"] = {"valor": str(valor), "unidade": "fonte", "descricao": e["fonte"]}
+        return {**self.fatos["numeros"], **extras}
 
     @property
     def rotulos(self) -> list[str]:
@@ -149,6 +152,13 @@ Regras obrigatórias:
 - Salário: a mediana é a referência. A comparação com o ano anterior é NOMINAL (sem correção
   pela inflação): diga isso. A média não precisa aparecer.
 - Categorias com `base_pequena` ou `sem_identificacao` não são interpretadas; vão para a nota.
+- Evidências externas (notícias), quando houver, SEMPRE com fonte e data no texto:
+  - janela "recente": só como algo a acompanhar nos pontos de atenção ("segundo o g1, em 25 de
+    setembro, ..."). Nunca como explicação do mês do boletim, que é anterior;
+  - janela "competencia" com `apoia_hipotese` = true: pode virar UMA hipótese nos pontos de
+    atenção, começando por "Hipótese:", sem quantificar efeito sobre o saldo;
+  - demais evidências: não use no texto (ficam nas leituras relacionadas).
+  Números de uma notícia só com a atribuição ("segundo a Infonet, 300 vagas").
 """
 
 EDITORIAL = """\
@@ -271,13 +281,27 @@ def tabelas(fatos: dict) -> str:
     return "\n".join(md) + "\n"
 
 
-def markdown(boletim: Boletim, fatos: dict) -> str:
+def leituras(evidencias: dict | None) -> str:
+    """Leituras relacionadas (alternativa 3): as notícias relevantes, com link, sem afirmação.
+    Geradas por código a partir da triagem."""
+    if not evidencias:
+        return ""
+    itens = [t for t in evidencias.get("triadas", []) if t.get("relevante")]
+    if not itens:
+        return ""
+    md = ["## Leituras relacionadas", ""]
+    for t in sorted(itens, key=lambda t: t["publicado_em"], reverse=True):
+        md.append(f"- [{t['titulo']}]({t['link']}), {t.get('veiculo') or t['fonte']}, {t['publicado_em'][:10]}")
+    return "\n".join(md) + "\n"
+
+
+def markdown(boletim: Boletim, fatos: dict, evidencias: dict | None = None) -> str:
     md = [f"# {boletim.titulo}", "", boletim.sintese, ""]
     for titulo, paragrafos in boletim.secoes():
         md += [f"## {titulo}", "", *[p + "\n" for p in paragrafos]]
     if boletim.pontos_de_atencao:
         md += ["## Pontos de atenção", ""] + [f"- {p}" for p in boletim.pontos_de_atencao] + [""]
-    md += [tabelas(fatos), "## Nota metodológica", "", boletim.nota_metodologica, ""]
+    md += [tabelas(fatos), leituras(evidencias), "## Nota metodológica", "", boletim.nota_metodologica, ""]
     return "\n".join(md)
 
 
@@ -306,13 +330,17 @@ def _fatos_para_prompt(f: dict) -> str:
 
 def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_modelo=None,
           precos: ia.Precos | None = None, registro: ia.RegistroCustos | None = None,
-          refazer: bool = False) -> dict:
+          refazer: bool = False, evidencias: dict | None = None) -> dict:
     """Gera (ou reaproveita) o boletim com IA de um JSON de fatos. Devolve o resultado gravado."""
     decisao = {p: m for p, m in modelos.items() if e_modelo_de_decisao(m)}
     if decisao:
         raise ValueError(f"Modelos de decisão não redigem texto: {decisao}. Use-os como juiz (3b-2).")
     territorio, competencia = fatos["territorio"]["codigo"], fatos["competencia"]
-    pasta = cfg.pasta / "boletins" / f"{territorio}_{competencia}" / fatos["hash"][:16]
+    chave = fatos["hash"][:16]
+    lista_evid = (evidencias or {}).get("evidencias", [])
+    if evidencias:
+        chave += "_" + hashlib.sha256(json.dumps(evidencias, sort_keys=True, default=str).encode()).hexdigest()[:8]
+    pasta = cfg.pasta / "boletins" / f"{territorio}_{competencia}" / chave
     arquivo = pasta / "resultado.json"
     if arquivo.exists() and not refazer:
         resultado = json.loads(arquivo.read_text(encoding="utf-8"))
@@ -322,17 +350,23 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
 
     criar_modelo = criar_modelo or (lambda papel: ia.modelo_openrouter(cfg, modelos[papel], papel))
     agentes = criar_agentes(criar_modelo)
-    contexto = Contexto(fatos)
+    contexto = Contexto(fatos, lista_evid)
     with ia.Execucao(cfg, modelos, precos=precos, registro=registro,
                      territorio=territorio, competencia=competencia) as ex:
         base = _fatos_para_prompt(fatos)
         analise: Analise = ex.rodar(agentes["analista"], "analista", f"Fatos do mês (JSON):\n{base}", deps=contexto)
+        if lista_evid:
+            bloco_evid = ("Evidências externas (notícias; siga as regras de janela):\n"
+                          + _json([{k: e.get(k) for k in ("fato", "numeros", "fonte", "data", "janela", "apoia_hipotese", "setor", "territorio")}
+                                   for e in lista_evid]))
+        else:
+            bloco_evid = "Evidências externas: nenhuma. Não cite fontes externas nem acontecimentos."
         pedido = (f"Fatos do mês (JSON):\n{base}\n\nAnálise do analista (JSON):\n{analise.model_dump_json(indent=2)}\n\n"
-                  "Evidências externas: nenhuma nesta versão. Não cite fontes externas nem acontecimentos.")
+                  + bloco_evid)
         boletim: Boletim = ex.rodar(agentes["redator"], "redator", pedido, deps=contexto)
         estilo = avisos_de_estilo(boletim.texto())
         parecer: Parecer = ex.rodar(agentes["revisor"], "revisor",
-                                    f"Fatos completos (JSON):\n{base}\n\nBoletim (JSON):\n{boletim.model_dump_json(indent=2)}\n\n"
+                                    f"Fatos completos (JSON):\n{base}\n\n{bloco_evid}\n\nBoletim (JSON):\n{boletim.model_dump_json(indent=2)}\n\n"
                                     f"Avisos de estilo do verificador:\n{_json(estilo)}")
         versoes = 1
         # Segunda versão: problema grave do revisor OU estilo com vários avisos (a convenção de
@@ -347,7 +381,7 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
         execucao_id = ex.id
 
     boletim = boletim.com_milhares()
-    problemas = verificar_texto(boletim.texto(), fatos["numeros"], contexto.rotulos)
+    problemas = verificar_texto(boletim.texto(), contexto.numeros, contexto.rotulos)
     reprovado = any(p["tipo"] == "numero_fora_dos_fatos" for p in problemas)
     resultado = {
         "territorio": territorio,
@@ -363,11 +397,12 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
         "avisos_de_estilo": avisos_de_estilo(boletim.texto()),
         "parecer_revisor": parecer.model_dump(),
         "analise": analise.model_dump(),
+        "evidencias_usadas": lista_evid,
         "boletim": boletim.model_dump(),
     }
     pasta.mkdir(parents=True, exist_ok=True)
     (pasta / "fatos.json").write_text(_json(fatos) + "\n", encoding="utf-8")
-    (pasta / "boletim.md").write_text(markdown(boletim, fatos), encoding="utf-8")
+    (pasta / "boletim.md").write_text(markdown(boletim, fatos, evidencias), encoding="utf-8")
     arquivo.write_text(_json(resultado) + "\n", encoding="utf-8")
     resultado["pasta"] = str(pasta)
     return resultado
@@ -379,11 +414,18 @@ def main():
     ap.add_argument("competencia")
     ap.add_argument("--warehouse", default="/data/warehouse/caged.duckdb")
     ap.add_argument("--refazer", action="store_true", help="gera de novo mesmo com resultado para estes fatos")
+    ap.add_argument("--com-evidencias", action="store_true", help="seleciona, tria e pesquisa notícias (parte 4)")
+    ap.add_argument("--gerado-em", default=datetime.now(timezone.utc).date().isoformat())
     a = ap.parse_args()
     cfg = ia.ConfigIA.do_ambiente()
     f = fatos_mod.gerar_fatos(Path(a.warehouse), a.territorio, a.competencia)
     try:
-        r = gerar(f, cfg, modelos_do_ambiente(cfg), refazer=a.refazer)
+        evid = None
+        if a.com_evidencias:
+            import evidencias as evidencias_mod
+            from datetime import date
+            evid = evidencias_mod.gerar_evidencias(f, Path(a.warehouse), cfg, date.fromisoformat(a.gerado_em))
+        r = gerar(f, cfg, modelos_do_ambiente(cfg), refazer=a.refazer, evidencias=evid)
     except ia.OrcamentoExcedido as e:
         raise SystemExit(f"Recusado pelo orçamento: {e}")
     except Exception as e:

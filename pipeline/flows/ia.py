@@ -56,6 +56,15 @@ class ModeloNaoPermitido(ValueError):
     pass
 
 
+# Modelos que devolvem decisões tipadas, não texto (ex.: typesafe/jev-1.13): só servem ao papel
+# "juiz", nunca aos papéis que redigem.
+PREFIXOS_MODELOS_DE_DECISAO = ("typesafe/",)
+
+
+def e_modelo_de_decisao(modelo: str) -> bool:
+    return modelo.startswith(PREFIXOS_MODELOS_DE_DECISAO)
+
+
 class LimiteDeDecisoes(RuntimeError):
     """Teto de chamadas (ou de tamanho) do modelo de decisão atingido nesta execução."""
 

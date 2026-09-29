@@ -86,11 +86,16 @@ def _mascarar_rotulos(texto: str, rotulos) -> str:
     return texto
 
 
+_MESES = "janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro"
+_DATA = re.compile(rf"\b\d{{1,2}}º?\s+de\s+(?:{_MESES})\b|\b\d{{1,2}}/\d{{1,2}}(?:/\d{{2,4}})?\b", re.IGNORECASE)
+
+
 def verificar_texto(texto: str, numeros: dict, rotulos=()) -> list[dict]:
-    """Problemas do texto: números fora da tabela de fatos e possíveis identificações de empresa."""
+    """Problemas do texto: números fora da tabela de fatos e possíveis identificações de empresa.
+    Datas ("20 de setembro", "20/09/2026") não são dado: são mascaradas antes da checagem."""
     aceitos, em_mil = permitidos(numeros)
     problemas = []
-    texto = _mascarar_rotulos(texto, rotulos)
+    texto = _DATA.sub("‹data›", _mascarar_rotulos(texto, rotulos))
     for m in _NUMERO.finditer(texto):
         valor = _decimal(m.group())
         if valor is None:
