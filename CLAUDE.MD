@@ -350,5 +350,10 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   bytes) e o envio confere o sha256 aprovado; estado local em estado.json ao lado do resultado
   e, no envio, no envios.json do arquivo com a chave `ia-AAAAMM` (garantias da F15).
   Reprovado no verificador não vai à revisão. Nada automático
+- Indicadores (`flows/indicadores.py`, anexados por padrão no boletim_ia): Pix por município
+  (Olinda TransacoesPixPorMunicipio; DataBase=M devolve meses >= M, filtrar AnoMes; código
+  IBGE de 7 dígitos = 6 do CAGED + dígito verificador) com leitura RELATIVA (adoção do Pix);
+  Selic (SGS 432) só com Construção/Comércio em destaque; dólar fora. Cache em
+  /data/ia/indicadores/; falha de rede não derruba (fica em `indicadores_ausentes`)
 - Decisões editoriais (29/09/2026): hipóteses fora até existir evidência externa, depois só
   em "Pontos de atenção"; percentuais com 2 casas decimais

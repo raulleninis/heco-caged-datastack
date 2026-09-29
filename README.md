@@ -382,7 +382,7 @@ arquivo foi de fato publicado só se confirma logado.
 ### 6. Testes do projeto
 
 ```bash
-# Python: 150 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos e proteções de gasto do boletim com IA). Sem rede e sem Prefect rodando
+# Python: 156 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos e proteções de gasto do boletim com IA). Sem rede e sem Prefect rodando
 docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -B -m unittest discover -s /app/tests -v
 
 # dbt: testes de qualidade sobre o warehouse real (inclui 2 testes unitários do estoque)
@@ -439,7 +439,11 @@ Precisa dos marts da F19 (`mart_fluxo`, `mart_perfil_movimentacoes`, `mart_estoq
 `mart_salario_admissao`), que o flow cria no próximo `dbt run` dos marts. Limiares dos gatilhos em
 `pipeline/perfis/<territorio>.toml`.
 
-O boletim com IA em si (analista → redator → revisor) fica **aguardando aprovação**; nada é enviado:
+O boletim com IA em si (analista → redator → revisor) fica **aguardando aprovação**; nada é enviado.
+Por padrão ele acrescenta aos fatos os indicadores do Banco Central (`flows/indicadores.py`): **Pix por
+município** (empresas que receberam Pix e valor recebido, em leitura relativa município × região × UF) e a
+**Selic** só quando Construção ou Comércio estão em destaque. Sem rede, o indicador fica de fora; `--sem-indicadores`
+desliga:
 
 ```bash
 docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607   # --refazer para gerar de novo
@@ -545,9 +549,10 @@ mantendo o pico em ~500 MB (medido: 405 MiB por arquivo MOV com limite de 830 Mi
 │   │   ├── verificador.py        # todo número do texto tem de estar nos fatos (F19 parte 3)
 │   │   ├── noticias.py           # coletor diário de feeds RSS para o boletim com IA (F19 parte 4)
 │   │   ├── evidencias.py         # seleção por janela, triagem pelo Jev e pesquisador (F19 parte 4)
-│   │   └── entrega_ia.py         # revisão pelos admins, aprovação e envio do boletim com IA (F19 parte 5)
+│   │   ├── entrega_ia.py         # revisão pelos admins, aprovação e envio do boletim com IA (F19 parte 5)
+│   │   └── indicadores.py        # Pix por município e Selic (Banco Central) nos fatos (F19 parte 4)
 │   ├── perfis/                   # perfil econômico por território e fontes de notícias (F19)
-│   └── tests/                    # 150 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
+│   └── tests/                    # 156 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
 ├── dbt/
 │   ├── macros/caged.sql          # colunas, CAST e grupamento compartilhados pelas 3 staging
 │   ├── macros/estoque.sql        # efeito no saldo (MOV +, FOR +, EXC −), usado pelo estoque (F16)
@@ -654,6 +659,6 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
   - [x] Cliente OpenRouter no PydanticAI com limites de uso, registro mensal de custo (US$ 2/mês) e modelos permitidos
   - [x] Agentes (analista, redator, revisor) e verificador de números; o pesquisador entra com as evidências externas
   - [x] Evidências externas: coletor diário, triagem pelo Jev, pesquisador, leituras relacionadas
-  - [ ] Indicadores oficiais por API (IBGE, Banco Central)
+  - [x] Indicadores oficiais: Pix por município e Selic (Banco Central), notícias do IBGE
   - [x] Aprovação humana antes do envio: rascunho aos administradores, aprovação com nome, envio do mesmo PDF
   - [ ] Comparação prática de modelos

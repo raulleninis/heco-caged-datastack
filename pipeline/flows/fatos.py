@@ -225,10 +225,14 @@ def gerar_fatos(warehouse: Path, territorio: str, competencia: str | int,
 
     fatos["gatilhos"] = _gatilhos(fatos, limiares)
     fatos["numeros"] = n.tabela
-    fatos["hash"] = hashlib.sha256(
-        json.dumps(fatos, sort_keys=True, ensure_ascii=False, default=str).encode()
-    ).hexdigest()
+    fatos["hash"] = hash_dos_fatos(fatos)
     return fatos
+
+
+def hash_dos_fatos(fatos: dict) -> str:
+    """Hash do conteúdo (sem o próprio campo `hash`): mesmos fatos, mesmo resultado reaproveitado."""
+    return hashlib.sha256(json.dumps({k: v for k, v in fatos.items() if k != "hash"}, sort_keys=True,
+                                     ensure_ascii=False, default=str).encode()).hexdigest()
 
 
 def _panorama(con, n, territorio, comp, serie, lim) -> dict:

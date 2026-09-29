@@ -55,7 +55,7 @@ def permitidos(numeros: dict) -> tuple[set[Decimal], set[Decimal]]:
             continue
         v = abs(Decimal(str(v)))
         unidade = item["unidade"]
-        if unidade in ("pct", "pp"):
+        if unidade in ("pct", "pp", "brl_milhoes"):
             aceitos |= {_arredondar(v, c) for c in (0, 1, 2)}
         elif unidade == "brl":
             aceitos |= {_arredondar(v, 2), _arredondar(v, 0)}

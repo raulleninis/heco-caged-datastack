@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | 🟡 em andamento: partes 1 a 5 ✅ (29/09/2026); faltam indicadores oficiais, 3b-2 e parte 6 |
+| **Status** | 🟡 em andamento: partes 1 a 5 ✅ (29/09/2026); faltam 3b-2 e parte 6 |
 | **Esforço** | XL, em partes independentes |
 | **Fase** | produção / vitrine |
 | **Depende de** | [F16](F16-estoque-a-partir-do-marco-zero.md) (estoque e territórios), [F15](F15-entrega-por-email-e-arquivo.md) (arquivo e envio) |
@@ -161,6 +161,19 @@ tickets).
   pergunta: ao incluir "CLT; estatutário não conta", acertou os professores da rede pública e
   errou a campanha de esgoto. Perguntas e limiares precisam de calibração com casos rotulados
   (parte 6); as triagens gravadas em /data/ia/evidencias/ são o início desse conjunto.
+
+**Indicadores oficiais (feitos, 29/09/2026):** `flows/indicadores.py`, a pedido do usuário.
+- Pix por município (Banco Central): o único dado de atividade econômica do próprio município,
+  mensal e publicado antes do CAGED (em 29/09 já ia até setembro). Empresas que receberam Pix e
+  valor recebido por empresas, em município, região e UF, com a variação em 12 meses e a
+  diferença do município para a UF em pontos percentuais, tudo por código. Em Socorro, julho de
+  2026: 5.184 empresas, +21,75% em 12 meses, 3,66 pontos acima de Sergipe (a adoção do Pix
+  explica boa parte da alta: por isso a leitura é relativa).
+- Selic só com Construção ou Comércio em destaque; dólar fora (Socorro não tem cadeia
+  exportadora relevante). IBGE: só a API de notícias (no coletor); os demais dados não descem
+  a município ou saem com pouca frequência.
+- Execução real em produção (202607): o Pix entrou nos pontos de atenção com leitura relativa e
+  os cuidados na nota metodológica; nenhum número reprovado no final.
 
 **Pesquisador e evidências no boletim (feitos, 29/09/2026):**
 - O texto das notícias relevantes é lido por código (parágrafos, robots.txt, 2 s por host) e

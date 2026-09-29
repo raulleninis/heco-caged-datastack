@@ -226,7 +226,9 @@ explicações extraordinárias.
 | Novo CAGED municipal | Movimentações, saldos, estoque reconstituído e características dos vínculos | Mensal; registrar extração e ajustes |
 | Histórico municipal consolidado | Sazonalidade, tendência e comparações interanuais | A cada divulgação |
 | Painel do MTE (coletor) | Marco zero do estoque e conferência da série | Na implantação e ao adicionar território |
-| IBGE, Banco Central e fontes setoriais | Contexto econômico das atividades selecionadas; busca por código (APIs oficiais) sempre que existir | Conforme disponibilidade |
+| Banco Central: Pix por município | Aproximação da atividade das empresas LOCAIS (empresas recebedoras e valor recebido), sempre em leitura relativa (município × região × UF), porque o Pix ainda cresce por adoção; nominal; município do cadastro da conta | Mensal, publicado antes do CAGED |
+| Banco Central: Selic | Contexto só quando Construção ou Comércio estão em destaque; nunca causa | Mensal |
+| IBGE: API de notícias e releases | Evidência de escala estadual ou nacional (os demais dados do IBGE não descem a município ou saem com pouca frequência) | Conforme divulgação |
 | Fontes públicas locais, regionais e nacionais | Acontecimentos locais e externos, conforme noticiados | Quando houver fato relevante |
 | Comex Stat e fontes internacionais | Comércio exterior e preços, se a cadeia local justificar | Condicional |
 

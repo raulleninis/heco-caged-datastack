@@ -151,6 +151,21 @@ def gerar_pdf(pasta: Path) -> Path:
                 for k in ("taxa_mes", "taxa_12_meses"):
                     val = x[k]["valor"]
                     linha.cell("-" if val is None else boletim.fmt_num(val) + "%")
+    pix = (f.get("indicadores_externos") or {}).get("pix")
+    if pix:
+        titulo(f"Pix por município (Banco Central), {pix['competencia']}")
+        pdf.set_font("Helvetica", size=8)
+        with pdf.table(col_widths=(62, 28, 36, 28, 32), text_align=("LEFT",) + ("RIGHT",) * 4, line_height=4.5) as tab:
+            linha = tab.row()
+            for cab in ("Território", "Empresas", f"Var. desde {pix['comparado_com']}", "R$ milhões", "Var. nominal"):
+                linha.cell(_t(cab))
+            for x in pix["recortes"]:
+                linha = tab.row()
+                linha.cell(_t(x["nome"]))
+                linha.cell(boletim.fmt_int(x["empresas_recebedoras"]["valor"]))
+                linha.cell(boletim.fmt_num(x["variacao_empresas_12m"]["valor"]) + "%")
+                linha.cell(boletim.fmt_num(x["valor_recebido_milhoes"]["valor"], 1))
+                linha.cell(boletim.fmt_num(x["variacao_valor_12m"]["valor"]) + "%")
     if r.get("leituras"):
         titulo("Leituras relacionadas")
         pdf.set_font("Helvetica", size=8)

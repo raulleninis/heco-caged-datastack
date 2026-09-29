@@ -152,6 +152,12 @@ Regras obrigatórias:
 - Salário: a mediana é a referência. A comparação com o ano anterior é NOMINAL (sem correção
   pela inflação): diga isso. A média não precisa aparecer.
 - Categorias com `base_pequena` ou `sem_identificacao` não são interpretadas; vão para a nota.
+- Indicadores externos (`indicadores_externos`), quando houver:
+  - Pix por município: aproximação da atividade das empresas locais, NUNCA do emprego. Leitura
+    sempre RELATIVA (município contra região e estado; `diferenca_empresas_vs_uf_pp`), porque o
+    Pix ainda cresce por adoção. Valores nominais. Cite a fonte (Banco Central) e diga que é
+    aproximação. Os cuidados vão para a nota metodológica;
+  - Selic: só como contexto para os setores sensíveis a crédito em destaque; nunca como causa.
 - Evidências externas (notícias), quando houver, SEMPRE com fonte e data no texto:
   - janela "recente": só como algo a acompanhar nos pontos de atenção ("segundo o g1, em 25 de
     setembro, ..."). Nunca como explicação do mês do boletim, que é anterior;
@@ -269,6 +275,14 @@ def tabelas(fatos: dict) -> str:
         for b in blocos:
             md.append(f"| {b['nome']} | {_int(_v(b, 'saldo'))} | {_qtd(_v(b, 'estoque'))} | "
                       f"{_pct(_v(b, 'taxa_mes'))} | {_pct(_v(b, 'taxa_12_meses'))} |")
+    pix = (fatos.get("indicadores_externos") or {}).get("pix")
+    if pix:
+        md += ["", f"### Pix por município (Banco Central): empresas recebedoras e valor recebido, {pix['competencia']}", "",
+               f"| território | empresas | variação desde {pix['comparado_com']} | R$ milhões | variação nominal |",
+               "|---|---:|---:|---:|---:|"]
+        for x in pix["recortes"]:
+            md.append(f"| {x['nome']} | {_qtd(_v(x, 'empresas_recebedoras'))} | {_pct(_v(x, 'variacao_empresas_12m'))} | "
+                      f"{str(_v(x, 'valor_recebido_milhoes')).replace('.', ',')} | {_pct(_v(x, 'variacao_valor_12m'))} |")
     for dim, titulo in (("sexo", "Admissões por sexo"), ("faixa_etaria", "Admissões por faixa etária")):
         cats = fatos["perfil"].get(dim) or {}
         if not cats:
@@ -419,9 +433,13 @@ def main():
     ap.add_argument("--refazer", action="store_true", help="gera de novo mesmo com resultado para estes fatos")
     ap.add_argument("--com-evidencias", action="store_true", help="seleciona, tria e pesquisa notícias (parte 4)")
     ap.add_argument("--gerado-em", default=datetime.now(timezone.utc).date().isoformat())
+    ap.add_argument("--sem-indicadores", action="store_true", help="não busca Pix e Selic no Banco Central")
     a = ap.parse_args()
     cfg = ia.ConfigIA.do_ambiente()
     f = fatos_mod.gerar_fatos(Path(a.warehouse), a.territorio, a.competencia)
+    if not a.sem_indicadores:
+        import indicadores
+        f = indicadores.anexar(f, Path(a.warehouse))
     try:
         evid = None
         if a.com_evidencias:
