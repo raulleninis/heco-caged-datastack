@@ -53,10 +53,6 @@ class Verificador(unittest.TestCase):
         achados = [p["numero"] for p in verificar_texto(texto, NUMEROS)]
         self.assertEqual(achados, ["84", "0,5", "1.700", "30 mil"])
 
-    def test_datas_nao_sao_dado(self):
-        self.assertEqual(verificar_texto("Em 20 de setembro e em 25/09/2026, e no 1º de julho.", NUMEROS), [])
-        self.assertEqual([p["numero"] for p in verificar_texto("Foram 20 vagas.", NUMEROS)], ["20"])
-
     def test_numero_de_rotulo_so_vale_na_posicao_do_rotulo(self):
         rotulos = ["18 a 24", "65 ou mais", "Até 17"]
         ok = "Na faixa de 18 a 24 anos e na de 65 anos ou mais, e até 17 anos."
@@ -194,22 +190,6 @@ class Fluxo(unittest.TestCase):
         res = self.gerar(r)
         self.assertEqual(res["boletim"]["panorama"], ["Estoque de 25.439."])
         self.assertEqual(res["situacao"], "aguardando_aprovacao")
-
-    def test_evidencias_numeros_da_fonte_e_leituras(self):
-        evid = {"triadas": [{"relevante": True, "titulo": "Call center abre vagas", "link": "https://ex.com/a",
-                             "fonte": "g1 Sergipe", "publicado_em": "2026-09-20T12:00:00+00:00"}],
-                "evidencias": [{"fato": "Anunciou 300 vagas.", "numeros": ["300"], "fonte": "g1 Sergipe",
-                                "data": "2026-09-20", "janela": "recente", "apoia_hipotese": False}]}
-        com_fonte = {**boletim(), "pontos_de_atencao": ["Segundo o g1, em 20 de setembro, 300 vagas foram anunciadas."]}
-        r = Roteiro(analista=[analise()], redator=[com_fonte], revisor=[parecer()])
-        res = self.gerar(r, evidencias=evid)
-        self.assertEqual(res["situacao"], "aguardando_aprovacao")   # 300 vem da notícia, não é inventado
-        md = (Path(res["pasta"]) / "boletim.md").read_text()
-        self.assertIn("## Leituras relacionadas", md)
-        self.assertIn("[Call center abre vagas](https://ex.com/a), g1 Sergipe, 2026-09-20", md)
-        # os mesmos fatos sem evidências são outro resultado (outra pasta)
-        sem = self.gerar(Roteiro(analista=[analise()], redator=[boletim()], revisor=[parecer()]))
-        self.assertNotEqual(sem["pasta"], res["pasta"])
 
     def test_revisor_que_falha_nao_derruba_o_boletim(self):
         invalido = {"resumo": "x", "problemas": [{"tipo": "estilo", "gravidade": "altissima", "trecho": "a", "sugestao": "b"}]}

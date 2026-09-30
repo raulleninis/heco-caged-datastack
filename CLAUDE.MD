@@ -292,14 +292,14 @@ Todas filtram:
 
 ## Boletim com IA (F19, em andamento)
 docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/09/2026:
-- PydanticAI (não CrewAI), OpenRouter, quatro agentes (analista, pesquisador, redator,
-  revisor) em sequência fixa no código, com `UsageLimits` compartilhado (inclui
+- PydanticAI (não CrewAI), OpenRouter, agentes (analista, redator, revisor; advisor e Jev
+  como juiz) em sequência fixa no código, com `UsageLimits` compartilhado (inclui
   `cost_limit`). Orçamento US$ 2/mês, também como limite da chave na OpenRouter
 - Números nunca calculados pelo LLM: fatos por código (parte 1), cada número com id; o
   verificador de números é o `output_validator` do redator
 - Sem NL2SQL: o analista só usa consultas fixas, numa cópia do warehouse `read_only`
 - Análise setorial; desagregação (subgrupamento, divisão CNAE) só quando relevante;
-  nunca empresa. Acontecimentos conforme noticiados, com fonte; ligação = hipótese
+  nunca empresa. Sem notícias nem hipóteses: o boletim descreve, não explica
 - Aprovação humana antes do envio; o boletim com IA nunca sai sozinho
 - Vive no produto neutro (F18); o resultado de Socorro fica na instância
 - Parte 1 (fatos) feita: marts `mart_fluxo` (território × competência × grupamento ×
@@ -329,22 +329,11 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   (`--refazer` força). Modelos: IA_MODELO_<PAPEL>, ou 1º permitido = redator e último =
   analista/revisor. Chave com limite VITALÍCIO na OpenRouter, reajustado à mão todo mês
   (decisão do usuário: limita perda em vazamento); 401/402/403 viram mensagem clara
-- Parte 4 começou pelo coletor de notícias (`flows/noticias.py`), task `coletar_noticias` no
-  INÍCIO do flow diário, que nunca falha (feed esquece em dias; um dia de FTP fora do ar não
-  pode custar as notícias). Só feeds RSS/Atom de `pipeline/perfis/fontes_noticias.toml`
-  (instância); grava /data/noticias/AAAA-MM.jsonl (mês em UTC), dedup por link; robots.txt e
-  intervalo por host; 3 falhas seguidas de uma fonte = alerta `low`. Tolera documentos XML
-  colados (feed do Sebrae SE). /data/noticias NÃO se regenera (ressalva na D03)
-- Evidências (`flows/evidencias.py`): janelas "competencia" (mês anterior até 15 dias após a
-  competência; só ela sustenta hipótese) e "recente" (30 dias antes da geração; só sinal para
-  acompanhar); seleção por código e triagem pelo Jev (`Execucao.decidir`, papel `juiz`,
-  endpoint /api/alpha/decisions, teto 60 decisões). Jev é sensível à redação: calibrar com
-  casos rotulados, não por intuição. Preço −1 (variável) = recusado
-- Pesquisador (`evidencias.pesquisar`): lê o texto por código, extrai um fato por notícia; número
-  do fato tem de estar no texto. Jev julga compatibilidade (só janela competência, limiar 0,7)
-  -> `apoia_hipotese`. Boletim: `--com-evidencias`; hipótese só com apoia_hipotese, recente só
-  como "acompanhar"; "Leituras relacionadas" por código; patrocinado excluído; datas mascaradas
-  no verificador
+- Notícias REMOVIDAS em 30/09/2026 (coletor, evidências, pesquisador, "Leituras
+  relacionadas", `--com-evidencias`): o boletim usa só os fatos e os indicadores oficiais.
+  Ficou do trabalho o Jev (`Execucao.decidir`, papel `juiz`, endpoint /api/alpha/decisions,
+  teto 60 decisões); é sensível à redação: calibrar com casos rotulados, não por intuição.
+  Preço −1 (variável) = recusado
 - Parte 5 (feita): `flows/entrega_ia.py` revisar -> aprovar --por -> enviar. Rascunho só para
   `secrets/destinatarios_admin.txt`; PDF gerado UMA vez (fpdf grava data: regenerar muda os
   bytes) e o envio confere o sha256 aprovado; estado local em estado.json ao lado do resultado
@@ -360,8 +349,8 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   máx. 2, Orientacao tipada). Fato local -> ticket em /data/ia/tickets/ com a análise salva;
   sem resposta não roda (AguardandoResposta, nada gasto); `--responder N --resposta --por`
   grava no ticket e em /data/ia/conhecimento/<territorio>.jsonl (entra nos próximos prompts,
-  últimos 20). O redator lista `afirmacoes` com ids; o Jev julga cada uma (limiar 0,5); as não
+  últimos 20). O redator lista `afirmacoes` com ids; o Jev julga cada uma (limiar 0,6); as não
   sustentadas vão ao relatório de revisão. `decisoes` = registro de decisões. request_limit 10
   (pior caso 9). Dúvidas nunca sobre empresas/estabelecimentos
-- Decisões editoriais (29/09/2026): hipóteses fora até existir evidência externa, depois só
-  em "Pontos de atenção"; percentuais com 2 casas decimais
+- Decisões editoriais (29/09/2026): sem hipóteses (desde 30/09/2026, sem notícias, de vez);
+  percentuais com 2 casas decimais

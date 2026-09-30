@@ -503,28 +503,10 @@ def registrar_metricas(metricas: list[dict], inicio: float) -> None:
         )
 
 
-@task(log_prints=True)
-def coletar_noticias() -> None:
-    """F19 parte 4: acumula as notícias dos feeds (flows/noticias.py). Roda ANTES da ingestão e
-    nunca falha: os feeds esquecem em dias, então um dia com o FTP fora do ar não pode custar as
-    notícias do dia. Uma fonte com 3 falhas seguidas gera alerta de baixa prioridade."""
-    logger = get_run_logger()
-    try:
-        from noticias import DIAS_PARA_ALERTA, coletar
-
-        resumo = coletar(avisar=lambda nome, erro: notificar(
-            "CAGED: fonte de notícias sem resposta",
-            f"{nome}: {DIAS_PARA_ALERTA} dias seguidos sem coletar. Último erro: {erro}", "low"))
-        logger.info(f"Notícias coletadas (novas por fonte): {resumo}")
-    except Exception as e:
-        logger.warning(f"Coleta de notícias falhou, sem afetar a ingestão: {type(e).__name__}: {e}")
-
-
 @flow(name="ingest-caged", log_prints=True, on_failure=[alerta_falha], on_crashed=[alerta_falha])
 def ingest_caged():
     logger = get_run_logger()
     inicio = time.monotonic()
-    coletar_noticias()
     candidatos = meses_candidatos(meses_para_tras=6)
     ingeridos = arquivos_ja_ingeridos()
 

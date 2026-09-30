@@ -15,30 +15,30 @@
 |---|---|---|
 | **Onde vive** | no **produto neutro** ([F18](F18-produto-neutro.md)); o boletim de Socorro fica na instância | o método é genérico e não expõe Socorro; o resultado é que expõe |
 | **Framework** | **PydanticAI**, versão fixada com `==` | limites de uso nativos (`UsageLimits`, com `cost_limit`), saída tipada e validada, testes sem gastar tokens, 22 pacotes e 87 MB instalado (o CrewAI tem 148 e 959 MB), integração com Prefect |
-| **Multiagente** | quatro agentes coordenados **por código**, em sequência fixa, com um contador de uso compartilhado (`usage=`) | previsível: nenhum agente decide chamar outro |
+| **Multiagente** | agentes coordenados **por código**, em sequência fixa, com um contador de uso compartilhado (`usage=`) | previsível: nenhum agente decide chamar outro |
 | **Modelos** | via **OpenRouter**; redator e revisor de **famílias diferentes**; escolha final por comparação prática (parte 6) | o custo por boletim é de centavos em qualquer modelo; o que diferencia é a qualidade do texto em português |
 | **Banco** | **sem NL2SQL**: o analista usa ferramentas com consultas fixas, numa cópia do warehouse aberta só para leitura | o LLM não decide a conta; evita ler arquivos arbitrários e o conflito de trava com o pipeline |
-| **Busca na web** | na v1, pelo plugin da OpenRouter, só na tarefa do pesquisador, com teto de resultados | acontecimentos locais e externos, conforme noticiados (roteiro, seção 1.5) |
+| **Notícias** | **nenhuma** (decisão de 30/09/2026): sem busca na web, sem coletor, sem pesquisador | o boletim descreve os dados, sem explicar causas |
 | **Orçamento** | **US$ 2/mês**, no código e como limite da chave na OpenRouter | o limite da chave vale mesmo se o código falhar |
-| **Envio** | **aprovação humana explícita**; o boletim com IA nunca sai automaticamente | interpretação com hipóteses não sai sem revisão |
+| **Envio** | **aprovação humana explícita**; o boletim com IA nunca sai automaticamente | interpretação redigida por IA não sai sem revisão |
 
 Substitui o plano original com CrewAI (CLAUDE.MD, roadmap do README).
 
 ## Arquitetura
 
 ```
-fatos (código, parte 1) ──► analista ──► pesquisador ──► redator ──► revisor ──► verificador ──► aguardando aprovação
-   JSON com id por número    escolhe o     busca na web    texto do     parecer     números por
-                             que           e APIs          boletim      (outra      código
-                             desagregar    oficiais                     família)
+fatos (código, parte 1) ──► analista ──► redator ──► revisor ──► verificador ──► aguardando aprovação
+   JSON com id por número    escolhe o     texto do     parecer     números por
+   + Pix e Selic (código)    que           boletim      (outra      código
+                             desagregar                 família)
                              (consultas
                              fixas)
 ```
 
 - **Analista:** recebe os fatos e os gatilhos já calculados; pode pedir desagregações, mas só entre consultas pré-escritas e testadas.
-- **Pesquisador:** busca indicadores por API oficial (IBGE, Banco Central) e acontecimentos na web, com fonte e data.
 - **Redator:** escreve o boletim seguindo o roteiro. O verificador de números é o seu `output_validator`: número fora da tabela de fatos gera uma nova tentativa (`ModelRetry`), com teto.
-- **Revisor:** de outra família de modelos. Confere linguagem causal, fontes, datas e se cada hipótese está rotulada.
+- **Revisor:** de outra família de modelos. Confere números, linguagem causal, identificação, estrutura e estilo.
+- **Em volta:** o Jev (juiz) tria as dúvidas do analista e julga as afirmações do redator; o advisor responde dúvidas de método; dúvidas de fato local viram tickets (3b-2).
 
 ## Proteções contra gasto
 
@@ -51,7 +51,6 @@ fatos (código, parte 1) ──► analista ──► pesquisador ──► reda
 | repetição | mesmo mês com os mesmos fatos reaproveita o resultado; só gera de novo com `--refazer` |
 | modelo | lista de modelos permitidos no `.env` |
 | saída | tipo Pydantic + verificador de números; uma nova tentativa e, depois, revisão humana com o relatório de erros |
-| busca | teto de resultados por execução; o custo da busca entra no registro mensal |
 | envio | aprovação humana |
 
 ## Partes
@@ -115,10 +114,15 @@ Os quatro agentes, o verificador de números como `output_validator` e as instru
   `reprovado_no_verificador`, com o relatório, em vez de abortar. Problema grave do revisor
   gera uma segunda versão, verificada de novo. Pior caso: 7 requisições (limite 8).
 - Reaproveitamento pelo hash dos fatos; `--refazer` força.
-- O pesquisador fica para a parte 4, junto com as evidências externas: sem elas, o redator
-  é instruído a não citar fonte nem acontecimento.
+- Sem pesquisador: o redator é instruído a não citar notícias nem acontecimentos (ver parte 4).
 
 ### 4. Evidências externas
+
+> **Decisão de 30/09/2026: notícias removidas por completo.** Saíram o coletor diário
+> (`flows/noticias.py` e a task no flow diário), a seleção e triagem (`flows/evidencias.py`), o
+> pesquisador, as "Leituras relacionadas", `--com-evidencias`, a máscara de datas do verificador
+> e os casos de notícia da calibração. Dos indicadores oficiais ficam o Pix e a Selic, por código.
+> O boletim descreve os dados e não formula hipóteses. O registro abaixo fica como histórico.
 
 APIs oficiais (SIDRA/IBGE, SGS/Banco Central) buscadas por código, e a busca na web do pesquisador com teto de resultados. Cada evidência traz fonte, período e escala.
 
@@ -144,7 +148,7 @@ tickets).
   55 s, nenhuma rejeição do verificador, uma versão só (nenhum problema grave), 7 apontamentos
   menores do revisor, 2 avisos de estilo.
 
-**Seleção e triagem (feitas, 29/09/2026):** `flows/evidencias.py`.
+**Seleção e triagem (feitas em 29/09/2026; removidas em 30/09/2026):** `flows/evidencias.py`.
 - Janelas: "competência" (mês anterior até 15 dias após o fim da competência; única que pode
   sustentar hipótese), "recente" (30 dias antes da geração; só sinal para acompanhar). Todas
   podem virar "leituras relacionadas". O arquivo diário resolve a defasagem do CAGED a partir
@@ -190,7 +194,7 @@ agir pelo grau de certeza, tickets com estado salvo, registro de decisões):
 - Execução real em produção (202607): o Pix entrou nos pontos de atenção com leitura relativa e
   os cuidados na nota metodológica; nenhum número reprovado no final.
 
-**Pesquisador e evidências no boletim (feitos, 29/09/2026):**
+**Pesquisador e evidências no boletim (feitos em 29/09/2026; removidos em 30/09/2026):**
 - O texto das notícias relevantes é lido por código (parágrafos, robots.txt, 2 s por host) e
   nunca republicado. O pesquisador (LLM barato) extrai um fato por notícia; o validador exige
   que todo número do fato esteja escrito no texto da notícia.
@@ -206,7 +210,7 @@ agir pelo grau de certeza, tickets com estado salvo, registro de decisões):
   funciona; o conteúdo depende do arquivo de notícias, que só cobre a janela da competência a
   partir de outubro de 2026. Gasto acumulado no mês com todas as execuções: US$ 0,18.
 
-**Coletor diário (feito, 29/09/2026):** `flows/noticias.py`, no início do flow diário.
+**Coletor diário (feito em 29/09/2026; removido em 30/09/2026):** `flows/noticias.py`, no início do flow diário.
 - Fontes avaliadas: Sebrae SE, Faxaju, Infonet e InfoMoney têm RSS; Observatório FIES e
   Fecomércio SE não têm (ficam para a busca na web restrita, se o plugin permitir); a lista da
   Prefeitura de Socorro é montada por JavaScript. NewsAPI descartada: o plano gratuito é
@@ -234,7 +238,7 @@ Estado `aguardando_aprovacao` no arquivo da F15, um comando de aprovação e o P
 administradores pedida pelo usuário:
 - `revisar`: gera o PDF uma única vez e envia só aos administradores
   (`secrets/destinatarios_admin.txt`), com o relatório de revisão (parecer, verificador,
-  avisos de estilo, evidências). O PDF não leva marca de rascunho: ela vai no e-mail, porque
+  avisos de estilo, afirmações não sustentadas). O PDF não leva marca de rascunho: ela vai no e-mail, porque
   regenerar o PDF mudaria os bytes.
 - `aprovar --por "Nome"`: só o que está em revisão, com o sha256 do PDF revisado.
 - `enviar`: arquiva e envia à lista principal o mesmo PDF (confere o sha256), com as
@@ -247,11 +251,11 @@ administradores pedida pelo usuário:
 O boletim de 2 ou 3 competências passadas gerado com 3 candidatos, comparados pelo verificador e por leitura humana. Custo esperado: menos de US$ 1. Define os modelos do redator e do revisor.
 
 **Calibração do Jev (feita, 29/09/2026):** `flows/calibracao.py`. 130 afirmações de resposta
-conhecida (7 competências) e 19 notícias rotuladas (rótulos propostos, a revisar em
-`perfis/calibracao_noticias.jsonl`). Acima de 0,6, todas as afirmações eram verdadeiras; o Jev
+conhecida (7 competências) e 19 notícias rotuladas (os casos de notícia saíram em 30/09/2026,
+com as notícias). Acima de 0,6, todas as afirmações eram verdadeiras; o Jev
 recusou as 14 com causa; excelente em sinal, faixa e perfil, razoável em comparação, falha em
 direção temporal (mesmo citando os níveis). Limiar das afirmações 0,6; "subiu/caiu" fora da
-lista do redator; notícias 0,7 (provisório).
+lista do redator.
 
 **Comparação de redatores (rodada em 29/09/2026):** `flows/comparacao_modelos.py`, Gemini 3.7
 Flash, Sonnet 5.5 e GLM 5.3 Flash, junho e julho de 2026, às cegas (leitura.md, métricas e

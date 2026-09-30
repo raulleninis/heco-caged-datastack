@@ -21,14 +21,13 @@ Fluxo fixo, sem agente decidindo chamar outro (docs/fatias/F19-boletim-com-ia.md
    monta tabela.
 
 Pior caso de requisições: analista 2 + redator 2 + revisor 1 + redator 2 = 7, dentro do
-request_limit de 8 da Execucao. Hipóteses ficam fora até existirem evidências externas (parte 4).
+request_limit de 8 da Execucao. Sem hipóteses: o boletim descreve, não explica.
 
 Uso:
     python flows/boletim_ia.py 280480 202607 [--refazer] [--warehouse ...]
 """
 
 import argparse
-import hashlib
 import json
 import os
 from dataclasses import dataclass, field
@@ -41,7 +40,7 @@ from pydantic_ai import Agent, ModelRetry, RunContext, UnexpectedModelBehavior
 
 import fatos as fatos_mod
 import ia
-from verificador import _decimal, avisos_de_estilo, formatar_milhares, rotulos_dos_fatos, verificar_texto
+from verificador import avisos_de_estilo, formatar_milhares, rotulos_dos_fatos, verificar_texto
 
 # Avisos de estilo que, sozinhos, justificam uma segunda versão do redator (~US$ 0,02).
 AVISOS_PARA_NOVA_VERSAO = 3
@@ -58,13 +57,6 @@ class Destaque(BaseModel):
     por_que: str = Field(description="qual regra ou gatilho o torna destaque")
 
 
-class PerguntaParaEvidencia(BaseModel):
-    """Para o pesquisador (parte 4): o que uma evidência externa poderia esclarecer."""
-    tema: str
-    pergunta: str
-    escala: Literal["municipal", "regional", "estadual", "nacional"]
-
-
 class Duvida(BaseModel):
     """3b-2: o que o analista não consegue decidir só com os fatos."""
     pergunta: str
@@ -77,7 +69,6 @@ class Duvida(BaseModel):
 class Analise(BaseModel):
     destaques: list[Destaque] = Field(max_length=5)
     desagregacoes: list[str] = Field(default_factory=list, description="códigos de `desagregacao` a usar no texto")
-    perguntas_para_evidencias: list[PerguntaParaEvidencia] = Field(default_factory=list, max_length=3)
     duvidas: list[Duvida] = Field(default_factory=list, max_length=3,
                                   description="só dúvidas que mudariam o texto; na dúvida, prefira não afirmar")
 
@@ -143,21 +134,13 @@ class Parecer(BaseModel):
 
 @dataclass
 class Contexto:
-    """deps dos agentes: a tabela de números, os rótulos aceitos e o registro das rejeições.
-    Números citados nas evidências (notícias) entram na verificação como unidade "fonte"."""
+    """deps dos agentes: a tabela de números, os rótulos aceitos e o registro das rejeições."""
     fatos: dict
-    evidencias: list[dict] = field(default_factory=list)
     rejeicoes: list[list[str]] = field(default_factory=list)
 
     @property
     def numeros(self) -> dict:
-        extras = {}
-        for i, e in enumerate(self.evidencias):
-            for j, bruto in enumerate(e.get("numeros", [])):
-                valor = _decimal(str(bruto).strip().rstrip("%"))
-                if valor is not None:
-                    extras[f"evidencia.{i}.{j}"] = {"valor": str(valor), "unidade": "fonte", "descricao": e["fonte"]}
-        return {**self.fatos["numeros"], **extras}
+        return self.fatos["numeros"]
 
     @property
     def rotulos(self) -> list[str]:
@@ -186,13 +169,7 @@ Regras obrigatórias:
     Pix ainda cresce por adoção. Valores nominais. Cite a fonte (Banco Central) e diga que é
     aproximação. Os cuidados vão para a nota metodológica;
   - Selic: só como contexto para os setores sensíveis a crédito em destaque; nunca como causa.
-- Evidências externas (notícias), quando houver, SEMPRE com fonte e data no texto:
-  - janela "recente": só como algo a acompanhar nos pontos de atenção ("segundo o g1, em 25 de
-    setembro, ..."). Nunca como explicação do mês do boletim, que é anterior;
-  - janela "competencia" com `apoia_hipotese` = true: pode virar UMA hipótese nos pontos de
-    atenção, começando por "Hipótese:", sem quantificar efeito sobre o saldo;
-  - demais evidências: não use no texto (ficam nas leituras relacionadas).
-  Números de uma notícia só com a atribuição ("segundo a Infonet, 300 vagas").
+- Não cite notícias, acontecimentos nem fontes externas além dos indicadores acima.
 """
 
 EDITORIAL = """\
@@ -224,8 +201,7 @@ concentrou, como se compara e o que acompanhar):
 INSTRUCOES = {
     "analista": "Você é o analista de um boletim mensal de emprego formal (Novo CAGED). Recebe os fatos já "
                 "calculados e escolhe o que merece destaque, seguindo os `gatilhos` e os `destaques` setoriais. "
-                "Cada destaque cita ids da tabela `numeros`. Pode sugerir até 3 perguntas que uma evidência "
-                "externa (notícia, indicador oficial) ajudaria a esclarecer. Dúvidas (`duvidas`): só as que "
+                "Cada destaque cita ids da tabela `numeros`. Dúvidas (`duvidas`): só as que "
                 "mudariam o texto; NUNCA sobre empresas ou estabelecimentos, nem 'um ou poucos "
                 "estabelecimentos' (vira identificação): formule no nível do setor ou do município.\n" + REGRAS,
     "redator": "Você redige, em português do Brasil, o texto de um boletim mensal de emprego formal para "
@@ -334,27 +310,13 @@ def tabelas(fatos: dict) -> str:
     return "\n".join(md) + "\n"
 
 
-def leituras(evidencias: dict | None) -> str:
-    """Leituras relacionadas (alternativa 3): as notícias relevantes, com link, sem afirmação.
-    Geradas por código a partir da triagem."""
-    if not evidencias:
-        return ""
-    itens = [t for t in evidencias.get("triadas", []) if t.get("relevante")]
-    if not itens:
-        return ""
-    md = ["## Leituras relacionadas", ""]
-    for t in sorted(itens, key=lambda t: t["publicado_em"], reverse=True):
-        md.append(f"- [{t['titulo']}]({t['link']}), {t.get('veiculo') or t['fonte']}, {t['publicado_em'][:10]}")
-    return "\n".join(md) + "\n"
-
-
-def markdown(boletim: Boletim, fatos: dict, evidencias: dict | None = None) -> str:
+def markdown(boletim: Boletim, fatos: dict) -> str:
     md = [f"# {boletim.titulo}", "", boletim.sintese, ""]
     for titulo, paragrafos in boletim.secoes():
         md += [f"## {titulo}", "", *[p + "\n" for p in paragrafos]]
     if boletim.pontos_de_atencao:
         md += ["## Pontos de atenção", ""] + [f"- {p}" for p in boletim.pontos_de_atencao] + [""]
-    md += [tabelas(fatos), leituras(evidencias), "## Nota metodológica", "", boletim.nota_metodologica, ""]
+    md += [tabelas(fatos), "## Nota metodológica", "", boletim.nota_metodologica, ""]
     return "\n".join(md)
 
 
@@ -487,7 +449,7 @@ def julgar_afirmacoes(ex: ia.Execucao, boletim: Boletim, fatos: dict) -> list[di
 
 def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_modelo=None,
           precos: ia.Precos | None = None, registro: ia.RegistroCustos | None = None,
-          refazer: bool = False, evidencias: dict | None = None, sem_tickets: bool = False,
+          refazer: bool = False, sem_tickets: bool = False,
           post_decisoes=None) -> dict:
     """Gera (ou reaproveita) o boletim com IA de um JSON de fatos. Devolve o resultado gravado, ou
     {"situacao": "aguardando_resposta", ...} quando abriu ticket de fato local."""
@@ -496,9 +458,6 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
         raise ValueError(f"Modelos de decisão não redigem texto: {texto_errado}. Use-os como juiz.")
     territorio, competencia = fatos["territorio"]["codigo"], fatos["competencia"]
     chave = fatos["hash"][:16]
-    lista_evid = (evidencias or {}).get("evidencias", [])
-    if evidencias:
-        chave += "_" + hashlib.sha256(json.dumps(evidencias, sort_keys=True, default=str).encode()).hexdigest()[:8]
     pasta = cfg.pasta / "boletins" / f"{territorio}_{competencia}" / chave
     arquivo = pasta / "resultado.json"
     if arquivo.exists() and not refazer:
@@ -518,7 +477,7 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
 
     criar_modelo = criar_modelo or (lambda papel: ia.modelo_openrouter(cfg, modelos[papel], papel))
     agentes = criar_agentes(criar_modelo)
-    contexto = Contexto(fatos, lista_evid)
+    contexto = Contexto(fatos)
     decisoes: list[dict] = []
     with ia.Execucao(cfg, modelos, precos=precos, registro=registro,
                      territorio=territorio, competencia=competencia) as ex:
@@ -570,12 +529,6 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
                 respostas = [{"pergunta": q["pergunta"], "resposta": "SEM RESPOSTA: não afirme nada sobre isso."}
                              for q in locais]
 
-        if lista_evid:
-            bloco_evid = ("Evidências externas (notícias; siga as regras de janela):\n"
-                          + _json([{k: e.get(k) for k in ("fato", "numeros", "fonte", "data", "janela", "apoia_hipotese", "setor", "territorio")}
-                                   for e in lista_evid]))
-        else:
-            bloco_evid = "Evidências externas: nenhuma. Não cite fontes externas nem acontecimentos."
         extras = ""
         if orientacoes:
             extras += "\n\nOrientações de método do advisor (siga-as; não cite o advisor):\n" + _json(orientacoes)
@@ -584,14 +537,14 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
                        "local, sem números novos):\n" + _json(respostas))
         if bloco_conhecimento:
             extras += "\n\n" + bloco_conhecimento
-        pedido = (f"Fatos do mês (JSON):\n{base}\n\nAnálise do analista (JSON):\n{analise.model_dump_json(indent=2)}\n\n"
-                  + bloco_evid + extras)
+        pedido = (f"Fatos do mês (JSON):\n{base}\n\nAnálise do analista (JSON):\n{analise.model_dump_json(indent=2)}"
+                  + extras)
         boletim: Boletim = ex.rodar(agentes["redator"], "redator", pedido, deps=contexto)
         estilo = avisos_de_estilo(boletim.texto())
         revisor_falhou = None
         try:
             parecer: Parecer = ex.rodar(agentes["revisor"], "revisor",
-                                        f"Fatos completos (JSON):\n{base}\n\n{bloco_evid}\n\nBoletim (JSON):\n{boletim.model_dump_json(indent=2)}\n\n"
+                                        f"Fatos completos (JSON):\n{base}\n\nBoletim (JSON):\n{boletim.model_dump_json(indent=2)}\n\n"
                                         f"Avisos de estilo do verificador:\n{_json(estilo)}")
         except UnexpectedModelBehavior as e:
             # O revisor é uma camada a mais, não um requisito: o verificador e o juiz continuam
@@ -634,15 +587,11 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
         "parecer_revisor": parecer.model_dump(),
         "revisor_falhou": revisor_falhou,
         "analise": analise.model_dump(),
-        "evidencias_usadas": lista_evid,
-        "leituras": [{"titulo": t["titulo"], "link": t["link"], "fonte": t.get("veiculo") or t["fonte"],
-                      "data": t["publicado_em"][:10]}
-                     for t in (evidencias or {}).get("triadas", []) if t.get("relevante")],
         "boletim": boletim.model_dump(),
     }
     pasta.mkdir(parents=True, exist_ok=True)
     (pasta / "fatos.json").write_text(_json(fatos) + "\n", encoding="utf-8")
-    (pasta / "boletim.md").write_text(markdown(boletim, fatos, evidencias), encoding="utf-8")
+    (pasta / "boletim.md").write_text(markdown(boletim, fatos), encoding="utf-8")
     arquivo.write_text(_json(resultado) + "\n", encoding="utf-8")
     resultado["pasta"] = str(pasta)
     return resultado
@@ -654,8 +603,6 @@ def main():
     ap.add_argument("competencia")
     ap.add_argument("--warehouse", default="/data/warehouse/caged.duckdb")
     ap.add_argument("--refazer", action="store_true", help="gera de novo mesmo com resultado para estes fatos")
-    ap.add_argument("--com-evidencias", action="store_true", help="seleciona, tria e pesquisa notícias (parte 4)")
-    ap.add_argument("--gerado-em", default=datetime.now(timezone.utc).date().isoformat())
     ap.add_argument("--sem-indicadores", action="store_true", help="não busca Pix e Selic no Banco Central")
     ap.add_argument("--sem-tickets", action="store_true", help="não abre ticket: dúvidas de fato local ficam sem afirmação")
     ap.add_argument("--responder", type=int, metavar="N", help="responde a pergunta N do ticket aberto e sai")
@@ -674,12 +621,7 @@ def main():
         import indicadores
         f = indicadores.anexar(f, Path(a.warehouse))
     try:
-        evid = None
-        if a.com_evidencias:
-            import evidencias as evidencias_mod
-            from datetime import date
-            evid = evidencias_mod.gerar_evidencias(f, Path(a.warehouse), cfg, date.fromisoformat(a.gerado_em))
-        r = gerar(f, cfg, modelos_do_ambiente(cfg), refazer=a.refazer, evidencias=evid, sem_tickets=a.sem_tickets)
+        r = gerar(f, cfg, modelos_do_ambiente(cfg), refazer=a.refazer, sem_tickets=a.sem_tickets)
     except AguardandoResposta as e:
         raise SystemExit(f"Aguardando resposta humana: {e}\nResponda com --responder N --resposta \"...\" --por \"Nome\".")
     except ia.OrcamentoExcedido as e:

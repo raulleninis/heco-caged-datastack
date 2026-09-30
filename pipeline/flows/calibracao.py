@@ -7,7 +7,6 @@ rotulados).
 Casos de AFIRMAÇÃO são gerados por código a partir dos fatos de várias competências, com a
 verdade conhecida (sinal do saldo, posição na faixa histórica, comparação de taxas, direção das
 admissões, participação no perfil), mais afirmações com CAUSA, que devem ser sempre recusadas.
-Casos de TRIAGEM de notícias vêm de perfis/calibracao_noticias.jsonl, rotulados por pessoas.
 
 Custo: deixar passar uma afirmação falsa (falso positivo) custa credibilidade; marcar uma
 verdadeira como duvidosa (falso negativo) só custa tempo de revisão. Peso 3 contra 1.
@@ -30,7 +29,6 @@ from entrega import expandir_competencias
 PESO_FALSO_POSITIVO = 3
 PESO_FALSO_NEGATIVO = 1
 LIMIARES = [round(0.1 * i, 1) for i in range(1, 10)]
-CASOS_NOTICIAS = Path(__file__).resolve().parent.parent / "perfis" / "calibracao_noticias.jsonl"
 
 
 def casos_de_afirmacao(f: dict) -> list[dict]:
@@ -114,9 +112,8 @@ def _execucao(cfg: ia.ConfigIA, juiz: str, territorio: str, rotulo: str, post_de
 
 
 def rodar(warehouse: Path, territorio: str, competencias: list[str], cfg: ia.ConfigIA, post_decisoes=None,
-          casos_noticias: Path = CASOS_NOTICIAS, **execucao_kw) -> dict:
-    """Uma execução (com o teto de decisões dela) por competência, e uma para as notícias."""
-    import evidencias as ev
+          **execucao_kw) -> dict:
+    """Uma execução (com o teto de decisões dela) por competência."""
     juiz = next(m for m in cfg.modelos_permitidos if ia.e_modelo_de_decisao(m))
     casos = []
     for comp in competencias:
@@ -129,16 +126,6 @@ def rodar(warehouse: Path, territorio: str, competencias: list[str], cfg: ia.Con
                                        afirmacoes=[boletim_ia.Afirmacao(texto=c["texto"], ids=c["ids"])])
                 c["probabilidade"] = boletim_ia.julgar_afirmacoes(ex, b, f)[0]["probabilidade"]
         casos += da_comp
-    noticias = [json.loads(l) for l in casos_noticias.read_text(encoding="utf-8").splitlines() if l.strip()] \
-        if casos_noticias.exists() else []
-    if noticias:
-        fatos_ref = fatos_mod.gerar_fatos(warehouse, territorio, competencias[-1])
-        with _execucao(cfg, juiz, territorio, "calibracao noticias", post_decisoes, **execucao_kw) as ex:
-            for n in noticias:
-                r = ev.triar(ex, [{**n, "escala": n.get("escala", "estadual")}], fatos_ref)[0]
-                n["probabilidade"] = (r["jev"].get("emprego") or {}).get("noul")
-                n["territorio_jev"] = (r["jev"].get("territorio") or {}).get("choice")
-                n["verdade"] = n["relevante"]
     por_familia = {}
     for c in casos:
         por_familia.setdefault(c["familia"], []).append(c)
@@ -151,12 +138,10 @@ def rodar(warehouse: Path, territorio: str, competencias: list[str], cfg: ia.Con
             k: {"casos": len(v), "acertos_no_limiar_atual": sum(
                 1 for c in v if ((c["probabilidade"] or 0) >= boletim_ia.LIMIAR_AFIRMACAO) == c["verdade"])}
             for k, v in por_familia.items()},
-        "noticias": metricas(noticias) if noticias else None,
         "erros_no_limiar_atual": [
             {k: c[k] for k in ("texto", "competencia", "familia", "verdade", "probabilidade")} for c in casos
             if ((c["probabilidade"] or 0) >= boletim_ia.LIMIAR_AFIRMACAO) != c["verdade"]],
         "casos": casos,
-        "casos_noticias": noticias,
     }
 
 
@@ -174,7 +159,6 @@ def main():
     destino.write_text(json.dumps(r, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     resumo = {"afirmacoes": {k: r["afirmacoes"][k] for k in ("casos", "limiar_de_menor_custo", "confiabilidade")},
               "afirmacoes_por_familia": r["afirmacoes_por_familia"],
-              "noticias": {k: r["noticias"][k] for k in ("casos", "limiar_de_menor_custo")} if r["noticias"] else None,
               "erros_no_limiar_atual": r["erros_no_limiar_atual"], "arquivo": str(destino)}
     print(json.dumps(resumo, ensure_ascii=False, indent=2))
 

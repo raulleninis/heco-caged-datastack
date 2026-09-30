@@ -27,8 +27,7 @@ ADMINS = ["chefe@exemplo.com", "analista@exemplo.com"]
 RESULTADO = {
     "territorio": "280480", "competencia": "202607", "gerado_em": "2026-09-29T05:00:00+00:00",
     "situacao": "aguardando_aprovacao", "versoes_do_redator": 1, "modelos": {"redator": "x"},
-    "verificador": [], "avisos_de_estilo": [], "evidencias_usadas": [],
-    "leituras": [{"titulo": "Call center abre vagas", "link": "https://ex.com/a", "fonte": "g1", "data": "2026-09-20"}],
+    "verificador": [], "avisos_de_estilo": [],
     "parecer_revisor": {"resumo": "ok", "problemas": []},
     "boletim": {"titulo": "Emprego formal em julho de 2026", "sintese": "Perda de 83 vínculos.",
                 "panorama": ["Panorama."], "setores": ["Setores."], "contexto_regional": ["Contexto."],

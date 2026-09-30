@@ -335,7 +335,7 @@ Nada é automático. Os administradores (`secrets/destinatarios_admin.txt`) rece
 primeiro; só depois da aprovação o boletim vai para a lista principal e para o arquivo.
 
 ```bash
-docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607 --com-evidencias   # gera
+docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607                     # gera
 docker compose run --rm pipeline python flows/entrega_ia.py revisar 280480 202607             # PDF + relatório só aos admins
 docker compose run --rm pipeline python flows/entrega_ia.py aprovar 280480 202607 --por "Nome"
 docker compose run --rm pipeline python flows/entrega_ia.py enviar  280480 202607             # lista principal + arquivo
@@ -350,11 +350,9 @@ IA_MODELOS_PERMITIDOS=anthropic/claude-sonnet-5.5,google/gemini-3.7-flash,z-ai/g
 IA_MODELO_REDATOR=google/gemini-3.7-flash
 IA_MODELO_ANALISTA=z-ai/glm-5.3-flash
 IA_MODELO_REVISOR=z-ai/glm-5.3-flash
-IA_MODELO_PESQUISADOR=z-ai/glm-5.3-flash
 ```
 
-O Jev (`typesafe/jev-1.13`) entra sozinho como juiz (triagem de notícias, das dúvidas e das afirmações do
-texto); nunca redige. O advisor (`IA_MODELO_ADVISOR`, padrão: o 1º modelo de texto se não for o redator) só
+O Jev (`typesafe/jev-1.13`) entra sozinho como juiz (triagem das dúvidas e das afirmações do texto); nunca redige. O advisor (`IA_MODELO_ADVISOR`, padrão: o 1º modelo de texto se não for o redator) só
 responde dúvidas de método, no máximo 2 por boletim.
 
 **Tickets (dúvidas de fato local):** quando o analista tem uma dúvida que só quem conhece o município responde,
@@ -364,7 +362,7 @@ boletins seguintes:
 
 ```bash
 docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607 --responder 1 --resposta "..." --por "Nome"
-docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607 --com-evidencias   # retoma
+docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607   # retoma
 ```
 
 `--sem-tickets` segue sem perguntar (o redator é instruído a não afirmar nada sobre a dúvida). O relatório de
@@ -397,7 +395,7 @@ arquivo foi de fato publicado só se confirma logado.
 ### 6. Testes do projeto
 
 ```bash
-# Python: 165 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos e proteções de gasto do boletim com IA). Sem rede e sem Prefect rodando
+# Python: 136 testes (ingestão, reconciliação e estoque no boletim, entrega, arquivo, fatos e proteções de gasto do boletim com IA). Sem rede e sem Prefect rodando
 docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests --entrypoint python pipeline -B -m unittest discover -s /app/tests -v
 
 # dbt: testes de qualidade sobre o warehouse real (inclui 2 testes unitários do estoque)
@@ -462,12 +460,9 @@ desliga:
 
 ```bash
 docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607   # --refazer para gerar de novo
-docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607 --com-evidencias   # com notícias (parte 4)
 ```
 
-O flow diário também coleta notícias dos feeds de `pipeline/perfis/fontes_noticias.toml` em
-`/data/noticias/AAAA-MM.jsonl`, antes da ingestão (os feeds esquecem em dias). Coleta manual:
-`docker compose run --rm pipeline python flows/noticias.py`. Esse diretório **não se regenera**.
+O boletim não usa notícias: descreve o que os dados mostram, sem explicar causas.
 
 Mesmos fatos reaproveitam o resultado sem chamar o modelo. Custos em `/data/ia/custos.jsonl`; resultado,
 fatos e `boletim.md` em `/data/ia/boletins/<territorio>_<competencia>/<hash>/`.
@@ -515,7 +510,7 @@ Tudo em `.env` (nunca commitado; `.env.example` é o modelo). Os segredos em **a
 | `IA_ORCAMENTO_MENSAL_USD` | orçamento do mês; cada execução reserva o seu pior caso antes de começar | `2` |
 | `IA_PRECO_MAX_SAIDA_USD_MTOK` | teto do preço de saída de um modelo (US$ por milhão de tokens) | `15` |
 | `IA_MODELO_REDATOR` | modelo que redige o boletim com IA | 1º modelo de texto de `IA_MODELOS_PERMITIDOS` |
-| `IA_MODELO_ANALISTA` / `IA_MODELO_REVISOR` / `IA_MODELO_PESQUISADOR` | modelos dos demais papéis; use outra família que a do redator no revisor | último modelo de texto da lista |
+| `IA_MODELO_ANALISTA` / `IA_MODELO_REVISOR` | modelos dos demais papéis; use outra família que a do redator no revisor | último modelo de texto da lista |
 | `IA_MODELO_ADVISOR` | modelo mais capaz, só para dúvidas de método (no máximo 2 por boletim) | 1º modelo de texto, se não for o redator |
 | `DESTINATARIOS_ADMIN_ARQUIVO` | lista dos administradores que revisam o boletim com IA | `/secrets/destinatarios_admin.txt` |
 
@@ -563,14 +558,12 @@ mantendo o pico em ~500 MB (medido: 405 MiB por arquivo MOV com limite de 830 Mi
 │   │   ├── ia.py                 # cliente OpenRouter (PydanticAI) e proteções de gasto (F19 parte 2)
 │   │   ├── boletim_ia.py         # analista → redator → revisor; resultado aguardando aprovação (F19 parte 3)
 │   │   ├── verificador.py        # todo número do texto tem de estar nos fatos (F19 parte 3)
-│   │   ├── noticias.py           # coletor diário de feeds RSS para o boletim com IA (F19 parte 4)
-│   │   ├── evidencias.py         # seleção por janela, triagem pelo Jev e pesquisador (F19 parte 4)
 │   │   ├── entrega_ia.py         # revisão pelos admins, aprovação e envio do boletim com IA (F19 parte 5)
 │   │   ├── indicadores.py        # Pix por município e Selic (Banco Central) nos fatos (F19 parte 4)
 │   │   ├── calibracao.py         # calibra os limiares do Jev com casos de resposta conhecida (F19 parte 6)
 │   │   └── comparacao_modelos.py # mesmo boletim por redatores diferentes, às cegas (F19 parte 6)
-│   ├── perfis/                   # perfil econômico por território e fontes de notícias (F19)
-│   └── tests/                    # 165 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
+│   ├── perfis/                   # perfil econômico por território (F19)
+│   └── tests/                    # 136 testes Python (ingestão, boletim, entrega/arquivo, fatos, IA)
 ├── dbt/
 │   ├── macros/caged.sql          # colunas, CAST e grupamento compartilhados pelas 3 staging
 │   ├── macros/estoque.sql        # efeito no saldo (MOV +, FOR +, EXC −), usado pelo estoque (F16)
@@ -675,9 +668,9 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [ ] Boletim analítico com IA ([F19](docs/fatias/F19-boletim-com-ia.md), [roteiro](docs/boletim-ia/roteiro.md))
   - [x] Fatos por código: fluxo reconciliado por subgrupamento e divisão CNAE, perfil das admissões, região, acumulados e gatilhos
   - [x] Cliente OpenRouter no PydanticAI com limites de uso, registro mensal de custo (US$ 2/mês) e modelos permitidos
-  - [x] Agentes (analista, redator, revisor) e verificador de números; o pesquisador entra com as evidências externas
-  - [x] Evidências externas: coletor diário, triagem pelo Jev, pesquisador, leituras relacionadas
-  - [x] Indicadores oficiais: Pix por município e Selic (Banco Central), notícias do IBGE
+  - [x] Agentes (analista, redator, revisor) e verificador de números
+  - [x] Indicadores oficiais: Pix por município e Selic (Banco Central)
+  - [x] ~~Evidências externas (notícias)~~: implementadas e removidas em 30/09/2026; o boletim não usa notícias
   - [x] Aprovação humana antes do envio: rascunho aos administradores, aprovação com nome, envio do mesmo PDF
   - [x] Decisão e tickets (3b-2): Jev julga afirmações e tria dúvidas; advisor para método; tickets com estado salvo e base de conhecimento local
   - [ ] Comparação prática de modelos e calibração do Jev

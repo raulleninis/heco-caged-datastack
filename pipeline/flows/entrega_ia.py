@@ -166,11 +166,6 @@ def gerar_pdf(pasta: Path) -> Path:
                 linha.cell(boletim.fmt_num(x["variacao_empresas_12m"]["valor"]) + "%")
                 linha.cell(boletim.fmt_num(x["valor_recebido_milhoes"]["valor"], 1))
                 linha.cell(boletim.fmt_num(x["variacao_valor_12m"]["valor"]) + "%")
-    if r.get("leituras"):
-        titulo("Leituras relacionadas")
-        pdf.set_font("Helvetica", size=8)
-        for l in r["leituras"]:
-            paragrafo(f"- {l['titulo']} ({l['fonte']}, {l['data']}): {l['link']}", altura=4)
     titulo("Nota metodológica", 10)
     pdf.set_font("Helvetica", size=8)
     paragrafo(b["nota_metodologica"], altura=4)
@@ -221,8 +216,6 @@ def _relatorio_de_revisao(r: dict) -> str:
     if r.get("respostas_humanas"):
         linhas += ["", "RESPOSTAS HUMANAS A TICKETS USADAS:"]
         linhas += [f"- {q['pergunta']} -> {q['resposta']} ({q.get('respondido_por', '')})" for q in r["respostas_humanas"]]
-    linhas += ["", f"EVIDÊNCIAS USADAS: {len(r.get('evidencias_usadas', []))}"]
-    linhas += [f"- [{e['janela']}, {e['data']}, {e['fonte']}] {e['fato']}" for e in r.get("evidencias_usadas", [])]
     return "\n".join(linhas) + "\n"
 
 
@@ -249,7 +242,7 @@ def revisar(territorio: str, competencia: str, *, cfg: Config | None = None, smt
         "Só os administradores receberam. Nada foi arquivado nem enviado à lista.",
         "",
         "O relatório anexo traz o parecer do revisor automático, o verificador de números, os avisos de",
-        "estilo e as evidências usadas. Para aprovar ESTA versão (o mesmo PDF irá para a lista):",
+        "estilo e as afirmações a conferir. Para aprovar ESTA versão (o mesmo PDF irá para a lista):",
         f"    python flows/entrega_ia.py aprovar {territorio} {competencia} --por \"Seu nome\"",
         "Para pedir outra versão: python flows/boletim_ia.py ... --refazer, e revisar de novo.",
     ]

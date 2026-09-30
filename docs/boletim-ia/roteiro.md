@@ -4,10 +4,10 @@
 **Unidade de análise:** município-alvo
 **Periodicidade:** mensal
 **Modelo de produção:** cálculos por código, destaques selecionados por regras, redação assistida por IA e aprovação humana antes do envio
-**Objetivo:** descrever a evolução do emprego formal no município e contextualizar os movimentos mais relevantes com evidências locais e externas.
+**Objetivo:** descrever a evolução do emprego formal no município e contextualizar os movimentos mais relevantes com dados comparáveis e indicadores oficiais.
 
 > **Princípio central:** o município é a unidade de referência. Os recortes regionais e estaduais
-> servem como contexto e comparação, não como substitutos de evidências sobre a economia local.
+> servem como contexto e comparação, não como explicação da economia local.
 
 > **Regras do projeto que este roteiro segue:** números só por código, nunca calculados pela IA;
 > análise setorial, com desagregação só quando relevante e nunca no nível de empresa
@@ -126,33 +126,21 @@ sinalizados e não interpretados.
 
 ### 1.5. Interpretação da conjuntura (direcionada)
 
-> **Decisão de 29/09/2026:** **sem hipóteses** enquanto não houver evidência externa (notícias,
-> indicadores oficiais) que as sustente. Até lá, o boletim termina em **pontos de atenção**:
-> indicadores a acompanhar nos próximos meses, sem especular causas. Com evidência, uma hipótese
-> entra dentro dos pontos de atenção, nunca numa seção própria, com fonte e data, e só se a
-> evidência a sustentar (julgamento na parte 3b-2).
+> **Decisão de 29/09/2026, fechada em 30/09/2026:** **sem hipóteses e sem notícias.** O boletim
+> descreve o que os dados mostram e termina em **pontos de atenção**: indicadores a acompanhar nos
+> próximos meses, sem especular causas. Acontecimentos (obras, investimentos, fechamentos) não
+> entram, nem com fonte.
 
-Investigar **no máximo três fatores** com potencial para explicar os movimentos selecionados. Não é
-necessário abordar todas as dimensões em todas as edições.
+O contexto vem só de dados calculados por código:
 
-| Dimensão | O que verificar | Quando acionar |
+| Dimensão | O que usar | Quando acionar |
 |---|---|---|
-| Sazonalidade local | Safras, entressafras, calendário comercial, férias, turismo, início ou fim de contratos | Sempre que o resultado diferir do mês anterior ou seguir padrão conhecido |
-| Atividade produtiva local ou regional | Produção, vendas, serviços, demanda por insumos e vínculos entre setores | Quando houver variação setorial relevante |
-| Acontecimentos locais | Obras, investimentos, abertura, expansão, paralisação ou fechamento de atividades, **conforme noticiado pela fonte** | Quando houver fonte pública e relação temporal plausível |
-| Acontecimentos externos | Fatos fora do município com potencial de afetá-lo (ex.: política de uma cadeia produtiva, evento regional, decisão estadual ou nacional) | Quando houver fonte pública e ligação plausível com a estrutura produtiva local |
-| Condições econômicas externas | Juros, crédito, câmbio, exportações, preços e custos | Somente se forem materialmente relevantes para a estrutura produtiva municipal |
+| Sazonalidade local | Faixa histórica do mesmo mês (seção 3) | Sempre |
+| Atividade das empresas locais | Pix por município, em leitura relativa (seção 4) | Sempre que disponível |
+| Condições econômicas externas | Selic | Só com Construção ou Comércio em destaque |
 
-**Como usar acontecimentos:**
-
-- O fato vem da fonte, citada com data e link, e é descrito como ela o descreve.
-- O texto **não afirma** que o movimento do CAGED é daquele estabelecimento ou evento: apresenta os
-  dois lado a lado e rotula a ligação como hipótese.
-- Números sobre um acontecimento, como "200 contratações anunciadas", só entram se estiverem na
-  própria fonte.
-
-**Regra de redação:** diferenciar resultado observado, evidência complementar e hipótese
-explicativa. Não atribuir causalidade apenas porque duas variáveis se moveram no mesmo período.
+**Regra de redação:** diferenciar resultado observado de contexto. Não atribuir causalidade apenas
+porque duas variáveis se moveram no mesmo período.
 
 ---
 
@@ -174,8 +162,6 @@ data em cada campo.
 - Padrões sazonais de admissões, desligamentos e saldo, **calculados por código** a partir da série
   do CAGED.
 - Relações econômicas com municípios vizinhos, a região e polos de emprego.
-- Empreendimentos e investimentos relevantes, **conforme fontes públicas**. Não inclui lista de
-  estabelecimentos inferida dos dados.
 - Indicadores externos disponíveis para as atividades dominantes, com a escala de cada um
   (municipal, estadual, nacional).
 - **Limiares de destaque** calibrados ao porte do município (seção 3).
@@ -200,7 +186,7 @@ calculados.
 4. **Concentração:** sinalizar resultados fortemente concentrados em poucas atividades.
 5. **Base pequena:** exigir um mínimo absoluto de vínculos para destacar uma atividade ou um
    recorte do perfil; sinalizar variações percentuais expressivas sobre estoque reduzido.
-6. **Contexto:** usar o perfil econômico para decidir quais indicadores e acontecimentos consultar.
+6. **Contexto:** usar o perfil econômico para decidir quais indicadores consultar.
 
 Os limiares são calibrados ao porte do município e à volatilidade da série, e ficam registrados no
 perfil. Na ausência de desvio relevante, apresentar a evolução normal do período, sem criar
@@ -208,14 +194,12 @@ explicações extraordinárias.
 
 ### Exemplos de acionamento
 
-| Sinal detectado no CAGED municipal | Investigação complementar |
+| Sinal detectado no CAGED municipal | Leitura complementar (por código) |
 |---|---|
-| Queda de vínculos na agropecuária | Calendário de safra, condições climáticas e atividade agroindustrial local |
-| Redução do emprego industrial | Atividade dominante da indústria local (perfil), produção da cadeia, acontecimentos noticiados |
-| Aceleração do comércio | Sazonalidade, datas comerciais e vendas do varejo disponíveis para a região |
-| Avanço da construção | Obras, empreendimentos, financiamento e investimentos noticiados |
-| Expansão de alojamento e alimentação | Fluxo turístico, calendário de eventos e sazonalidade local |
-| Saldo fortemente negativo em um grupamento | Separar aumento dos desligamentos de queda das admissões; desagregar se a seção 1.2 permitir; verificar acontecimentos noticiados |
+| Redução do emprego industrial | Atividade dominante da indústria local (perfil), desagregação se a seção 1.2 permitir |
+| Aceleração do comércio | Faixa histórica do mês; Pix por município; Selic |
+| Avanço da construção | Faixa histórica do mês; Selic |
+| Saldo fortemente negativo em um grupamento | Separar aumento dos desligamentos de queda das admissões; desagregar se a seção 1.2 permitir |
 
 ---
 
@@ -228,12 +212,12 @@ explicações extraordinárias.
 | Painel do MTE (coletor) | Marco zero do estoque e conferência da série | Na implantação e ao adicionar território |
 | Banco Central: Pix por município | Aproximação da atividade das empresas LOCAIS (empresas recebedoras e valor recebido), sempre em leitura relativa (município × região × UF), porque o Pix ainda cresce por adoção; nominal; município do cadastro da conta | Mensal, publicado antes do CAGED |
 | Banco Central: Selic | Contexto só quando Construção ou Comércio estão em destaque; nunca causa | Mensal |
-| IBGE: API de notícias e releases | Evidência de escala estadual ou nacional (os demais dados do IBGE não descem a município ou saem com pouca frequência) | Conforme divulgação |
-| Fontes públicas locais, regionais e nacionais | Acontecimentos locais e externos, conforme noticiados | Quando houver fato relevante |
 | Comex Stat e fontes internacionais | Comércio exterior e preços, se a cadeia local justificar | Condicional |
 
+Notícias não são fonte do boletim (decisão de 30/09/2026).
+
 **Defasagem e escala:** informar a competência e a escala de cada indicador. Um dado estadual ou
-nacional, ou de outro período, não é apresentado como evidência direta da dinâmica municipal do
+nacional, ou de outro período, não é apresentado como descrição direta da dinâmica municipal do
 mesmo mês.
 
 ---
@@ -248,12 +232,9 @@ mesmo mês.
    pequena, com os limiares do perfil.
 4. **Consultar o perfil municipal:** identificar atividades dominantes, sazonalidades e indicadores
    associados aos destaques.
-5. **Investigar pontualmente:** recuperar apenas evidências e acontecimentos pertinentes, com fonte
-   e data.
-6. **Redigir com IA:** produzir texto curto, distinguindo fatos e associações; hipóteses só com evidência (1.5).
-7. **Validar:** confrontar todos os números com as tabelas e verificar fontes, datas e linguagem
-   causal.
-8. **Aprovar e enviar:** **aprovação humana explícita** antes de qualquer envio. O boletim com IA
+5. **Redigir com IA:** produzir texto curto, descritivo, sem hipóteses (1.5).
+6. **Validar:** confrontar todos os números com as tabelas e verificar linguagem causal.
+7. **Aprovar e enviar:** **aprovação humana explícita** antes de qualquer envio. O boletim com IA
    nunca sai automaticamente.
 
 **Divisão de responsabilidades:** o código executa cálculos e verificações; as regras selecionam os
@@ -290,10 +271,9 @@ destaques; a IA organiza a interpretação e redige; uma pessoa revisa e aprova.
 - [ ] Verificar concentração, sazonalidade e efeitos de bases pequenas.
 - [ ] Produzir a comparação sintética com a região e a UF.
 - [ ] Atualizar o perfil das contratações e os salários de admissão (mediana e média).
-- [ ] Consultar o perfil econômico municipal e definir os pontos de atenção (hipóteses só com evidência).
-- [ ] Buscar evidências e acontecimentos com fonte e período identificados.
+- [ ] Consultar o perfil econômico municipal e definir os pontos de atenção (sem hipóteses).
 - [ ] Redigir a interpretação sem confundir associação com causalidade.
-- [ ] Validar números, gráficos, fontes, datas e conclusões.
+- [ ] Validar números, gráficos e conclusões.
 - [ ] Obter a aprovação humana antes de enviar.
 
 ---
@@ -307,8 +287,7 @@ Cada edição deve responder, de maneira concisa:
    resultado?
 3. **É sazonal ou atípico** em relação ao histórico local? O número ainda é provisório?
 4. **Como se compara** com a região e a UF?
-5. **Quais evidências e acontecimentos** ajudam a contextualizar os movimentos selecionados?
-6. **O que ainda é hipótese** e não pode ser afirmado como causa?
+5. **O que acompanhar** nos próximos meses?
 
 O boletim mantém um núcleo estatístico constante e varia apenas as investigações exigidas pelos
 resultados do mês.

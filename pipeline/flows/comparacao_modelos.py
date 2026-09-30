@@ -1,7 +1,7 @@
 """
 Comparação prática de modelos redatores (F19 parte 6): o mesmo boletim, com os mesmos fatos,
 escrito por modelos diferentes, com tudo o mais igual (analista, revisor, advisor e juiz fixos,
-sem tickets nem notícias). Mede o que dá para medir por código e prepara os textos ÀS CEGAS
+sem tickets). Mede o que dá para medir por código e prepara os textos ÀS CEGAS
 para a leitura humana, que decide o que a métrica não pega (clareza, hierarquia, tom).
 
 Saída em /data/ia/comparacao/<data>/:
