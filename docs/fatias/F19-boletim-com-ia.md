@@ -264,6 +264,21 @@ redator: o GLM 5.3 Flash devolveu saída fora do esquema 3 vezes no dia (2 como 
 analista). Revisor e advisor passaram a não ser fatais (boletim segue com o aviso). Escolha do
 redator pendente da leitura humana.
 
+**Revisão editorial de 30/09/2026 (feita):** o problema era redundância, não prolixidade: o
+texto lia as tabelas em voz alta.
+- Estrutura: resumo em uma frase (sem estoque) → evolução do emprego → setores → comparação
+  regional e perfil → o que acompanhar → tabelas → indicadores complementares → nota.
+- `numeros_do_texto` (por código) diz ao redator o que o texto pode citar; o resto fica nas
+  tabelas, e `verificador.numeros_de_tabela` gera aviso de estilo quando o texto repete (3 avisos
+  já pedem segunda versão). No boletim anterior de julho seriam 27 avisos.
+- Faixa histórica só pela posição, sem os limites; demais grupamentos só pelo saldo conjunto;
+  comparação regional numa frase sem números; perfil pelas maiores perdas e pelas participações.
+- Pix fora do texto e do prompt: quadro "Indicadores complementares" com o cuidado de leitura.
+- Nota metodológica por código (4 frases); aviso de IA encurtado.
+- Teto do analista: 3 mil tokens (2 mil estourava em 3 de 15 chamadas do GLM 5.3 Flash).
+- Prévia real (202607, `--sem-tickets`): US$ 0,024, 1 aviso de estilo, uma versão só. O revisor
+  ainda aponta verbos de causa ("decorreu de", "determinado por") como menores.
+
 ## Fora de escopo
 
 - Consultas SQL geradas pelo LLM.

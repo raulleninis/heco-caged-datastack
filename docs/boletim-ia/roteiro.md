@@ -25,10 +25,17 @@ e indicadores fixos e uma interpretação econômica voltada aos destaques do m�
 Leitor: gestor público. Cada edição deixa claro, rápido, **o que aconteceu, onde se concentrou,
 como se compara com períodos anteriores e o que acompanhar**.
 
-- **Seções fixas:** síntese; panorama; setores; contexto regional; perfil e remuneração; pontos de
-  atenção; nota metodológica. Não há seção de hipóteses (ver 1.5).
+- **Seções fixas (revistas em 30/09/2026):** resumo (uma frase); evolução do emprego; setores;
+  comparação regional e perfil; o que acompanhar; tabelas; indicadores complementares (Pix);
+  nota metodológica. Não há seção de hipóteses (ver 1.5).
 - **Dois níveis:** o texto interpreta; **tabelas e gráficos, gerados por código a partir dos
-  fatos**, detalham. O LLM nunca monta tabela. O texto pode omitir o que está na tabela.
+  fatos**, detalham. O LLM nunca monta tabela. **O texto não lê a tabela em voz alta:** cada
+  boletim traz a lista de números citáveis no texto (`numeros_do_texto`: saldos, participações
+  no perfil, mediana); limites da faixa histórica, admissões, estoque e taxas dos grupamentos,
+  taxas da região e da UF e o Pix ficam só nas tabelas, e citá-los gera aviso de estilo.
+- **Comparação regional:** uma frase, sem números. **O que acompanhar:** o que verificar nas
+  próximas edições, sem repetir o texto. **Pix:** quadro complementar, fora do texto, até haver
+  uma ponte analítica com o CAGED. **Nota metodológica:** gerada por código, quatro frases.
 - **Critério para um número entrar no texto:** descrever a dimensão de um resultado,
   contextualizá-lo ou mostrar uma mudança relevante. Números de uso interno (contribuição
   percentual de cada setor para o saldo, participação de uma atividade nas movimentações em 12
@@ -40,8 +47,8 @@ como se compara com períodos anteriores e o que acompanhar**.
   **calculados por código** e entram nos fatos; o redator não os calcula.
 - **Faixa histórica:** ao citar, dizer o critério (mínimo e máximo do mesmo mês nos anos
   anteriores disponíveis).
-- **Uma única menção à provisoriedade**, na nota metodológica. Categorias sem identificação,
-  bases pequenas e a base do salário também vão para a nota.
+- **Uma única menção à provisoriedade**, na nota metodológica. Bases pequenas e a base do
+  salário também vão para a nota.
 - **Convenções:** "perda de 83 vínculos" ou "saldo negativo de 83" no texto (sinal só em
   tabela); **percentuais com 2 casas decimais**; "vínculos" para tudo; títulos em caixa de
   frase; sem travessão; sem expressões de preenchimento ("vale ressaltar", "no tocante").

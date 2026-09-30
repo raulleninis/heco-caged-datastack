@@ -78,7 +78,8 @@ class LimitesPapel:
 
 # Por papel. O redator escreve 3 a 4 páginas (~3 mil tokens) e pode raciocinar um pouco.
 LIMITES_PAPEL = {
-    "analista": LimitesPapel(max_tokens=2_000, timeout=90, raciocinio="low"),
+    # 2 mil estourava em 3 de 15 chamadas do GLM 5.3 Flash (raciocínio antes da resposta)
+    "analista": LimitesPapel(max_tokens=3_000, timeout=90, raciocinio="low"),
     "redator": LimitesPapel(max_tokens=8_000, timeout=180, raciocinio="low"),
     "revisor": LimitesPapel(max_tokens=3_000, timeout=120, raciocinio="low"),
     # conselheiro (3b-2): modelo mais capaz, consultado no máximo 2 vezes, resposta curta

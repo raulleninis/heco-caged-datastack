@@ -122,7 +122,7 @@ def rodar(warehouse: Path, territorio: str, competencias: list[str], cfg: ia.Con
         with _execucao(cfg, juiz, territorio, f"calibracao {comp}", post_decisoes, **execucao_kw) as ex:
             for c in da_comp:
                 b = boletim_ia.Boletim(titulo="", sintese="", panorama=[], setores=[], contexto_regional=[],
-                                       perfil_e_remuneracao=[], pontos_de_atencao=[], nota_metodologica="",
+                                       perfil_e_remuneracao=[], pontos_de_atencao=[],
                                        afirmacoes=[boletim_ia.Afirmacao(texto=c["texto"], ids=c["ids"])])
                 c["probabilidade"] = boletim_ia.julgar_afirmacoes(ex, b, f)[0]["probabilidade"]
         casos += da_comp

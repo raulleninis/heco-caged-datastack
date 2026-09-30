@@ -80,6 +80,58 @@ class Verificador(unittest.TestCase):
         tipos = [p["tipo"] for p in verificar_texto("Demissões na Empresa X LTDA.", NUMEROS)]
         self.assertEqual(tipos, ["possivel_identificacao"])
 
+    def test_numero_que_so_esta_nas_tabelas_gera_aviso(self):
+        from verificador import numeros_de_tabela
+        do_texto = {"panorama.saldo": NUMEROS["panorama.saldo"]}
+        avisos = numeros_de_tabela("Perda de 83 vínculos, estoque de 25.439 e 999 inventados.", do_texto, NUMEROS)
+        self.assertEqual([a["motivo"] for a in avisos], ["25.439 está nas tabelas: não repita no texto"])
+
+
+class Editorial(unittest.TestCase):
+    """Revisão editorial de 30/09/2026: o texto interpreta, a tabela detalha."""
+
+    def fatos(self):
+        n = lambda v, u="vinculos": {"valor": v, "unidade": u}  # noqa: E731
+        numeros = {"panorama.saldo": n(-83), "panorama.faixa_historica.minimo": n(-247),
+                   "setorial.servicos.saldo": n(-90), "setorial.servicos.estoque": n(10907),
+                   "setorial.comercio.saldo": n(11), "setorial.fora_dos_destaques.saldo": n(7),
+                   "comparacao.uf.taxa_mes": n(0.31, "pct"), "perfil.sexo.homem.admissoes": n(613),
+                   "perfil.sexo.homem.participacao_admissoes": n(69.5, "pct"), "salario.base": n(842),
+                   "salario.mediana": n(1661.0, "brl"), "pix.territorio.empresas_recebedoras": n(5184)}
+        pix = {"competencia": "julho de 2026", "comparado_com": "julho de 2025", "cuidados": "O Pix ainda cresce por adoção.",
+               "recortes": [{"nome": "Município", "empresas_recebedoras": {"valor": 5184}, "variacao_empresas_12m": {"valor": 21.75},
+                             "valor_recebido_milhoes": {"valor": 789.1}, "variacao_valor_12m": {"valor": 23.38}}]}
+        return {**FATOS, "numeros": numeros, "indicadores_externos": {"pix": pix},
+                "panorama": {"sazonalidade": {"anos": [2020, 2021, 2022, 2023, 2024, 2025]}},
+                "salario": {"base": {"valor": 842}},
+                "setorial": {"grupamentos": {"Serviços": {"saldo": {"id": "setorial.servicos.saldo", "valor": -90}},
+                                             "Comércio": {"saldo": {"id": "setorial.comercio.saldo", "valor": 11}}},
+                             "destaques": ["Serviços"]}}
+
+    def test_numeros_do_texto(self):
+        self.assertEqual(boletim_ia.numeros_do_texto(self.fatos()),
+                         ["panorama.saldo", "setorial.servicos.saldo", "setorial.fora_dos_destaques.saldo",
+                          "perfil.sexo.homem.participacao_admissoes", "salario.mediana"])
+
+    def test_pix_fora_do_prompt_e_no_quadro_complementar(self):
+        f = self.fatos()
+        prompt = json.loads(boletim_ia._fatos_para_prompt(f))
+        self.assertNotIn("pix", prompt["indicadores_externos"])
+        self.assertFalse([i for i in prompt["numeros"] if i.startswith("pix.")])
+        self.assertIn("salario.mediana", prompt["numeros_do_texto"])
+        md = boletim_ia.markdown(boletim_ia.Boletim(**boletim()), f)
+        for secao in ("## Evolução do emprego", "## Comparação regional e perfil", "## O que acompanhar",
+                      "## Indicadores complementares", "O Pix ainda cresce por adoção."):
+            self.assertIn(secao, md)
+        self.assertNotIn("Pontos de atenção", md)
+        self.assertLess(md.index("## Tabelas"), md.index("## Indicadores complementares"))
+
+    def test_nota_metodologica_por_codigo(self):
+        self.assertEqual(boletim_ia.nota_metodologica(self.fatos()),
+                         "Os dados do Novo CAGED são provisórios. A faixa histórica considera os meses de julho de "
+                         "2020 a 2025. Categorias com poucas observações não são interpretadas. A remuneração "
+                         "considera 842 admissões com salário informado.")
+
 
 def analise(ids=("panorama.saldo",)):
     return {"destaques": [{"tema": "saldo", "ids": list(ids), "por_que": "gatilho"}],
@@ -90,7 +142,7 @@ def boletim(numero="−83"):
     return {"titulo": "Boletim", "sintese": f"Saldo de {numero} vínculos.",
             "panorama": ["Estoque de 25.439."], "setores": ["Serviços concentrou a perda."],
             "contexto_regional": ["Taxa de -0,33% no mês."], "perfil_e_remuneracao": ["Na faixa de 18 a 24 anos, 306 admissões."],
-            "pontos_de_atencao": ["Acompanhar Serviços."], "nota_metodologica": "Dados provisórios."}
+            "pontos_de_atencao": ["Acompanhar Serviços."]}
 
 
 def parecer(grave=False):
@@ -149,6 +201,9 @@ class Fluxo(unittest.TestCase):
         self.assertIn("| Serviços | -90 |", md)
         self.assertIn("| Município | -83 | 25.439 | -0,33% | 0,75% |", md)
         self.assertEqual(res["rejeicoes_do_verificador"], [[]])
+        self.assertTrue(res["boletim"]["nota_metodologica"].startswith("Os dados do Novo CAGED são provisórios."))
+        # admissões por faixa etária ficam só na tabela: repetidas no texto, viram aviso
+        self.assertEqual([a["motivo"].split()[0] for a in res["avisos_de_estilo"] if "tabelas" in a["motivo"]], ["306"])
         linhas = [json.loads(l) for l in self.registro.arquivo.read_text().splitlines()]
         self.assertEqual([l["tipo"] for l in linhas], ["reserva", "chamada", "chamada", "chamada", "encerramento"])
 

@@ -147,10 +147,31 @@ def avisos_de_estilo(texto: str) -> list[dict]:
         aviso("use o nome do mês (ex.: 'julho de 2025') em vez de 'mesmo mês do ano anterior'", m)
     for m in re.finditer(r"\b(saldo|perda|queda|variação|recuo)\s+(de\s+)?[−-]\s?\d", minusculo):
         aviso("sinal de menos no texto: escreva 'perda de 83' ou 'saldo negativo de 83'", m)
-    provisorio = list(re.finditer(r"provisóri", minusculo))
-    if len(provisorio) > 1:
-        aviso(f"o aviso de dados provisórios aparece {len(provisorio)} vezes; deve ficar só na nota metodológica",
-              provisorio[1])
+    for m in re.finditer(r"provisóri", minusculo):
+        aviso("o aviso de dados provisórios fica só na nota metodológica, gerada por código", m)
+    return avisos
+
+
+def numeros_de_tabela(texto: str, numeros_do_texto: dict, numeros: dict, rotulos=()) -> list[dict]:
+    """Avisos para números que estão nos fatos, mas só nas tabelas: o texto interpreta, a tabela
+    detalha (revisão editorial de 30/09/2026). Um valor que também é de `numeros_do_texto` passa."""
+    no_texto, no_texto_mil = permitidos(numeros_do_texto)
+    todos, todos_mil = permitidos(numeros)
+    avisos = []
+    texto = _mascarar_rotulos(texto, rotulos)
+    for m in _NUMERO.finditer(texto):
+        valor = _decimal(m.group())
+        if valor is None or _livre(abs(valor)):
+            continue
+        valor = abs(valor)
+        if _MIL.match(texto, m.end()):
+            nos_fatos = valor in todos_mil or valor * 1000 in todos
+            ok = valor in no_texto_mil or valor * 1000 in no_texto
+        else:
+            nos_fatos, ok = valor in todos, valor in no_texto
+        if nos_fatos and not ok:  # fora dos fatos é problema do verificar_texto, não aviso
+            avisos.append({"tipo": "estilo", "motivo": f"{m.group()} está nas tabelas: não repita no texto",
+                           "trecho": texto[max(0, m.start() - 50): m.end() + 30].replace("\n", " ")})
     return avisos
 
 

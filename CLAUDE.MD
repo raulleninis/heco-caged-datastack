@@ -354,3 +354,8 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   (pior caso 9). Dúvidas nunca sobre empresas/estabelecimentos
 - Decisões editoriais (29/09/2026): sem hipóteses (desde 30/09/2026, sem notícias, de vez);
   percentuais com 2 casas decimais
+- Revisão editorial (30/09/2026): o texto interpreta, a tabela detalha. `numeros_do_texto`
+  (boletim_ia) define o que o texto cita; `verificador.numeros_de_tabela` avisa repetição
+  (aviso, nunca reprovação). Pix só no quadro complementar e fora do prompt; nota metodológica
+  por código (`nota_metodologica`, gravada em resultado["boletim"]); o LLM não a escreve.
+  Mudou prompt, não fatos: o hash é o mesmo, então gerar de novo exige `--refazer`

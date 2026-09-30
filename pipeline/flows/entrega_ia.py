@@ -42,8 +42,8 @@ from entrega import Config, EnvioInterrompido, abrir_smtp, ler_destinatarios
 
 PASTA_IA = Path(os.environ.get("IA_DIR", "/data/ia"))
 ADMINS = Path(os.environ.get("DESTINATARIOS_ADMIN_ARQUIVO", "/secrets/destinatarios_admin.txt"))
-AVISO_IA = ("Texto redigido com apoio de inteligência artificial sobre números calculados por código a partir "
-            "do Novo CAGED, verificado automaticamente e revisado por uma pessoa antes do envio.")
+AVISO_IA = ("Texto produzido com apoio de IA a partir de dados processados automaticamente e revisado antes "
+            "da publicação.")
 
 
 class RevisaoRecusada(RuntimeError):
@@ -109,13 +109,13 @@ def gerar_pdf(pasta: Path) -> Path:
     pdf.ln(2)
     pdf.set_font("Helvetica", size=10)
     paragrafo(b["sintese"])
-    for nome, campo in (("Panorama", "panorama"), ("Setores", "setores"), ("Contexto regional", "contexto_regional"),
-                        ("Perfil e remuneração", "perfil_e_remuneracao")):
+    for nome, campos in (("Evolução do emprego", ("panorama",)), ("Setores", ("setores",)),
+                         ("Comparação regional e perfil", ("contexto_regional", "perfil_e_remuneracao"))):
         titulo(nome)
-        for p in b[campo]:
+        for p in [p for c in campos for p in b[c]]:
             paragrafo(p)
     if b.get("pontos_de_atencao"):
-        titulo("Pontos de atenção")
+        titulo("O que acompanhar")
         for p in b["pontos_de_atencao"]:
             paragrafo("- " + p)
 
@@ -153,7 +153,9 @@ def gerar_pdf(pasta: Path) -> Path:
                     linha.cell("-" if val is None else boletim.fmt_num(val) + "%")
     pix = (f.get("indicadores_externos") or {}).get("pix")
     if pix:
-        titulo(f"Pix por município (Banco Central), {pix['competencia']}")
+        titulo("Indicadores complementares")
+        pdf.set_font("Helvetica", "B", 9)
+        paragrafo(f"Pix por município (Banco Central), {pix['competencia']}", altura=4)
         pdf.set_font("Helvetica", size=8)
         with pdf.table(col_widths=(62, 28, 36, 28, 32), text_align=("LEFT",) + ("RIGHT",) * 4, line_height=4.5) as tab:
             linha = tab.row()
@@ -166,6 +168,10 @@ def gerar_pdf(pasta: Path) -> Path:
                 linha.cell(boletim.fmt_num(x["variacao_empresas_12m"]["valor"]) + "%")
                 linha.cell(boletim.fmt_num(x["valor_recebido_milhoes"]["valor"], 1))
                 linha.cell(boletim.fmt_num(x["variacao_valor_12m"]["valor"]) + "%")
+        if pix.get("cuidados"):
+            pdf.ln(1)
+            pdf.set_font("Helvetica", size=8)
+            paragrafo(pix["cuidados"], altura=4)
     titulo("Nota metodológica", 10)
     pdf.set_font("Helvetica", size=8)
     paragrafo(b["nota_metodologica"], altura=4)
