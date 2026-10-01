@@ -1,0 +1,104 @@
+version: 2
+
+# Marco zero do estoque (F16), DESATIVADO em 01/10/2026 pela F20: o estoque passou a ser
+# ancorado no estoque de referência do MTE (stg_estoque_referencia). Fica aqui, inteiro, até a
+# F20 se provar estável; depois sai de vez. Modelos e testes desta pasta estão com
+# enabled: false (dbt_project.yml); a source, aqui embaixo.
+
+sources:
+  - name: marco_zero
+    config:
+      enabled: false
+    description: >
+      Marco zero do estoque (F16/D11): estoque do painel do MTE numa competência de
+      referência, por território × grupamento. Único insumo manual do projeto, versionado
+      no git em marco-zero/ (montado em /marco-zero no container). Fonte e conferência em
+      marco-zero/FONTE.md.
+    tables:
+      - name: estoque
+        description: "Um CSV por território (marco-zero/estoque/<codigo>_<nome>.csv)."
+        meta:
+          external_location: "read_csv('{{ var('marco_zero_dir', '/marco-zero') }}/estoque/*.csv', header=true, all_varchar=true, filename=true)"
+      - name: validacao_painel
+        description: >
+          Estoque do painel em competências posteriores ao marco zero, só para conferência
+          (test_estoque_confere_painel). Não entra no cálculo.
+        meta:
+          external_location: "read_csv('{{ var('marco_zero_dir', '/marco-zero') }}/validacao/*_estoque_painel.csv', header=true, all_varchar=true)"
+
+models:
+  - name: stg_marco_zero_estoque
+    description: >
+      Marco zero do estoque (F16/D11): estoque do painel do MTE ao fim da competência de
+      referência, por território × grupamento. Lido de marco-zero/estoque/*.csv (git).
+      Completude (seis grupamentos, uma data por território): test_marco_zero_completo.
+    columns:
+      - name: territorio
+        description: "Código de 6 dígitos do município (o dos microdados) ou 2 dígitos da UF."
+        tests:
+          - not_null
+      - name: grupamento
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Agropecuária', 'Indústria', 'Construção', 'Comércio', 'Serviços', 'Não Identificado']
+      - name: estoque
+        tests:
+          - not_null
+      - name: competencia_marco_zero
+        description: "AAAAMM da data_referencia: o marco é o estoque ao FIM desta competência."
+        tests:
+          - not_null
+      - name: retificacoes_ate
+        description: "Último arquivo FOR/EXC (AAAAMM) já incorporado pelo painel na coleta. Ver ajuste_marco_zero."
+        tests:
+          - not_null
+      - name: fonte
+        description: "Obrigatória: de onde veio o número e a metodologia."
+        tests:
+          - not_null
+      - name: coletado_em
+        tests:
+          - not_null
+
+  - name: ajuste_marco_zero
+    description: >
+      Ajuste calculado do marco zero (F16/D11): FOR/EXC que corrigem competências até a do
+      marco e chegaram em arquivos posteriores a `retificacoes_ate`. Vazio em regime normal.
+    columns:
+      - name: territorio
+        tests:
+          - not_null
+      - name: grupamento
+        tests:
+          - not_null
+      - name: ajuste
+        description: "Soma do efeito no saldo (FOR +saldo, EXC −saldo)."
+
+unit_tests:
+  - name: ajuste_ignora_o_que_o_painel_ja_incorporou
+    description: >
+      Duplo ajuste (D11). Duas declarações fora do prazo para 202002: a de 202601 já estava
+      no painel quando o marco foi coletado (retificacoes_ate 202607) e não entra; a de
+      202608 chegou depois e ajusta o marco. Uma de 202004 não é ajuste (entra no fluxo).
+    model: ajuste_marco_zero
+    given:
+      - input: ref('territorios')
+        rows:
+          - {territorio: '280480', nome: 'Nossa Senhora do Socorro', tipo: 'municipio', ativo: true}
+      - input: ref('stg_marco_zero_estoque')
+        rows:
+          - {territorio: '280480', grupamento: 'Comércio', estoque: 50, competencia_marco_zero: 202003, retificacoes_ate: 202607}
+      - input: ref('stg_caged_movimentacoes')
+        rows: []
+      - input: ref('stg_caged_fora_do_prazo')
+        rows:
+          - {uf: 28, municipio: 280480, grupamento: 'Comércio', competencia_mov: 202002, competencia_arquivo: 202601, saldo_movimentacao: 1}
+          - {uf: 28, municipio: 280480, grupamento: 'Comércio', competencia_mov: 202002, competencia_arquivo: 202608, saldo_movimentacao: -1}
+          - {uf: 28, municipio: 280480, grupamento: 'Comércio', competencia_mov: 202004, competencia_arquivo: 202608, saldo_movimentacao: 1}
+      - input: ref('stg_caged_exclusoes')
+        rows: []
+    expect:
+      rows:
+        - {territorio: '280480', grupamento: 'Comércio', linhas: 1, ajuste: -1}

@@ -49,7 +49,7 @@ escrita em qualquer outro lugar até fechar a conexão.
     subtrai) por competência de DECLARAÇÃO. Baixam → extraem → deletam .7z → `_transformar()`,
     que roda a staging UMA VEZ POR ARQUIVO (`dbt run --select stg_caged_<tipo> --vars
     '{"competencia_arquivo": "AAAAMM"}'`), registra o arquivo em `ingestao_arquivos`, depois
-    materializa o marco zero e os marts (`stg_marco_zero_estoque path:models/marts`) uma vez e roda os testes (ver limitação de
+    materializa o estoque de referência e os marts (`stg_estoque_referencia path:models/marts`) uma vez e roda os testes (ver limitação de
     memória abaixo). FOR e EXC são pequenos (~1 MB / 0,1 MB o .7z); só o MOV pesa (~45 MB)
 - `pipeline/flows/boletim.py`, `arquivo.py`, `entrega.py` — entrega por e-mail (F15):
   gera boletim (PDF) e planilha (XLSX) **do mart**, arquiva no repositório privado do
@@ -78,7 +78,7 @@ escrita em qualquer outro lugar até fechar a conexão.
   de salário (o teste que teria pego o bug de F05), salário individual
   (teto R$ 50.000 por admissão, pega outlier isolado na origem) e razão
   média/mediana (pega distorção moderada que a faixa absoluta deixa passar); estoque (F16):
-  marco zero completo, estoque não negativo, coerência, conferência com o painel (warn).
+  estoque não negativo, coerência, conferência com o estoque de referência (F20).
   Testes unitários do estoque em `models/marts/_marts.yml` (`unit_tests:`)
 - `dbt/models/marts/mart_caged_mensal_grupamento.sql` — métricas por competência + grupamento:
   - `admissoes`, `desligamentos`, `saldo_liquido` (contagens)
@@ -199,7 +199,7 @@ commit + push no repositório privado do arquivo. Regras que não são óbvias:
 - Testes que travam as premissas: `test_exc_preserva_sinal_do_evento`, `test_coerencia_reconciliado`,
   `test_continuidade_mov` (erro) e `test_continuidade_for_exc` (warn: o PDET pode publicar FOR/EXC
   depois do MOV). O boletim (F15) usa o mart reconciliado e cai no só-MOV se ele não existir.
-  Estoque e taxa (F16 parte 3) vêm do mart_estoque, `TERRITORIO = "280480"` em boletim.py (tem de
+  Estoque e taxa (F16 parte 3, F20) vêm do mart_estoque, `TERRITORIO = "280480"` em boletim.py (tem de
   bater com a var municipio_boletim do dbt); só aparecem quando existem
 - Filtro territorial (F16 parte 2): a staging guarda Sergipe inteiro (`uf = 28`, ~26 mil
   linhas/mês no MOV). `mart_caged_mensal_grupamento`, `mart_caged_reconciliado` e o teste de
@@ -207,32 +207,36 @@ commit + push no repositório privado do arquivo. Regras que não são óbvias:
   dbt_project.yml). ARMADILHA: todo mart ou teste novo que leia a staging precisa filtrar o
   território, senão soma o estado inteiro em silêncio
 
-## Estoque a partir do marco zero (F16)
-- `marco-zero/` (git, montado em `/marco-zero:ro`): estoque do painel do MTE ao fim de 202003, um
-  CSV por território; `normalizar.py` gera os CSVs dos originais manuais do painel, ou de uma
-  coleta do `marco-zero/coletor/` com `--coleta PASTA` (código, `retificacoes_ate` e data da
-  coleta vêm da pasta; lê CSV com BOM). O coletor (Playwright + endpoint público do Power BI,
-  com evidências) roda fora do container, com requirements próprios; a coleta precisa incluir
-  202003. Seu comparador lê o `mart_estoque` (território em texto; TRY_CAST). Âncora em mar/2020
-  porque 202001 e 202003 do FTP divergem do painel (docs/auditorias/). Valor manual IMUTÁVEL
-- `stg_marco_zero_estoque` → `ajuste_marco_zero` → `mart_estoque` (território × grupamento ×
-  competência: saldo, estoque, taxa). Regra do efeito no saldo num lugar só: macro
-  `efeito_no_saldo()` (macros/estoque.sql)
-- Armadilha: o ajuste só usa FOR/EXC de competência ≤ marco vindos de arquivo > `retificacoes_ate`
-  (202607); os anteriores já estão no número do painel (somá-los contaria −106 duas vezes)
-- `test_estoque_confere_painel` (warn) recalcula o estoque só com os arquivos até a foto do painel
-  e compara com `marco-zero/validacao/`: continua válido depois de novos retificadores
-- Territórios do estoque: seed `dbt/seeds/territorios.csv` (`municipio` casa com o código de 6
-  dígitos, `uf` com a UF). Só os `ativo` entram (macro `efeito_no_saldo()` faz o join). Ativar
-  = mudar a coluna, sem reprocessar, porque a staging já tem o estado todo (histórico
-  reprocessado em 28/09/2026). Todos os cinco ativos (280480, 280030, 280060, 280670 e 28),
-  84/84 com o painel cada. O "Não Identificado" de Sergipe é NEGATIVO no próprio painel: por isso
+## Estoque ancorado no estoque de referência do MTE (F20; marco zero F16 desativado)
+- Âncora = **estoque de referência do MTE** (gov.br, NÃO está no FTP; um zip por ano, município ×
+  subclasse CNAE; o de 2026 é o estoque ao fim de 202512). O painel do Novo CAGED faz igual:
+  troca de referência desloca a série inteira até 2020. `mart_estoque`: referência +
+  acumulado(t) − acumulado(ref), para trás e para frente, desde `var('estoque_inicio')` (202001).
+  Conferido com o painel: de mar/2020 em diante bate; jan e fev/2020 de Socorro ficam 2 ABAIXO do painel
+  (recuar passa pelo 202003 divergente do FTP, docs/auditorias/), diferença ACEITA pelo usuário.
+  NULL sem referência ou com a referência à frente dos dados. Todo território com referência tem os seis grupamentos
+- `flows/estoque_referencia.py` (`ANO_REFERENCIA = 2026`): todo run do flow confere o zip
+  (SHA-256 do `.txt`; o gov.br não manda Last-Modified e dá 403 a HEAD: GET com User-Agent de
+  navegador). Mudou → substitui `estoque_referencia` (só UF 28, numa transação), registra em
+  `estoque_referencia_arquivos` e o flow roda `_materializar_marts()` mesmo sem competência
+  nova. Ano novo publicado → aviso UMA vez (`estoque_referencia_avisos`); trocar o ano é manual
+  (reancora tudo; conferir com o painel antes). Falha de rede nunca derruba o flow
+- `stg_estoque_referencia`: subclasse vem sem zero à esquerda (lpad 7) → divisão → seção (seed
+  cnae_divisoes) → `caged_grupamento`; 9999999 = Não Identificado, não a divisão 99
+- Testes: `test_estoque_confere_referencia` (error), `test_territorio_sem_estoque_referencia`
+  (warn). O "Não Identificado" de Sergipe é NEGATIVO no próprio painel (−3 em 202608):
   test_estoque_nao_negativo (error) exclui esse grupamento e test_estoque_nao_identificado_negativo
   (warn) o cobre — esse WARN é esperado em todo run
-- marco-zero/validacao/: o painel esconde "Não Identificado" ≤ 0 (célula vazia) mas o TOTAL o
-  inclui; normalizar.py o deriva como TOTAL − os outros cinco
-- O flow roda `dbt seed` e depois `dbt run --select stg_marco_zero_estoque path:models/marts`
-- `ingestao_arquivos` guarda `sha256` e `bytes` do .7z (NULL nos registros anteriores à parte 2)
+- O flow roda `dbt seed` e depois `dbt run --select stg_estoque_referencia path:models/marts`
+- **Marco zero (F16) DESATIVADO, não excluído** (decisão do usuário, 01/10/2026): `marco-zero/`,
+  `dbt/models/marco_zero_desativado/` e `dbt/tests/marco_zero_desativado/` com `enabled: false`
+  (dbt_project.yml; a source no próprio yml). Sai de vez quando a F20 estiver estável. Não
+  reativar sem motivo: o marco de mar/2020 ficou desatualizado com a referência 2026
+- Territórios do estoque: seed `dbt/seeds/territorios.csv` (`municipio` casa com o código de 6
+  dígitos, `uf` com a UF). Só os `ativo` entram (macro `efeito_no_saldo()` faz o join). Ativar
+  = mudar a coluna, sem reprocessar, porque a staging já tem o estado todo. Todos os cinco ativos
+  (280480, 280030, 280060, 280670 e 28), conferidos com o painel em 01/10/2026
+- `ingestao_arquivos` guarda `sha256` e `bytes` do .7z (NULL nos registros anteriores à F16 parte 2)
 
 ## Fuso horário
 O cron do `ingest_caged` é `"0 3 * * *"` — 3h UTC, meia-noite em Brasília.

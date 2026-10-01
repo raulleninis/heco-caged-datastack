@@ -21,8 +21,8 @@ flowchart LR
     STG["dbt: 3 staging incrementais<br/>MOV · FOR · EXC (Sergipe, uf = 28)<br/>+ registro de ingestão"]
     MART1["mart_caged_mensal_grupamento<br/>fluxo + salários (só MOV)"]
     MART2["mart_caged_reconciliado<br/>MOV + FOR − EXC<br/>provisório / consolidado"]
-    MZ[("marco-zero/ (git)<br/>estoque do painel MTE<br/>em mar/2020")]
-    MART3["mart_estoque<br/>marco zero + saldos<br/>estoque e taxa"]
+    MZ[("estoque de referência<br/>do MTE (gov.br)<br/>dez/2025, conferido todo run")]
+    MART3["mart_estoque<br/>referência ± saldos<br/>estoque e taxa"]
     BOL["boletim.py<br/>PDF + XLSX"]
     ARQ[("repositório privado<br/>+ Netlify (login)")]
     MAIL["e-mail (Resend/SMTP)<br/>um por destinatário"]
@@ -116,12 +116,12 @@ erDiagram
         varchar situacao "provisório | consolidado"
     }
 
-    stg_marco_zero_estoque {
-        varchar territorio "código IBGE de 6 dígitos (UF: 28)"
+    stg_estoque_referencia {
+        varchar codmun "código IBGE de 6 dígitos"
+        varchar subclasse "CNAE, 7 dígitos"
         varchar grupamento
-        bigint estoque "painel do MTE, fim de 202003"
-        bigint competencia_marco_zero
-        bigint retificacoes_ate "FOR/EXC já no painel na coleta"
+        bigint estoque "MTE, fim de 202512"
+        bigint competencia_referencia
     }
 
     mart_estoque {
@@ -129,7 +129,7 @@ erDiagram
         varchar grupamento
         bigint competencia_mov
         bigint saldo_consolidado
-        bigint estoque "NULL antes do marco ou sem marco"
+        bigint estoque "desde 202001; NULL sem referência"
         double taxa_variacao_mensal "saldo ÷ estoque anterior"
     }
 
@@ -137,8 +137,8 @@ erDiagram
     stg_caged_movimentacoes ||--o{ mart_caged_reconciliado : "MOV"
     stg_caged_fora_do_prazo ||--o{ mart_caged_reconciliado : "+ FOR"
     stg_caged_exclusoes ||--o{ mart_caged_reconciliado : "− EXC"
-    stg_marco_zero_estoque ||--o{ mart_estoque : "marco zero (+ ajuste_marco_zero)"
-    stg_caged_movimentacoes ||--o{ mart_estoque : "MOV + FOR − EXC após o marco"
+    stg_estoque_referencia ||--o{ mart_estoque : "âncora (soma por território)"
+    stg_caged_movimentacoes ||--o{ mart_estoque : "MOV + FOR − EXC antes e depois da âncora"
 ```
 
 As staging de FOR e EXC têm as mesmas colunas da de MOV (o EXC tem 2 a mais); a tabela acima mostra só as que
@@ -420,7 +420,12 @@ print(c.execute('''select competencia_mov, sum(saldo_consolidado) saldo, sum(est
 
 Falha com "lock" se algum flow estiver escrevendo: espere ele terminar.
 
-### 7b. Reconstruir o marco zero (`marco-zero/coletor/`)
+### 7b. Reconstruir o marco zero (`marco-zero/coletor/`), desativado
+
+> Desde 01/10/2026 o estoque é ancorado no estoque de referência do MTE
+> ([F20](docs/fatias/F20-estoque-de-referencia-do-mte.md)) e o marco zero está desativado. O coletor
+> continua útil para conferir valores do painel. Para conferir a referência à mão:
+> `docker compose exec -u caged pipeline python flows/estoque_referencia.py verificar`.
 
 O marco zero do estoque (F16) vem do painel do MTE. O coletor consulta o painel público de forma
 reproduzível, guardando requisições e respostas como evidência. Roda fora do container (precisa de
@@ -590,8 +595,8 @@ login) e envia **um e-mail por destinatário**. Os comandos manuais estão na [R
 
 - **O boletim usa o número reconciliado** (MOV + FOR − EXC), com a marcação **provisório/consolidado**; sem o mart
   reconciliado, cai no só-MOV. Os salários são sempre só do MOV.
-- **Estoque e variação no mês** (F16) aparecem no resumo, na tabela e na planilha, rotulados como estimativa a
-  partir de marco zero; sem `mart_estoque` ou sem marco zero, o boletim sai sem eles.
+- **Estoque e variação no mês** (F16/F20) aparecem no resumo, na tabela e na planilha, rotulados como estimativa a
+  partir do estoque de referência do MTE; sem `mart_estoque` ou sem referência, o boletim sai sem eles.
 - **O estado de envio (`envios.json`) vive no repositório do arquivo**, não no warehouse: apagar o `.duckdb` e
   reconstruí-lo **não reenvia nada**. Sem conseguir ler esse estado, o pipeline não envia (falha fechado).
 - **Envio interrompido** vira `enviando` órfão: alerta a cada run e **nunca** é reenviado sozinho.
@@ -624,14 +629,18 @@ exclusões e o **saldo consolidado** (MOV + FOR − EXC). Cada competência é m
 chegou com mais de 12 meses de atraso) ou **consolidada** (só exclusões tardias podem alterá-la:
 elas retroagem até 5 anos). As métricas de salário continuam só no mart do MOV.
 
-**Estoque (F16).** `mart_estoque` traz, por território × grupamento × competência, o saldo
+**Estoque (F16/F20).** `mart_estoque` traz, por território × grupamento × competência, o saldo
 consolidado, o **estoque** e a **taxa de variação mensal** (saldo ÷ estoque do mês anterior). O
-estoque parte do **marco zero**, o estoque do painel do MTE ao fim de mar/2020
-([marco-zero/](marco-zero/FONTE.md)), e soma os saldos a partir de abr/2020. Jan e mar/2020 dos
-microdados divergem do painel ([auditoria](docs/auditorias/2026-09-28-painel-vs-mart-socorro.md)) e
-ficam antes da âncora. Conferido contra o painel em 14 competências de 202006 a 202607: 84 de 84
-valores idênticos em cada território (`test_estoque_confere_painel`, warn). É uma estimativa: muda quando chegam
-retificadores de meses passados.
+estoque é ancorado no **estoque de referência do MTE** (gov.br, um arquivo por ano; o de 2026 é o
+estoque ao fim de dez/2025), o mesmo que o painel do Novo CAGED usa: para os meses seguintes soma
+os saldos, para os anteriores subtrai, até jan/2020. De mar/2020 em diante bate com o painel;
+em jan e fev/2020, o estoque de Socorro fica 2 vínculos abaixo do painel, porque recuar até eles passa por mar/2020, mês
+em que os microdados divergem do painel ([auditoria](docs/auditorias/2026-09-28-painel-vs-mart-socorro.md)). Todo run do flow confere se o
+MTE trocou o arquivo; se trocou, recarrega e recalcula a série
+([F20](docs/fatias/F20-estoque-de-referencia-do-mte.md)). Conferido com o painel em 01/10/2026, nos
+cinco territórios, em 202003 e 202608. É uma estimativa: muda quando chegam retificadores de meses
+passados e quando o MTE atualiza a referência. O marco zero manual de mar/2020
+([marco-zero/](marco-zero/FONTE.md)) está desativado.
 
 **Territórios.** A staging guarda Sergipe inteiro (`uf = 28`); os marts de fluxo e o boletim
 filtram o município de `municipio_boletim` (280480, em `dbt/dbt_project.yml`). O estoque vale
@@ -664,6 +673,8 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [x] Sergipe (UF) no estoque; o "Não Identificado" da UF é negativo no próprio painel e tem teste em warn
 - [x] Estoque e taxa de variação no boletim (PDF e XLSX), como estimativa a partir de marco zero — F16 parte 3
 - [x] Coletor reproduzível do marco zero (`marco-zero/coletor/`) e `normalizar.py --coleta`: um território novo sem digitar número
+- [x] Estoque ancorado no estoque de referência do MTE, conferido a cada run; marco zero desativado — [F20](docs/fatias/F20-estoque-de-referencia-do-mte.md)
+- [ ] Remover o marco zero de vez, depois de algumas semanas da F20 sem surpresa
 - [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
 - [ ] Boletim analítico com IA ([F19](docs/fatias/F19-boletim-com-ia.md), [roteiro](docs/boletim-ia/roteiro.md))
   - [x] Fatos por código: fluxo reconciliado por subgrupamento e divisão CNAE, perfil das admissões, região, acumulados e gatilhos

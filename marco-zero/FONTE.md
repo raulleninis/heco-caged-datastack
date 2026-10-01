@@ -1,5 +1,10 @@
 # Fonte do marco zero do estoque (F16 / D11)
 
+> **Desativado em 01/10/2026 ([F20](../docs/fatias/F20-estoque-de-referencia-do-mte.md)).** O
+> estoque passou a ser ancorado no estoque de referência do MTE, o mesmo do painel. O MTE trocou
+> essa referência e o marco de mar/2020 abaixo ficou desatualizado (Socorro: Indústria −5,
+> Serviços +1). Esta pasta fica como está até a F20 se provar estável; depois sai de vez.
+
 | item | valor |
 |---|---|
 | **De onde veio** | Painel do Novo CAGED do MTE (Power BI): <https://app.powerbi.com/view?r=eyJrIjoiNWI5NWI0ODEtYmZiYy00Mjg3LTkzNWUtY2UyYjIwMDE1YWI2IiwidCI6IjNlYzkyOTY5LTVhNTEtNGYxOC04YWM5LWVmOThmYmFmYTk3OCJ9> |

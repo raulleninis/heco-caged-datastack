@@ -1,6 +1,6 @@
 # D11 · Como constituir o estoque de emprego
 
-**Status:** decidida, revisada em 22/09/2026, com pontos abertos · **Bloqueia:** [F16](../fatias/F16-estoque-a-partir-do-marco-zero.md), [F10](../fatias/F10-camada-analitica.md) (indicadores de taxa; F10 descartada em 28/09/2026) · **Urgência:** média
+**Status:** decidida, revisada em 01/10/2026 ([F20](../fatias/F20-estoque-de-referencia-do-mte.md)), com pontos abertos · **Bloqueia:** [F16](../fatias/F16-estoque-a-partir-do-marco-zero.md), [F10](../fatias/F10-camada-analitica.md) (indicadores de taxa; F10 descartada em 28/09/2026) · **Urgência:** média
 
 ## Contexto
 
@@ -21,9 +21,24 @@ o que permite comparar territórios de tamanhos diferentes (parte C da
 |---|---|
 | 21/09/2026 | valor inicial manual **em jan/2020, já após as movimentações do mês**; fonte a definir (RAIS considerada) |
 | 22/09/2026 | **RAIS descartada** (exigiria mais tempo que o disponível). Valor inicial manual = **marco zero anterior a jan/2020**; movimentações aplicadas por cima desde jan/2020 |
-| **28/09/2026** | Marco zero passa a ser o **estoque do painel do MTE ao fim de mar/2020**; movimentações aplicadas desde **abr/2020**. Motivo: 202001 e 202003 divergem do painel por versão dos `CAGEDMOV` no FTP, não por erro do projeto |
+| 28/09/2026 | Marco zero passa a ser o **estoque do painel do MTE ao fim de mar/2020**; movimentações aplicadas desde **abr/2020**. Motivo: 202001 e 202003 divergem do painel por versão dos `CAGEDMOV` no FTP, não por erro do projeto |
+| **01/10/2026** | **Âncora = estoque de referência do MTE** (gov.br, um arquivo por ano; o de 2026 é o estoque de dez/2025), para trás e para frente, como faz o painel. O MTE trocou a referência e deslocou a série inteira do painel (Socorro: Indústria +5, Serviços −1, até 2020); o marco manual ficou desatualizado. Marco zero **desativado, não excluído**. Ver [F20](../fatias/F20-estoque-de-referencia-do-mte.md) |
 
-## Decisão vigente (28/09/2026)
+## Decisão vigente (01/10/2026)
+
+> **Escolha:** ancorar o estoque no **estoque de referência do MTE**, por município × subclasse
+> CNAE, somado por território × grupamento:
+> `estoque(t) = referência + Σ saldo de (ref, t]` para t depois da referência, e
+> `referência − Σ saldo de (t, ref]` para t antes, desde **jan/2020** (em jan e fev, Socorro fica 2 abaixo
+> do painel, pela divergência conhecida do `CAGEDMOV` de 202003; aceito).
+> **Porquê:** é o que o painel do Novo CAGED faz. Conferido em 01/10/2026 em cinco territórios,
+> em 202003 e 202608. O flow diário confere o arquivo do MTE a cada run e recalcula a série se
+> ele mudar ([F20](../fatias/F20-estoque-de-referencia-do-mte.md)).
+
+A seção abaixo é a decisão de 28/09/2026 (marco zero), mantida como histórico: o marco está
+desativado no código, não excluído.
+
+## Decisão anterior (28/09/2026, desativada em 01/10/2026)
 
 > **Escolha:** usar como **marco zero** o estoque do **painel do Novo CAGED (MTE)** ao
 > **fim de março de 2020**, **por território × grupamento**. O estoque de cada mês sai

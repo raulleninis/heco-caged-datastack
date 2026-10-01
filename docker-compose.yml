@@ -54,7 +54,8 @@ services:
     volumes:
       - ./data:/data
       - ./dbt:/dbt
-      # Marco zero do estoque (F16): único insumo manual, versionado no git.
+      # Marco zero do estoque (F16): DESATIVADO pela F20 (estoque de referência do MTE); a
+      # montagem fica até o marco sair de vez.
       - ./marco-zero:/marco-zero:ro
       # Deploy key do repositório do arquivo e lista de destinatários (dado
       # pessoal, LGPD): fora do git, somente leitura. Ver README, "Entrega".

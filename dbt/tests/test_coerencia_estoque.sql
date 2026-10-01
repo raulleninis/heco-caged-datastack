@@ -1,7 +1,7 @@
 -- Falha se o mart de estoque for incoerente consigo mesmo ou com o reconciliado (F16):
 --  1. saldo_consolidado bate com mart_caged_reconciliado (mesma regra MOV + FOR − EXC), no
 --     município do boletim, o único que o reconciliado cobre
---  2. depois do marco zero, estoque(t) − estoque(t−1) = saldo_consolidado(t)
+--  2. onde há estoque nos dois meses, estoque(t) − estoque(t−1) = saldo_consolidado(t)
 
 with estoque as (
     select
@@ -28,5 +28,5 @@ left join reconciliado r
     on r.competencia_mov = e.competencia_mov and r.grupamento = e.grupamento
 where (e.territorio = '{{ var('municipio_boletim') }}'
        and e.saldo_consolidado != coalesce(r.saldo_consolidado, 0))
-   or (e.competencia_mov > e.competencia_marco_zero
+   or (e.estoque is not null and e.estoque_anterior is not null
        and e.estoque != e.estoque_anterior + e.saldo_consolidado)

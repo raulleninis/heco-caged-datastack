@@ -1,5 +1,10 @@
 # Marco zero do estoque de emprego (F16 / D11)
 
+> **Desativado em 01/10/2026 ([F20](../docs/fatias/F20-estoque-de-referencia-do-mte.md)).** O
+> estoque passou a ser ancorado no estoque de referência do MTE, o mesmo do painel. O MTE trocou
+> essa referência e o marco de mar/2020 abaixo ficou desatualizado (Socorro: Indústria −5,
+> Serviços +1). Esta pasta fica como está até a F20 se provar estável; depois sai de vez.
+
 Único insumo manual do projeto: o estoque de emprego formal ao **fim de mar/2020**, por território ×
 grupamento. O estoque de cada mês é calculado aplicando as movimentações (`MOV + FOR − EXC`) a partir de
 **abr/2020**. Fonte, metodologia, conferência e regra de ajuste estão em [FONTE.md](FONTE.md).

@@ -1,9 +1,9 @@
 {#
     Estoque e taxa de uma REGIÃO (seeds/regioes.csv) como soma dos seus municípios no
-    mart_estoque, cada um com o próprio marco zero (F19 parte 1; roteiro, seção 1.3).
+    mart_estoque, cada um ancorado no estoque de referência do MTE (F19 parte 1, F20).
 
     O estoque da região só existe quando TODOS os membros têm estoque naquela competência:
-    um membro sem marco zero daria um estoque parcial com cara de completo. Membro inativo
+    um membro sem estoque de referência daria um estoque parcial com cara de completo. Membro inativo
     é erro de configuração (test_regiao_membros_ativos). Nunca soma UF com municípios: a
     região só aceita territórios do tipo município.
 #}

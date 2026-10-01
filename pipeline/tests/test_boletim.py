@@ -141,9 +141,9 @@ class BoletimTest(unittest.TestCase):
         self.assertNotIn("indisponível", resumo)
         self.assertIn("mesmo mês do ano anterior (julho/2025): +10", resumo)
 
-    # ------------------------------------------------------------- estoque (F16)
+    # ------------------------------------------------------------- estoque (F16/F20)
 
-    def _com_estoque(self, nome: str, marco: bool = True) -> Path:
+    def _com_estoque(self, nome: str, referencia: bool = True) -> Path:
         """Warehouse reconciliado + mart_estoque. Socorro: Comércio e Serviços com saldo +16/mês
         (como no reconciliado) e Indústria com estoque 500 e NENHUMA movimentação; Não
         Identificado com estoque 0. Sergipe (28) com números maiores, que não podem vazar."""
@@ -152,16 +152,16 @@ class BoletimTest(unittest.TestCase):
         con = duckdb.connect(str(wh))
         con.execute(
             "create table mart_estoque (territorio varchar, grupamento varchar, competencia_mov bigint, "
-            "saldo_consolidado bigint, estoque hugeint, taxa_variacao_mensal double, competencia_marco_zero bigint)"
+            "saldo_consolidado bigint, estoque hugeint, taxa_variacao_mensal double, competencia_referencia bigint)"
         )
         for i, c in enumerate(("202605", "202606", "202607")):
             for g, base, saldo in (("Comércio", 1000, 16), ("Serviços", 1000, 16), ("Indústria", 500, 0), ("Não Identificado", 0, 0)):
-                est = base + saldo * i if marco else None
-                ant = base + saldo * (i - 1) if marco else None
-                taxa = saldo / ant if marco and i > 0 and ant else None
+                est = base + saldo * i if referencia else None
+                ant = base + saldo * (i - 1) if referencia else None
+                taxa = saldo / ant if referencia and i > 0 and ant else None
                 con.execute("insert into mart_estoque values ('280480', ?, ?, ?, ?, ?, ?)",
-                            [g, int(c), saldo, est, taxa, 202003 if marco else None])
-            con.execute("insert into mart_estoque values ('28', 'Comércio', ?, 999, 90000, 0.5, 202003)", [int(c)])
+                            [g, int(c), saldo, est, taxa, 202512 if referencia else None])
+            con.execute("insert into mart_estoque values ('28', 'Comércio', ?, 999, 90000, 0.5, 202512)", [int(c)])
         con.close()
         return wh
 
@@ -178,7 +178,7 @@ class BoletimTest(unittest.TestCase):
         resumo = " ".join(boletim._resumo(b))
         self.assertIn("Estoque estimado ao fim do mês: 2.564 vínculos formais", resumo)
         self.assertIn("+1,26% no mês", resumo)
-        self.assertIn("estimativa a partir de marco zero", " ".join(boletim._notas(b)).lower())
+        self.assertIn("estimativa a partir do estoque de referência do mte", " ".join(boletim._notas(b)).lower())
         pdf, xlsx = boletim.gerar(wh, "202607", self.tmp / "s")
         self.assertTrue(pdf.read_bytes().startswith(b"%PDF"))
         textos = zipfile.ZipFile(xlsx).read("xl/sharedStrings.xml").decode()
@@ -203,13 +203,13 @@ class BoletimTest(unittest.TestCase):
         b = boletim.carregar(wh, "202607")
         self.assertFalse(b.tem_estoque)
         self.assertNotIn("Estoque", " ".join(boletim._resumo(b)))
-        self.assertNotIn("marco zero", " ".join(boletim._notas(b)))
+        self.assertNotIn("estoque de referência", " ".join(boletim._notas(b)))
         pdf, xlsx = boletim.gerar(wh, "202607", self.tmp / "s")
         self.assertNotIn("Estoque (estimativa", zipfile.ZipFile(xlsx).read("xl/sharedStrings.xml").decode())
 
-    def test_territorio_sem_marco_zero_gera_o_boletim_sem_estoque(self):
+    def test_territorio_sem_referencia_gera_o_boletim_sem_estoque(self):
         """Critério 3 da F16: estoque NULL não impede o boletim."""
-        wh = self._com_estoque("l.duckdb", marco=False)
+        wh = self._com_estoque("l.duckdb", referencia=False)
         b = boletim.carregar(wh, "202607")
         self.assertFalse(b.tem_estoque)
         pdf, _ = boletim.gerar(wh, "202607", self.tmp / "s")

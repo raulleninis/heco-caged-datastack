@@ -18,6 +18,11 @@ vars:
   # mart_caged_reconciliado). A staging guarda Sergipe inteiro (uf = 28, F16 parte 2); estes
   # marts continuam sendo de um município só. Os territórios do estoque vêm de seeds/territorios.csv.
   municipio_boletim: 280480
+  # Primeira competência com estoque no mart_estoque (F20). O estoque é ancorado no estoque de
+  # referência do MTE (dez/2025) e recua até aqui. Jan e fev/2020 de Socorro ficam 2 vínculos abaixo do
+  # painel: recuar até eles passa pelo saldo de 202003, cujo CAGEDMOV no FTP diverge
+  # do painel (docs/auditorias/). Diferença aceita pelo usuário em 01/10/2026.
+  estoque_inicio: 202001
 
 seeds:
   caged_analytics:
@@ -45,3 +50,12 @@ models:
     # stg_caged_movimentacoes é incremental — limite de memória em produção).
     marts:
       +materialized: table
+    # Marco zero manual (F16), desativado pela F20 em 01/10/2026; sai de vez quando a F20
+    # estiver estável. A source está desligada no próprio _marco_zero.yml.
+    marco_zero_desativado:
+      +enabled: false
+
+data_tests:
+  caged_analytics:
+    marco_zero_desativado:
+      +enabled: false

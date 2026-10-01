@@ -248,7 +248,7 @@ def _panorama(con, n, territorio, comp, serie, lim) -> dict:
     estoque_ant = _estoque_total(con, "mart_estoque", "territorio", territorio, deslocar(comp, -1))
     estoque_12 = _estoque_total(con, "mart_estoque", "territorio", territorio, deslocar(comp, -12))
     if estoque is not None:
-        p["estoque"] = n("panorama.estoque", estoque, "vinculos", "estoque ao fim do mês (estimativa a partir de marco zero)")
+        p["estoque"] = n("panorama.estoque", estoque, "vinculos", "estoque ao fim do mês (estimativa a partir do estoque de referência do MTE)")
         p["taxa_mes"] = n("panorama.taxa_mes", pct(atual["saldo"], estoque_ant), "pct",
                           "variação do estoque no mês (saldo ÷ estoque do mês anterior)")
         p["taxa_12_meses"] = n("panorama.taxa_12_meses", pct(estoque - estoque_12, estoque_12) if estoque_12 else None,

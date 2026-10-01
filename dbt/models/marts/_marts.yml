@@ -66,25 +66,12 @@ models:
               arguments:
                 values: ['provisório', 'consolidado']
 
-  - name: ajuste_marco_zero
-    description: >
-      Ajuste calculado do marco zero (F16/D11): FOR/EXC que corrigem competências até a do
-      marco e chegaram em arquivos posteriores a `retificacoes_ate`. Vazio em regime normal.
-    columns:
-      - name: territorio
-        tests:
-          - not_null
-      - name: grupamento
-        tests:
-          - not_null
-      - name: ajuste
-        description: "Soma do efeito no saldo (FOR +saldo, EXC −saldo)."
-
   - name: mart_estoque
     description: >
-      Estoque de emprego (estimativa a partir do marco zero) e taxa de variação mensal por
-      território × grupamento × competência (F16/D11). Estoque e taxa ficam NULL antes do
-      marco zero e em território sem marco zero; o saldo existe sempre.
+      Estoque de emprego e taxa de variação mensal por território × grupamento × competência
+      (F20/D11), ancorado no estoque de referência do MTE (o mesmo que o painel usa): para trás
+      e para frente da competência da referência, com o saldo reconciliado. Estoque e taxa ficam
+      NULL antes de var('estoque_inicio') (202001) e em território sem referência; o saldo existe sempre.
     columns:
       - name: territorio
         tests:
@@ -100,11 +87,11 @@ models:
         tests:
           - not_null
       - name: estoque
-        description: "marco zero + ajuste + saldos acumulados após o marco. NULL antes do marco ou sem marco."
+        description: "referência ± saldos entre a competência e a da referência. NULL sem referência (ou antes de estoque_inicio)."
       - name: taxa_variacao_mensal
         description: "saldo_consolidado ÷ estoque do mês anterior (fração). NULL sem estoque anterior ou com estoque 0."
-      - name: competencia_marco_zero
-        description: "Competência do marco zero do território (NULL se não houver)."
+      - name: competencia_referencia
+        description: "Competência do estoque de referência do território (NULL se não houver)."
 
   - name: mart_fluxo
     description: >
@@ -152,19 +139,18 @@ models:
 unit_tests:
   - name: exclusao_de_admissao_reduz_estoque
     description: >
-      Critério 6 da F16. Marco de 100 em 202003; em 202004 duas admissões no MOV e a
-      exclusão de uma admissão (o EXC traz +1, o efeito é −1). Sem a exclusão seriam 102.
-      A movimentação de 202003 não entra: o marco já a contém.
+      Critérios 6 da F16 e da F20. Referência de 101 ao fim de 202004; em 202004 duas
+      admissões no MOV e a exclusão de uma admissão (o EXC traz +1, o efeito é −1): saldo 1.
+      Recuando, 202003 = 101 − 1 = 100 e 202002 = 100 − 1 = 99 (o saldo de 202003). Sem a
+      exclusão, o saldo de 202004 seria 2 e 202003 daria 99.
     model: mart_estoque
     given:
       - input: ref('territorios')
         rows:
           - {territorio: '280480', nome: 'Nossa Senhora do Socorro', tipo: 'municipio', ativo: true}
-      - input: ref('stg_marco_zero_estoque')
+      - input: ref('stg_estoque_referencia')
         rows:
-          - {territorio: '280480', grupamento: 'Indústria', estoque: 100, competencia_marco_zero: 202003, retificacoes_ate: 202607}
-      - input: ref('ajuste_marco_zero')
-        rows: []
+          - {competencia_referencia: 202004, codmun: '280480', uf: '28', grupamento: 'Indústria', estoque: 101}
       - input: ref('stg_caged_movimentacoes')
         rows:
           - {uf: 28, municipio: 280480, grupamento: 'Indústria', competencia_mov: 202003, saldo_movimentacao: 1}
@@ -177,43 +163,37 @@ unit_tests:
           - {uf: 28, municipio: 280480, grupamento: 'Indústria', competencia_mov: 202004, competencia_arquivo: 202605, saldo_movimentacao: 1}
     expect:
       rows:
-        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202001, saldo_consolidado: 0, estoque: null}
-        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202002, saldo_consolidado: 0, estoque: null}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202001, saldo_consolidado: 0, estoque: 99}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202002, saldo_consolidado: 0, estoque: 99}
         - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202003, saldo_consolidado: 1, estoque: 100}
         - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202004, saldo_consolidado: 1, estoque: 101}
-
-  - name: ajuste_ignora_o_que_o_painel_ja_incorporou
-    description: >
-      Duplo ajuste (D11). Duas declarações fora do prazo para 202002: a de 202601 já estava
-      no painel quando o marco foi coletado (retificacoes_ate 202607) e não entra; a de
-      202608 chegou depois e ajusta o marco. Uma de 202004 não é ajuste (entra no fluxo).
-    model: ajuste_marco_zero
-    given:
-      - input: ref('territorios')
-        rows:
-          - {territorio: '280480', nome: 'Nossa Senhora do Socorro', tipo: 'municipio', ativo: true}
-      - input: ref('stg_marco_zero_estoque')
-        rows:
-          - {territorio: '280480', grupamento: 'Comércio', estoque: 50, competencia_marco_zero: 202003, retificacoes_ate: 202607}
-      - input: ref('stg_caged_movimentacoes')
-        rows: []
-      - input: ref('stg_caged_fora_do_prazo')
-        rows:
-          - {uf: 28, municipio: 280480, grupamento: 'Comércio', competencia_mov: 202002, competencia_arquivo: 202601, saldo_movimentacao: 1}
-          - {uf: 28, municipio: 280480, grupamento: 'Comércio', competencia_mov: 202002, competencia_arquivo: 202608, saldo_movimentacao: -1}
-          - {uf: 28, municipio: 280480, grupamento: 'Comércio', competencia_mov: 202004, competencia_arquivo: 202608, saldo_movimentacao: 1}
-      - input: ref('stg_caged_exclusoes')
-        rows: []
-    expect:
-      rows:
-        - {territorio: '280480', grupamento: 'Comércio', linhas: 1, ajuste: -1}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
 
   - name: territorios_por_municipio_e_por_uf
     description: >
-      F16 parte 2. Socorro (município) e Sergipe (UF) ativos, Aracaju inativo. Uma admissão
-      em Socorro e outra em Aracaju em 202004: Socorro soma 1, Sergipe soma as duas, Aracaju
-      não aparece (inativo, mesmo com marco zero). Barra dos Coqueiros está ativa sem marco
-      zero: tem fluxo e estoque NULL.
+      F16 parte 2 e F20. Referência ao fim de 202003: Socorro 10 e Aracaju 50 em Serviços. Socorro
+      e Sergipe (UF) ativos, Aracaju inativo. Sergipe soma a referência dos seus municípios
+      (60) e as movimentações de todos; Aracaju não aparece (inativo). Barra dos Coqueiros está
+      ativa e não tem linha na referência: tem fluxo e estoque NULL.
     model: mart_estoque
     given:
       - input: ref('territorios')
@@ -222,13 +202,10 @@ unit_tests:
           - {territorio: '280030', nome: 'Aracaju', tipo: 'municipio', ativo: false}
           - {territorio: '280060', nome: 'Barra dos Coqueiros', tipo: 'municipio', ativo: true}
           - {territorio: '28', nome: 'Sergipe', tipo: 'uf', ativo: true}
-      - input: ref('stg_marco_zero_estoque')
+      - input: ref('stg_estoque_referencia')
         rows:
-          - {territorio: '280480', grupamento: 'Serviços', estoque: 10, competencia_marco_zero: 202003, retificacoes_ate: 202607}
-          - {territorio: '280030', grupamento: 'Serviços', estoque: 50, competencia_marco_zero: 202003, retificacoes_ate: 202607}
-          - {territorio: '28', grupamento: 'Serviços', estoque: 100, competencia_marco_zero: 202003, retificacoes_ate: 202607}
-      - input: ref('ajuste_marco_zero')
-        rows: []
+          - {competencia_referencia: 202003, codmun: '280480', uf: '28', grupamento: 'Serviços', estoque: 10}
+          - {competencia_referencia: 202003, codmun: '280030', uf: '28', grupamento: 'Serviços', estoque: 50}
       - input: ref('stg_caged_movimentacoes')
         rows:
           - {uf: 28, municipio: 280480, grupamento: 'Serviços', competencia_mov: 202004, saldo_movimentacao: 1}
@@ -240,15 +217,173 @@ unit_tests:
         rows: []
     expect:
       rows:
-        - {territorio: '28', grupamento: 'Serviços', competencia_mov: 202001, saldo_consolidado: 0, estoque: null}
-        - {territorio: '28', grupamento: 'Serviços', competencia_mov: 202002, saldo_consolidado: 0, estoque: null}
-        - {territorio: '28', grupamento: 'Serviços', competencia_mov: 202003, saldo_consolidado: 0, estoque: 100}
-        - {territorio: '28', grupamento: 'Serviços', competencia_mov: 202004, saldo_consolidado: 1, estoque: 101}
+        - {territorio: '28', grupamento: 'Agropecuária', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Agropecuária', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Agropecuária', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Agropecuária', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Comércio', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Comércio', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Comércio', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Comércio', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Construção', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Construção', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Construção', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Construção', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Indústria', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Indústria', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Indústria', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Indústria', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Não Identificado', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Não Identificado', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Não Identificado', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Não Identificado', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '28', grupamento: 'Serviços', competencia_mov: 202001, saldo_consolidado: 0, estoque: 60}
+        - {territorio: '28', grupamento: 'Serviços', competencia_mov: 202002, saldo_consolidado: 0, estoque: 60}
+        - {territorio: '28', grupamento: 'Serviços', competencia_mov: 202003, saldo_consolidado: 0, estoque: 60}
+        - {territorio: '28', grupamento: 'Serviços', competencia_mov: 202004, saldo_consolidado: 1, estoque: 61}
         - {territorio: '280060', grupamento: 'Serviços', competencia_mov: 202001, saldo_consolidado: 0, estoque: null}
         - {territorio: '280060', grupamento: 'Serviços', competencia_mov: 202002, saldo_consolidado: 0, estoque: null}
         - {territorio: '280060', grupamento: 'Serviços', competencia_mov: 202003, saldo_consolidado: 0, estoque: null}
         - {territorio: '280060', grupamento: 'Serviços', competencia_mov: 202004, saldo_consolidado: -1, estoque: null}
-        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202001, saldo_consolidado: 0, estoque: null}
-        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202002, saldo_consolidado: 0, estoque: null}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202001, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202002, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202003, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202004, saldo_consolidado: 0, estoque: 0}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202001, saldo_consolidado: 0, estoque: 10}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202002, saldo_consolidado: 0, estoque: 10}
         - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202003, saldo_consolidado: 0, estoque: 10}
         - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202004, saldo_consolidado: 1, estoque: 11}
+
+  - name: grupamento_sem_referencia_parte_de_zero
+    description: >
+      F20. O território tem referência (Serviços 20 ao fim de 202004), mas não em Comércio: o
+      Comércio parte de 0 na referência e recua com o saldo (até 202003, 0 − 2 = −2; o teste de
+      estoque negativo é que pegaria isso nos dados reais).
+    model: mart_estoque
+    given:
+      - input: ref('territorios')
+        rows:
+          - {territorio: '280480', nome: 'Nossa Senhora do Socorro', tipo: 'municipio', ativo: true}
+      - input: ref('stg_estoque_referencia')
+        rows:
+          - {competencia_referencia: 202004, codmun: '280480', uf: '28', grupamento: 'Serviços', estoque: 20}
+      - input: ref('stg_caged_movimentacoes')
+        rows:
+          - {uf: 28, municipio: 280480, grupamento: 'Comércio', competencia_mov: 202004, saldo_movimentacao: 1}
+          - {uf: 28, municipio: 280480, grupamento: 'Comércio', competencia_mov: 202004, saldo_movimentacao: 1}
+      - input: ref('stg_caged_fora_do_prazo')
+        rows: []
+      - input: ref('stg_caged_exclusoes')
+        rows: []
+    expect:
+      rows:
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202001, estoque: 0}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202002, estoque: 0}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202003, estoque: 0}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202004, estoque: 0}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202001, estoque: -2}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202002, estoque: -2}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202003, estoque: -2}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202004, estoque: 0}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202001, estoque: 0}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202002, estoque: 0}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202003, estoque: 0}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202004, estoque: 0}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202001, estoque: 0}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202002, estoque: 0}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202003, estoque: 0}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202004, estoque: 0}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202001, estoque: 0}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202002, estoque: 0}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202003, estoque: 0}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202004, estoque: 0}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202001, estoque: 20}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202002, estoque: 20}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202003, estoque: 20}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202004, estoque: 20}
+
+  - name: referencia_a_frente_dos_dados_nao_gera_estoque
+    description: >
+      F20. Referência de 202512 com dados carregados só até 202004 (ex.: trocar para um arquivo
+      novo antes de ingerir a competência dele): não há como recuar, o estoque fica NULL.
+    model: mart_estoque
+    given:
+      - input: ref('territorios')
+        rows:
+          - {territorio: '280480', nome: 'Nossa Senhora do Socorro', tipo: 'municipio', ativo: true}
+      - input: ref('stg_estoque_referencia')
+        rows:
+          - {competencia_referencia: 202512, codmun: '280480', uf: '28', grupamento: 'Serviços', estoque: 20}
+      - input: ref('stg_caged_movimentacoes')
+        rows:
+          - {uf: 28, municipio: 280480, grupamento: 'Serviços', competencia_mov: 202004, saldo_movimentacao: 1}
+      - input: ref('stg_caged_fora_do_prazo')
+        rows: []
+      - input: ref('stg_caged_exclusoes')
+        rows: []
+    expect:
+      rows:
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202001, estoque: null}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202002, estoque: null}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202003, estoque: null}
+        - {territorio: '280480', grupamento: 'Agropecuária', competencia_mov: 202004, estoque: null}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202001, estoque: null}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202002, estoque: null}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202003, estoque: null}
+        - {territorio: '280480', grupamento: 'Comércio', competencia_mov: 202004, estoque: null}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202001, estoque: null}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202002, estoque: null}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202003, estoque: null}
+        - {territorio: '280480', grupamento: 'Construção', competencia_mov: 202004, estoque: null}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202001, estoque: null}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202002, estoque: null}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202003, estoque: null}
+        - {territorio: '280480', grupamento: 'Indústria', competencia_mov: 202004, estoque: null}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202001, estoque: null}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202002, estoque: null}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202003, estoque: null}
+        - {territorio: '280480', grupamento: 'Não Identificado', competencia_mov: 202004, estoque: null}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202001, estoque: null}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202002, estoque: null}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202003, estoque: null}
+        - {territorio: '280480', grupamento: 'Serviços', competencia_mov: 202004, estoque: null}
+
+  - name: subclasse_vira_grupamento_pela_divisao
+    description: >
+      F20. O arquivo do MTE traz a subclasse sem o zero à esquerda (111302 = 0111302, divisão
+      01, seção A) e usa 9999999 para "não identificada", que não é a divisão 99.
+    model: stg_estoque_referencia
+    given:
+      - input: source('warehouse', 'estoque_referencia')
+        rows:
+          - {ano_referencia: 2026, competencia_referencia: 202512, codmun: '280480', subclasse: '111302', estoque: 3}
+          - {ano_referencia: 2026, competencia_referencia: 202512, codmun: '280480', subclasse: '2424502', estoque: 5}
+          - {ano_referencia: 2026, competencia_referencia: 202512, codmun: '280480', subclasse: '9900800', estoque: 7}
+          - {ano_referencia: 2026, competencia_referencia: 202512, codmun: '280480', subclasse: '9999999', estoque: 1}
+      - input: ref('cnae_divisoes')
+        rows:
+          - {divisao: '01', secao: 'A', descricao: 'x'}
+          - {divisao: '24', secao: 'C', descricao: 'x'}
+          - {divisao: '99', secao: 'U', descricao: 'x'}
+    expect:
+      rows:
+        - {subclasse: '0111302', uf: '28', grupamento: 'Agropecuária', estoque: 3}
+        - {subclasse: '2424502', uf: '28', grupamento: 'Indústria', estoque: 5}
+        - {subclasse: '9900800', uf: '28', grupamento: 'Serviços', estoque: 7}
+        - {subclasse: '9999999', uf: '28', grupamento: 'Não Identificado', estoque: 1}

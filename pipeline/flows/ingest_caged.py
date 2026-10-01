@@ -15,6 +15,9 @@ o flow diário ainda verifica defasagem (falha se a competência mais recente
 no warehouse estiver velha demais), registra métricas do run como artifact
 do Prefect e dá o ping de heartbeat externo ao terminar bem.
 
+Estoque de referência (F20): todo run confere antes o arquivo do MTE que ancora o estoque
+(estoque_referencia.py). Se ele mudou, os marts são recalculados mesmo sem competência nova.
+
 Entrega (F15): com ENTREGA_HABILITADA=true, o flow diário também envia por
 e-mail o boletim da competência mais recente e o arquiva (entrega.py). O
 backfill nunca envia e-mail.
@@ -33,6 +36,7 @@ import py7zr
 from prefect import flow, task, get_run_logger
 from prefect.artifacts import create_markdown_artifact
 
+import estoque_referencia
 from alertas import alerta_falha, notificar, ping_heartbeat
 from entrega import entrega_habilitada, entregar_boletim_pendente
 
@@ -390,6 +394,32 @@ def _baixar_e_extrair(competencia: str, tipo: str = "MOV") -> dict:
     }
 
 
+@task(log_prints=True)
+def verificar_estoque_referencia() -> str:
+    """F20: confere (e recarrega, se mudou) o estoque de referência do MTE. Nunca falha: ver
+    estoque_referencia.verificar."""
+    return estoque_referencia.verificar(WAREHOUSE_PATH)
+
+
+def _materializar_marts() -> None:
+    """Seeds, estoque de referência e marts, depois os testes (alerta se algum ficar em WARN)."""
+    logger = get_run_logger()
+    logger.info("Materializando territórios, estoque de referência e marts...")
+    # Territórios (seed) vêm do git e são relidos a cada run: editar o CSV basta (ativar um
+    # território não exige reprocessar nada). O estoque de referência (F20) já está no warehouse.
+    run_dbt(["seed"])
+    run_dbt(["run", "--select", "stg_estoque_referencia", "path:models/marts"])
+    saida_testes = run_dbt(["test"])
+
+    avisos = _testes_em_warn(saida_testes)
+    if avisos:
+        logger.warning(f"{len(avisos)} teste(s) dbt em WARN: {avisos}")
+        notificar(
+            "CAGED: testes de plausibilidade em WARN",
+            "O dado foi carregado, mas está suspeito:\n" + "\n".join(avisos),
+        )
+
+
 def _transformar(baixados: list[tuple[str, str]], origens: dict[tuple[str, str], dict] | None = None) -> None:
     """Roda a staging de cada arquivo baixado, incrementalmente (um arquivo por vez, ~500MB de
     pico para o MOV, não ~3GB de uma vez — ver comentário em stg_caged_movimentacoes.sql) e
@@ -409,20 +439,7 @@ def _transformar(baixados: list[tuple[str, str]], origens: dict[tuple[str, str],
         )
         _registrar_ingestao(tipo, competencia, origens.get((tipo, competencia)))
 
-    logger.info("Materializando territórios, marco zero e marts...")
-    # Territórios (seed) e marco zero (F16) vêm do git e são relidos a cada run: editar o
-    # CSV basta (ativar um território não exige reprocessar nada).
-    run_dbt(["seed"])
-    run_dbt(["run", "--select", "stg_marco_zero_estoque", "path:models/marts"])
-    saida_testes = run_dbt(["test"])
-
-    avisos = _testes_em_warn(saida_testes)
-    if avisos:
-        logger.warning(f"{len(avisos)} teste(s) dbt em WARN: {avisos}")
-        notificar(
-            "CAGED: testes de plausibilidade em WARN",
-            "O dado foi carregado, mas está suspeito:\n" + "\n".join(avisos),
-        )
+    _materializar_marts()
 
     # Além dos deste run: .txt órfãos de arquivos que já estão no warehouse (sobras de um
     # run anterior que falhou nos testes — os testes acabaram de passar, então o dado está
@@ -508,6 +525,7 @@ def ingest_caged():
     logger = get_run_logger()
     inicio = time.monotonic()
     candidatos = meses_candidatos(meses_para_tras=6)
+    referencia = verificar_estoque_referencia()
     ingeridos = arquivos_ja_ingeridos()
 
     # FOR e EXC de uma competência podem aparecer depois do MOV: por isso o FTP é consultado
@@ -525,6 +543,9 @@ def ingest_caged():
         _transformar(pendentes, _origens(metricas))
     else:
         logger.info("Nenhum arquivo novo publicado nos últimos 6 meses (estado normal).")
+        if referencia in ("carregado", "mudou"):
+            logger.info(f"Estoque de referência {referencia}: recalculando o estoque sem competência nova.")
+            _materializar_marts()
 
     registrar_metricas(metricas, inicio)
     verificar_defasagem()
@@ -545,6 +566,7 @@ def backfill_caged(ano: int = 2026, tipos: tuple[str, ...] = TIPOS, refazer: boo
     competencias = competencias_do_ano(ano)
     logger.info(f"Competências candidatas para {ano}: {competencias} | tipos: {tipos}")
 
+    verificar_estoque_referencia()  # garante a tabela que o dbt lê como source (F20)
     ingeridos = {t: set() for t in TIPOS} if refazer else arquivos_ja_ingeridos()
     publicados = {c: arquivos_no_ftp(c) for c in competencias}
     pendentes = _pendentes(publicados, ingeridos, tuple(tipos))

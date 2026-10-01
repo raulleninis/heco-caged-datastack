@@ -12,9 +12,9 @@ consolidado. Se o warehouse ainda não tem esse mart (anterior à F12), cai no
 mart só-MOV e o boletim diz isso. Salários: sempre do mart só-MOV (a mediana de
 quem entrou fora do prazo não se soma à do MOV).
 
-Estoque e taxa de variação (F16): vêm do mart_estoque, só para o território do boletim. São uma
-ESTIMATIVA a partir do marco zero e só aparecem quando existem: sem o mart, ou sem marco zero
-para o território, o boletim sai sem eles, e nada mais muda.
+Estoque e taxa de variação (F16/F20): vêm do mart_estoque, só para o território do boletim. São
+uma ESTIMATIVA a partir do estoque de referência do MTE e só aparecem quando existem: sem o mart,
+ou sem referência para o território, o boletim sai sem eles, e nada mais muda.
 
 O boletim gerado é o que vai ser ENVIADO e ARQUIVADO. Ele não se regenera
 depois: o CAGED recebe declarações fora do prazo e exclusões que mudam meses
@@ -41,11 +41,12 @@ TITULO = "Boletim CAGED - Nossa Senhora do Socorro/SE"
 TERRITORIO = "280480"
 
 NOTA_ESTOQUE = (
-    "Estoque: estimativa a partir de marco zero, em vínculos formais ao fim do mês. O marco é o "
-    "estoque do painel do Novo CAGED do MTE em março/2020; a cada mês desde abril/2020 soma-se o "
-    "saldo reconciliado. Conferido com o painel do MTE (idêntico em 14 competências de 2020 a 2026). "
-    "É revisado quando chegam declarações fora do prazo e exclusões. Variação no mês = saldo do mês "
-    "dividido pelo estoque do mês anterior."
+    "Estoque: estimativa a partir do estoque de referência do MTE, em vínculos formais ao fim do "
+    "mês. A referência é a mesma do painel do Novo CAGED (hoje, o estoque de dezembro/2025): para os "
+    "meses seguintes soma-se o saldo reconciliado; para os anteriores, subtrai-se. Conferido com o "
+    "painel do MTE em 01/10/2026. É revisado quando chegam declarações fora do prazo e exclusões, e "
+    "quando o MTE atualiza a referência. Variação no mês = saldo do mês dividido pelo estoque do mês "
+    "anterior."
 )
 
 # O que o leitor precisa saber para não superinterpretar o número.
@@ -99,7 +100,7 @@ class Boletim:
     @property
     def estoque_total(self) -> dict | None:
         """{'estoque', 'taxa_variacao_mensal'} do total desta competência, ou None se não houver
-        estoque (sem mart_estoque, sem marco zero, ou competência anterior ao marco)."""
+        estoque (sem mart_estoque, sem estoque de referência, ou competência anterior ao início)."""
         t = self.estoque_totais.get(self.competencia)
         return t if t and t["estoque"] is not None else None
 
@@ -360,7 +361,7 @@ def _resumo(b: Boletim) -> list[str]:
         e = b.estoque_total
         frases.append(
             f"Estoque estimado ao fim do mês: {fmt_int(e['estoque'])} vínculos formais "
-            f"(variação de {fmt_pct(e['taxa_variacao_mensal'])} no mês; estimativa a partir de marco zero)."
+            f"(variação de {fmt_pct(e['taxa_variacao_mensal'])} no mês; estimativa a partir do estoque de referência do MTE)."
         )
     if b.reconciliado:
         frases.append(
@@ -425,7 +426,7 @@ _COLUNAS_RECONCILIACAO = [
     ("situacao", "Situação"),
 ]
 
-# Com estoque (F16): estimativa a partir de marco zero.
+# Com estoque (F16/F20): estimativa a partir do estoque de referência do MTE.
 _COLUNAS_ESTOQUE = [
     ("estoque", "Estoque (estimativa, fim do mês)"),
     ("taxa_variacao_mensal", "Variação do estoque no mês"),

@@ -62,7 +62,7 @@ def renderizar(b, destino, *, resumo, notas, nome_competencia, competencia_deslo
     # O total é numérico; a escala das barras compara apenas os grupamentos.
     pdf.table(headers, rows, widths, bar_column=2, bar_values=values + [None], highlights=[len(rows) - 1], colors=colors)
     pdf.source("Barras proporcionais ao saldo; eixo central = zero." +
-               (" * Estoque e variação: estimativas a partir de marco zero (ver notas)." if estoque else ""))
+               (" * Estoque e variação: estimativas a partir do estoque de referência do MTE (ver notas)." if estoque else ""))
 
     pdf.section("Remuneração na admissão")
     pdf.table(["Grupamento", "Salário mediano", "Salário médio", "Índice de Palma"],

@@ -137,14 +137,14 @@ models:
               arguments:
                 values: ['Agropecuária', 'Indústria', 'Construção', 'Comércio', 'Serviços', 'Não Identificado']
 
-  - name: stg_marco_zero_estoque
+  - name: stg_estoque_referencia
     description: >
-      Marco zero do estoque (F16/D11): estoque do painel do MTE ao fim da competência de
-      referência, por território × grupamento. Lido de marco-zero/estoque/*.csv (git).
-      Completude (seis grupamentos, uma data por território): test_marco_zero_completo.
+      F20. Estoque de referência do MTE (source warehouse.estoque_referencia) com o grupamento
+      do código: subclasse → divisão (2 dígitos) → seção (seed cnae_divisoes) → caged_grupamento.
+      Subclasse sem divisão conhecida vira 'Não Identificado'. Um município × subclasse por linha.
     columns:
-      - name: territorio
-        description: "Código de 6 dígitos do município (o dos microdados) ou 2 dígitos da UF."
+      - name: codmun
+        description: "Código do município, 6 dígitos (o dos microdados)."
         tests:
           - not_null
       - name: grupamento
@@ -156,18 +156,7 @@ models:
       - name: estoque
         tests:
           - not_null
-      - name: competencia_marco_zero
-        description: "AAAAMM da data_referencia: o marco é o estoque ao FIM desta competência."
-        tests:
-          - not_null
-      - name: retificacoes_ate
-        description: "Último arquivo FOR/EXC (AAAAMM) já incorporado pelo painel na coleta. Ver ajuste_marco_zero."
-        tests:
-          - not_null
-      - name: fonte
-        description: "Obrigatória: de onde veio o número e a metodologia."
-        tests:
-          - not_null
-      - name: coletado_em
+      - name: competencia_referencia
+        description: "AAAAMM cujo FIM é o estoque (arquivo de 2026 → 202512)."
         tests:
           - not_null

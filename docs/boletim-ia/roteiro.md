@@ -12,7 +12,7 @@
 > **Regras do projeto que este roteiro segue:** números só por código, nunca calculados pela IA;
 > análise setorial, com desagregação só quando relevante e nunca no nível de empresa
 > ([D10](../decisoes/D10-escopo-analitico.md)); salário com mediana e média
-> ([D05](../decisoes/D05-metrica-de-salario.md)); estoque a partir de marco zero
+> ([D05](../decisoes/D05-metrica-de-salario.md)); estoque a partir do estoque de referência do MTE
 > ([D11](../decisoes/D11-estoque-de-emprego.md)).
 
 ## 1. Estrutura do boletim
@@ -60,7 +60,7 @@ como se compara com períodos anteriores e o que acompanhar**.
 - Saldo de empregos (admissões menos desligamentos).
 - Total de admissões e desligamentos.
 - Estoque de vínculos formais e sua variação percentual, com a metodologia de reconstituição
-  identificada (marco zero do painel do MTE em mar/2020 mais movimentações).
+  identificada (estoque de referência do MTE, o mesmo do painel, mais ou menos movimentações; F20).
 - Resultado do mês comparado ao mesmo mês do ano anterior.
 - Saldo acumulado no ano e nos últimos 12 meses.
 - Evolução histórica do saldo e identificação de movimentos atípicos.
@@ -106,7 +106,7 @@ disponíveis** na instalação, configurados como territórios com estoque:
 
 - **Município × região:** um agrupamento de municípios definido na configuração, como uma região
   metropolitana ou uma região imediata. É calculado por código como soma dos municípios que a
-  compõem, cada um com seu próprio marco zero.
+  compõem, cada um ancorado no estoque de referência do MTE.
 - **Município × UF:** taxa de variação do estoque do estado.
 - **Município × Brasil:** só quando o recorte estiver disponível. Não é obrigatório.
 
@@ -258,7 +258,7 @@ destaques; a IA organiza a interpretação e redige; uma pessoa revisa e aprova.
 - Um grande estabelecimento pode influenciar o resultado agregado: verificar a concentração
   setorial, sem inferir informações de empresas.
 - Diferenciar os conceitos de vínculo, trabalhador e estabelecimento.
-- Identificar a metodologia do estoque (reconstituição a partir de marco zero); não misturar
+- Identificar a metodologia do estoque (reconstituição a partir do estoque de referência do MTE); não misturar
   metodologias sem explicitar.
 - **Os últimos ~12 meses são provisórios:** declarações fora do prazo e exclusões ainda vão
   revisá-los. Registrar as revisões e manter uma série consistente.
@@ -306,8 +306,8 @@ resultados do mês.
 | item | valor |
 |---|---|
 | Município-alvo | Nossa Senhora do Socorro (280480) |
-| Região | Região Metropolitana de Aracaju (RMA): Aracaju (280030), Barra dos Coqueiros (280060), Nossa Senhora do Socorro (280480) e São Cristóvão (280670), todos com marco zero |
-| UF | Sergipe (28), com marco zero |
+| Região | Região Metropolitana de Aracaju (RMA): Aracaju (280030), Barra dos Coqueiros (280060), Nossa Senhora do Socorro (280480) e São Cristóvão (280670), todos com estoque de referência |
+| UF | Sergipe (28), com estoque de referência |
 | Brasil | não disponível nesta instalação |
 
 Este anexo é da instância e sai do roteiro na separação do produto ([F18](../fatias/F18-produto-neutro.md)).
