@@ -112,5 +112,5 @@ da [F19](../fatias/F19-boletim-com-ia.md) guarda em `/data/ia/` estado próprio:
 orçamento (`custos.jsonl`), os tickets e a base de conhecimento local (respostas humanas).
 Perder o disco é perder isso. O "sem backup" continua valendo para o warehouse; para
 `/data/ia/`, um backup simples (cópia periódica para fora da VM) faz sentido. Ainda não
-decidido. (O coletor de notícias, que motivou a ressalva, foi removido em 30/09/2026; o que ele
-gravou em `/data/noticias/` pode ser apagado.)
+decidido. (O coletor de notícias, que motivou a ressalva, foi removido em 30/09/2026, e
+`/data/noticias/` foi apagado em 01/10/2026.)

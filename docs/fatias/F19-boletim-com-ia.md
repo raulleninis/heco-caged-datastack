@@ -114,21 +114,18 @@ Os quatro agentes, o verificador de números como `output_validator` e as instru
   `reprovado_no_verificador`, com o relatório, em vez de abortar. Problema grave do revisor
   gera uma segunda versão, verificada de novo. Pior caso: 7 requisições (limite 8).
 - Reaproveitamento pelo hash dos fatos; `--refazer` força.
-- Sem pesquisador: o redator é instruído a não citar notícias nem acontecimentos (ver parte 4).
+- Sem pesquisador: o redator é instruído a não citar notícias nem acontecimentos.
 
-### 4. Evidências externas
+### 4. Indicadores oficiais
 
-> **Decisão de 30/09/2026: notícias removidas por completo.** Saíram o coletor diário
-> (`flows/noticias.py` e a task no flow diário), a seleção e triagem (`flows/evidencias.py`), o
-> pesquisador, as "Leituras relacionadas", `--com-evidencias`, a máscara de datas do verificador
-> e os casos de notícia da calibração. Dos indicadores oficiais ficam o Pix e a Selic, por código.
-> O boletim descreve os dados e não formula hipóteses. O registro abaixo fica como histórico.
-
-APIs oficiais (SIDRA/IBGE, SGS/Banco Central) buscadas por código, e a busca na web do pesquisador com teto de resultados. Cada evidência traz fonte, período e escala.
-
-**Ordem revista (29/09/2026):** coletor diário de notícias → 3b-1 (editorial e fatos, a partir
-da revisão do primeiro boletim) → parte 4 (triagem pelo Jev, pesquisador) → 3b-2 (advisor e
-tickets).
+> **Notícias: tentadas e removidas (29 e 30/09/2026).** A parte 4 chegou a ter coletor diário de
+> feeds, triagem pelo Jev, pesquisador e "Leituras relacionadas". Saiu tudo em 30/09/2026: o
+> boletim descreve os dados, sem hipóteses, e as notícias traziam ruído (na única execução
+> completa, a única notícia relevante era publicidade) e manutenção de fontes. Ficou do trabalho
+> o Jev como juiz (papel `juiz` da Execucao: preço pela consulta direta ao modelo, teto de 60
+> decisões e de 30 mil tokens por decisão, preço variável −1 recusado) e a lição de que ele é
+> sensível à redação da pergunta: limiares só com calibração em casos rotulados (parte 6). O
+> detalhe está no histórico do git.
 
 **3b-1, editorial e fatos (feita, 29/09/2026)**, a partir da revisão editorial do primeiro boletim:
 - Fatos: rótulos de mês ("julho de 2025"), faixa histórica citável com o período, saldo dos dois
@@ -147,24 +144,6 @@ tickets).
 - Segunda execução real (202607, mesmos modelos): US$ 0,028 (a primeira custou US$ 0,094), 1 min
   55 s, nenhuma rejeição do verificador, uma versão só (nenhum problema grave), 7 apontamentos
   menores do revisor, 2 avisos de estilo.
-
-**Seleção e triagem (feitas em 29/09/2026; removidas em 30/09/2026):** `flows/evidencias.py`.
-- Janelas: "competência" (mês anterior até 15 dias após o fim da competência; única que pode
-  sustentar hipótese), "recente" (30 dias antes da geração; só sinal para acompanhar). Todas
-  podem virar "leituras relacionadas". O arquivo diário resolve a defasagem do CAGED a partir
-  da competência de outubro de 2026; julho a setembro ficam só com a janela recente.
-- Seleção por código: território (município, membros das regiões e UF, do warehouse), tema
-  (emprego e palavras por grupamento), `excluir_links` por fonte.
-- O feed da editoria de economia do Sebrae SE só trazia conteúdo de outros estados (19 de 19):
-  trocado pelo feed geral do site de SE, com exclusão dos links de outros estados.
-- Triagem pelo Jev (papel `juiz` da Execucao: preço pela consulta direta ao modelo, teto de
-  60 decisões e de 30 mil tokens por decisão, custo real registrado). Preço variável (−1,
-  roteadores) passou a ser recusado: antes passaria pela checagem de teto.
-- Primeira triagem real (202607, geração em 29/09): 257 notícias, 15 candidatas, US$ 0,0006.
-  O Jev descartou bem o ruído (Mega-Sena 0,04; trânsito 0,15), mas é sensível à redação da
-  pergunta: ao incluir "CLT; estatutário não conta", acertou os professores da rede pública e
-  errou a campanha de esgoto. Perguntas e limiares precisam de calibração com casos rotulados
-  (parte 6); as triagens gravadas em /data/ia/evidencias/ são o início desse conjunto.
 
 **3b-2, decisão e tickets (feita, 29/09/2026)**, a partir das sugestões do usuário (advisor,
 agir pelo grau de certeza, tickets com estado salvo, registro de decisões):
@@ -189,46 +168,10 @@ agir pelo grau de certeza, tickets com estado salvo, registro de decisões):
   2026: 5.184 empresas, +21,75% em 12 meses, 3,66 pontos acima de Sergipe (a adoção do Pix
   explica boa parte da alta: por isso a leitura é relativa).
 - Selic só com Construção ou Comércio em destaque; dólar fora (Socorro não tem cadeia
-  exportadora relevante). IBGE: só a API de notícias (no coletor); os demais dados não descem
-  a município ou saem com pouca frequência.
+  exportadora relevante). IBGE fora: os dados não descem a município ou saem com pouca
+  frequência.
 - Execução real em produção (202607): o Pix entrou nos pontos de atenção com leitura relativa e
   os cuidados na nota metodológica; nenhum número reprovado no final.
-
-**Pesquisador e evidências no boletim (feitos em 29/09/2026; removidos em 30/09/2026):**
-- O texto das notícias relevantes é lido por código (parágrafos, robots.txt, 2 s por host) e
-  nunca republicado. O pesquisador (LLM barato) extrai um fato por notícia; o validador exige
-  que todo número do fato esteja escrito no texto da notícia.
-- O Jev julga as evidências da janela da competência: período, setor e direção compatíveis com
-  o saldo do CAGED. Só acima de 0,7 a evidência pode virar UMA hipótese nos pontos de atenção.
-  Evidência recente só vira algo a acompanhar, com fonte e data.
-- "Leituras relacionadas" gerada por código a partir da triagem. Conteúdo patrocinado
-  (especial publicitário, publieditorial) fica de fora por código.
-- O verificador aceita os números das notícias (unidade "fonte") e mascara datas ("20 de
-  setembro"), que não são dado.
-- Execução real completa (202607, geração em 29/09): nenhuma evidência extraída, e com razão:
-  a única notícia triada como relevante era publicidade (daí a exclusão acima). O fluxo
-  funciona; o conteúdo depende do arquivo de notícias, que só cobre a janela da competência a
-  partir de outubro de 2026. Gasto acumulado no mês com todas as execuções: US$ 0,18.
-
-**Coletor diário (feito em 29/09/2026; removido em 30/09/2026):** `flows/noticias.py`, no início do flow diário.
-- Fontes avaliadas: Sebrae SE, Faxaju, Infonet e InfoMoney têm RSS; Observatório FIES e
-  Fecomércio SE não têm (ficam para a busca na web restrita, se o plugin permitir); a lista da
-  Prefeitura de Socorro é montada por JavaScript. NewsAPI descartada: o plano gratuito é
-  proibido em produção e o pago custa US$ 449/mês.
-- Os feeds guardam pouco (Infonet: 10 notícias em 2 dias): por isso a coleta é diária e
-  acumula em `/data/noticias/AAAA-MM.jsonl`, que **não se regenera** (ressalva na D03).
-- O feed "SE" do Sebrae mistura conteúdo de outros estados (itens de `sc.agenciasebrae`): a
-  triagem precisa filtrar por território, não só por tema.
-- Primeira coleta: 49 notícias. 11 testes.
-- Acrescentadas (29/09/2026): g1 Sergipe (100 notícias em ~11 dias) e g1 Economia (nacional).
-  Recusadas: g1 geral (100 notícias em 3,5 horas, ruído) e a busca RSS do Google News, cujo
-  robots.txt proíbe robôs em todo o site (com bloqueio explícito a robôs de IA); o coletor
-  respeita o robots.txt. Deduplicação também pelo título normalizado, para a mesma notícia
-  vinda por duas fontes. Total acumulado: 247 notícias.
-- Acrescentada (29/09/2026): API oficial de notícias do IBGE (busca "Sergipe"; releases
-  nacionais que citam o estado; formato próprio, JSON). O g1 mudou o endereço dos feeds
-  (`/rss/g1/...`) e às vezes manda gzip sem o cliente pedir; o coletor descomprime pela
-  assinatura.
 
 ### 5. Aprovação e envio
 
@@ -251,8 +194,7 @@ administradores pedida pelo usuário:
 O boletim de 2 ou 3 competências passadas gerado com 3 candidatos, comparados pelo verificador e por leitura humana. Custo esperado: menos de US$ 1. Define os modelos do redator e do revisor.
 
 **Calibração do Jev (feita, 29/09/2026):** `flows/calibracao.py`. 130 afirmações de resposta
-conhecida (7 competências) e 19 notícias rotuladas (os casos de notícia saíram em 30/09/2026,
-com as notícias). Acima de 0,6, todas as afirmações eram verdadeiras; o Jev
+conhecida (7 competências). Acima de 0,6, todas as afirmações eram verdadeiras; o Jev
 recusou as 14 com causa; excelente em sinal, faixa e perfil, razoável em comparação, falha em
 direção temporal (mesmo citando os níveis). Limiar das afirmações 0,6; "subiu/caiu" fora da
 lista do redator.
