@@ -121,9 +121,9 @@ def _relatorio_de_revisao(r: dict) -> str:
     if r.get("orientacoes_do_advisor"):
         linhas += ["", "ORIENTAÇÕES DO ADVISOR (dúvidas de método):"]
         linhas += [f"- {o['pergunta']} -> {o['resposta']} (confiança {o['confianca']})" for o in r["orientacoes_do_advisor"]]
-    if r.get("respostas_humanas"):
-        linhas += ["", "RESPOSTAS HUMANAS A TICKETS USADAS:"]
-        linhas += [f"- {q['pergunta']} -> {q['resposta']} ({q.get('respondido_por', '')})" for q in r["respostas_humanas"]]
+    if r.get("fora_dos_fatos"):
+        linhas += ["", "ASSUNTOS FORA DOS FATOS (o texto não deve afirmar nada sobre eles; confira):"]
+        linhas += [f"- {q}" for q in r["fora_dos_fatos"]]
     return "\n".join(linhas) + "\n"
 
 

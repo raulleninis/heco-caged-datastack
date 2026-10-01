@@ -354,12 +354,14 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   IBGE de 7 dígitos = 6 do CAGED + dígito verificador) com leitura RELATIVA (adoção do Pix);
   Selic (SGS 432) só com Construção/Comércio em destaque; dólar fora. Cache em
   /data/ia/indicadores/; falha de rede não derruba (fica em `indicadores_ausentes`)
-- 3b-2 (feita): analista levanta até 3 `duvidas`; o Jev as classifica (fato_local/metodo/
-  nenhuma; descarta "nenhuma" só com confiança >= 0,6). Método -> advisor (IA_MODELO_ADVISOR,
-  máx. 2, Orientacao tipada). Fato local -> ticket em /data/ia/tickets/ com a análise salva;
-  sem resposta não roda (AguardandoResposta, nada gasto); `--responder N --resposta --por`
-  grava no ticket e em /data/ia/conhecimento/<territorio>.jsonl (entra nos próximos prompts,
-  últimos 20). O redator lista `afirmacoes` com ids; o Jev julga cada uma (limiar 0,6); as não
+- 3b-2 (feita): analista levanta até 3 `duvidas`; o Jev as classifica (fora_dos_fatos/metodo/
+  nenhuma; descarta "nenhuma" só com confiança >= 0,6), vendo a posição na faixa histórica e os
+  gatilhos. Método -> advisor (IA_MODELO_ADVISOR, máx. 2, Orientacao tipada)
+- ESCOPO FECHADO NOS FATOS (decisão do usuário, 01/10/2026): o boletim só afirma o que os fatos
+  mostram, sem informação externa. Dúvida fora_dos_fatos NÃO para a geração nem pergunta a
+  ninguém: vai para `fora_dos_fatos` no resultado, o redator recebe "não afirme nada sobre
+  eles" e o relatório de revisão a lista. Tickets, `--responder`, `--sem-tickets` e a base de
+  conhecimento local saíram (não reintroduzir). O redator lista `afirmacoes` com ids; o Jev julga cada uma (limiar 0,6); as não
   sustentadas vão ao relatório de revisão. `decisoes` = registro de decisões. request_limit 10
   (pior caso 9). Dúvidas nunca sobre empresas/estabelecimentos
 - Decisões editoriais (29/09/2026): sem hipóteses (desde 30/09/2026, sem notícias, de vez);

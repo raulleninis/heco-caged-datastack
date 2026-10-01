@@ -38,7 +38,7 @@ fatos (código, parte 1) ──► analista ──► redator ──► revisor 
 - **Analista:** recebe os fatos e os gatilhos já calculados; pode pedir desagregações, mas só entre consultas pré-escritas e testadas.
 - **Redator:** escreve o boletim seguindo o roteiro. O verificador de números é o seu `output_validator`: número fora da tabela de fatos gera uma nova tentativa (`ModelRetry`), com teto.
 - **Revisor:** de outra família de modelos. Confere números, linguagem causal, identificação, estrutura e estilo.
-- **Em volta:** o Jev (juiz) tria as dúvidas do analista e julga as afirmações do redator; o advisor responde dúvidas de método; dúvidas de fato local viram tickets (3b-2).
+- **Em volta:** o Jev (juiz) tria as dúvidas do analista e julga as afirmações do redator; o advisor responde dúvidas de método; dúvidas que exigiriam informação externa não são afirmadas (escopo fechado nos fatos, 01/10/2026; os tickets da 3b-2 saíram).
 
 ## Proteções contra gasto
 
@@ -145,7 +145,7 @@ Os quatro agentes, o verificador de números como `output_validator` e as instru
   55 s, nenhuma rejeição do verificador, uma versão só (nenhum problema grave), 7 apontamentos
   menores do revisor, 2 avisos de estilo.
 
-**3b-2, decisão e tickets (feita, 29/09/2026)**, a partir das sugestões do usuário (advisor,
+**3b-2, decisão e tickets (feita, 29/09/2026; tickets removidos em 01/10/2026, ver abaixo)**, a partir das sugestões do usuário (advisor,
 agir pelo grau de certeza, tickets com estado salvo, registro de decisões):
 - A certeza que o LLM declara é mal calibrada; quem decide é o código, com o Jev: ele classifica
   as dúvidas do analista (fato local, método, nenhuma) e julga se os fatos citados sustentam cada
@@ -159,6 +159,22 @@ agir pelo grau de certeza, tickets com estado salvo, registro de decisões):
   com o analista nas três dúvidas; uma virou ticket. A pergunta do ticket puxava para
   "um ou poucos estabelecimentos": as instruções do analista passaram a proibir dúvidas sobre
   empresas ou estabelecimentos.
+
+**Escopo fechado nos fatos (01/10/2026)**, decisão do usuário: o boletim trabalha só com os
+fatos disponíveis e só afirma o que eles mostram, sem informação externa. Motivo: o ticket de
+202608 tinha três perguntas e nenhuma precisava de uma pessoa. "Serviços em agosto é sazonal?"
+já estava nos fatos (−181, dentro da faixa de agosto de 2020–2025, −190 a +262). "Há
+deslocamento entre Socorro e a região?" é limite do dado (o CAGED registra o município do
+estabelecimento, não o de residência). "Obra de grande porte?" é informação externa e quase
+identifica estabelecimento.
+- Saíram os tickets, `--responder`/`--sem-tickets` e a base de conhecimento local nos prompts.
+  Arquivos antigos em `/data/ia/tickets/` e `/data/ia/conhecimento/` ficam no disco, sem uso.
+- Dúvida `fora_dos_fatos` (antes `fato_local`) não para a geração: o redator recebe a lista com
+  "não afirme nada sobre eles", e o relatório de revisão a mostra. O resultado guarda a lista em
+  `fora_dos_fatos`.
+- O analista é instruído a não levantar dúvida para buscar informação externa e a conferir antes
+  se os fatos já respondem. O Jev passa a triar com a posição na faixa histórica e os gatilhos
+  (o mesmo contexto do julgamento de afirmações). O advisor continua só para método.
 
 **Indicadores oficiais (feitos, 29/09/2026):** `flows/indicadores.py`, a pedido do usuário.
 - Pix por município (Banco Central): o único dado de atividade econômica do próprio município,

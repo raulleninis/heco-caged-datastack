@@ -1,7 +1,6 @@
 """
 Comparação prática de modelos redatores (F19 parte 6): o mesmo boletim, com os mesmos fatos,
-escrito por modelos diferentes, com tudo o mais igual (analista, revisor, advisor e juiz fixos,
-sem tickets). Mede o que dá para medir por código e prepara os textos ÀS CEGAS
+escrito por modelos diferentes, com tudo o mais igual (analista, revisor, advisor e juiz fixos). Mede o que dá para medir por código e prepara os textos ÀS CEGAS
 para a leitura humana, que decide o que a métrica não pega (clareza, hierarquia, tom).
 
 Saída em /data/ia/comparacao/<data>/:
@@ -56,7 +55,7 @@ def comparar(warehouse: Path, territorio: str, competencias: list[str], redatore
     dia = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M")
     pasta = cfg.pasta / "comparacao" / dia
     pasta.mkdir(parents=True, exist_ok=True)
-    cfg_isolado = replace(cfg, pasta=pasta / "execucoes")  # resultados e tickets à parte...
+    cfg_isolado = replace(cfg, pasta=pasta / "execucoes")  # resultados à parte...
     registro, precos = ia.RegistroCustos(cfg.pasta), ia.Precos(cfg.pasta)  # ...custo no registro real
     sorteio = random.Random(semente)
     leitura = [f"# Comparação de redatores (às cegas), {dia}", "", RUBRICA]
@@ -72,7 +71,7 @@ def comparar(warehouse: Path, territorio: str, competencias: list[str], redatore
             modelos = {**base_modelos, "redator": redator}
             inicio = time.monotonic()
             try:
-                r = boletim_ia.gerar(f, cfg_isolado, modelos, precos=precos, registro=registro, refazer=True, sem_tickets=True)
+                r = boletim_ia.gerar(f, cfg_isolado, modelos, precos=precos, registro=registro, refazer=True)
             except Exception as e:  # uma geração que falha é um resultado da comparação, não o fim dela
                 metricas.append({"rotulo": rotulo, "situacao": f"falhou: {type(e).__name__}"})
                 leitura += [f"### Texto {rotulo}", "", "(a geração falhou)", ""]

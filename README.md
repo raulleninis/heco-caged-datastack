@@ -355,17 +355,10 @@ IA_MODELO_REVISOR=z-ai/glm-5.3-flash
 O Jev (`typesafe/jev-1.13`) entra sozinho como juiz (triagem das dúvidas e das afirmações do texto); nunca redige. O advisor (`IA_MODELO_ADVISOR`, padrão: o 1º modelo de texto se não for o redator) só
 responde dúvidas de método, no máximo 2 por boletim.
 
-**Tickets (dúvidas de fato local):** quando o analista tem uma dúvida que só quem conhece o município responde,
-a geração para, salva a análise e abre um ticket em `/data/ia/tickets/`. Responda e rode de novo; a análise
-não é paga de novo, e a resposta vai para a base de conhecimento local (`/data/ia/conhecimento/`), usada nos
-boletins seguintes:
-
-```bash
-docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607 --responder 1 --resposta "..." --por "Nome"
-docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607   # retoma
-```
-
-`--sem-tickets` segue sem perguntar (o redator é instruído a não afirmar nada sobre a dúvida). O relatório de
+**Escopo fechado nos fatos:** o boletim só afirma o que os fatos mostram, sem informação externa, e a
+geração nunca para para perguntar nada a ninguém. Uma dúvida do analista que exigiria informação de fora
+(acontecimentos, obras, deslocamentos) entra na lista `fora_dos_fatos`: o redator é instruído a não afirmar
+nada sobre ela, e o relatório de revisão a mostra. O relatório de
 revisão mostra primeiro as afirmações que o Jev não viu sustentadas pelos fatos. A chave da
 OpenRouter tem limite vitalício de crédito, reajustado à mão todo mês (limita a perda num
 vazamento); se ele se esgotar, a OpenRouter recusa a chamada e o comando avisa.
@@ -683,5 +676,5 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
   - [x] Indicadores oficiais: Pix por município e Selic (Banco Central)
   - [x] ~~Evidências externas (notícias)~~: implementadas e removidas em 30/09/2026; o boletim não usa notícias
   - [x] Aprovação humana antes do envio: rascunho aos administradores, aprovação com nome, envio do mesmo PDF
-  - [x] Decisão e tickets (3b-2): Jev julga afirmações e tria dúvidas; advisor para método; tickets com estado salvo e base de conhecimento local
+  - [x] Decisão (3b-2): Jev julga afirmações e tria dúvidas; advisor para método; escopo fechado nos fatos, sem tickets (01/10/2026)
   - [ ] Comparação prática de modelos e calibração do Jev

@@ -24,6 +24,12 @@ Fluxo fixo, sem agente decidindo chamar outro (docs/fatias/F19-boletim-com-ia.md
 Pior caso de requisições: analista 2 + redator 2 + revisor 1 + redator 2 = 7, dentro do
 request_limit de 8 da Execucao. Sem hipóteses: o boletim descreve, não explica.
 
+Escopo fechado nos fatos (01/10/2026): o boletim só afirma o que os fatos mostram, sem
+informação externa. Dúvida do analista que exigiria informação de fora (acontecimentos, obras,
+deslocamentos) não para a geração nem pergunta a ninguém: o redator é instruído a não afirmar
+nada sobre ela. Dúvida de método vai ao advisor, que orienta a leitura sem trazer dado novo. Os
+tickets e a base de conhecimento local (3b-2) saíram.
+
 Uso:
     python flows/boletim_ia.py 280480 202607 [--refazer] [--warehouse ...]
 """
@@ -61,8 +67,9 @@ class Destaque(BaseModel):
 class Duvida(BaseModel):
     """3b-2: o que o analista não consegue decidir só com os fatos."""
     pergunta: str
-    tipo: Literal["fato_local", "metodo"] = Field(description="fato_local: depende de conhecimento sobre o "
-                                                   "município que os dados não trazem; metodo: de como ler os dados")
+    tipo: Literal["fora_dos_fatos", "metodo"] = Field(
+        description="fora_dos_fatos: exigiria informação que os fatos não trazem (acontecimentos, obras, "
+                    "deslocamentos); o boletim não afirma nada sobre isso. metodo: como ler os dados")
     ids: list[str] = Field(default_factory=list, description="ids de `numeros` relacionados")
     por_que: str
 
@@ -212,7 +219,10 @@ parte, DETALHAM. Não leia a tabela em voz alta:
 INSTRUCOES = {
     "analista": "Você é o analista de um boletim mensal de emprego formal (Novo CAGED). Recebe os fatos já "
                 "calculados e escolhe o que merece destaque, seguindo os `gatilhos` e os `destaques` setoriais. "
-                "Cada destaque cita ids da tabela `numeros`. Dúvidas (`duvidas`): só as que "
+                "Cada destaque cita ids da tabela `numeros`. O boletim só afirma o que os fatos mostram, sem "
+                "informação externa: não levante dúvida para buscar acontecimentos, obras ou deslocamentos; "
+                "se algo só se explicaria com isso, simplesmente não se afirma. Antes de perguntar, confira "
+                "se os fatos já respondem (faixa histórica do mesmo mês, gatilhos). Dúvidas (`duvidas`): só as que "
                 "mudariam o texto; NUNCA sobre empresas ou estabelecimentos, nem 'um ou poucos "
                 "estabelecimentos' (vira identificação): formule no nível do setor ou do município.\n" + REGRAS,
     "redator": "Você redige, em português do Brasil, o texto de um boletim mensal de emprego formal para "
@@ -220,7 +230,8 @@ INSTRUCOES = {
                + REGRAS + EDITORIAL,
     "advisor": "Você é consultor de método em estatísticas do mercado de trabalho (Novo CAGED). Responde a uma "
                "dúvida de método de quem escreve um boletim municipal, em até 5 frases, sem números novos e sem "
-               "especular causas. Se a resposta depender de conhecimento local, diga isso.",
+               "especular causas. Se a resposta exigir informação que os dados não trazem, diga que o boletim não deve "
+               "afirmar nada sobre isso.",
     "revisor": "Você revisa um boletim de emprego formal escrito por outro modelo, com os fatos completos à mão. "
                "Aponte: número que não confere; linguagem causal ou especulação; afirmação sem base nos fatos "
                "(confira nos fatos antes de apontar: faixa histórica, gatilhos e sazonalidade estão lá); "
@@ -422,67 +433,30 @@ def _fatos_para_prompt(f: dict) -> str:
 LIMIAR_AFIRMACAO = 0.6   # abaixo disso, a afirmação vai destacada para a revisão humana
 LIMIAR_TRIAGEM = 0.6     # confiança mínima do Jev para descartar uma dúvida como "nenhuma"
 MAX_ADVISOR = 2
-CONHECIMENTO_NO_PROMPT = 20
-
-
-class AguardandoResposta(RuntimeError):
-    """Há ticket de fato local sem resposta: nada foi gerado (nem gasto) nesta execução."""
-
-
-# --- tickets e conhecimento local (3b-2) ------------------------------------------------------
-
-def arquivo_ticket(cfg: ia.ConfigIA, territorio: str, competencia: str, chave: str) -> Path:
-    return cfg.pasta / "tickets" / f"{territorio}_{competencia}_{chave}.json"
-
-
-def arquivo_conhecimento(cfg: ia.ConfigIA, territorio: str) -> Path:
-    return cfg.pasta / "conhecimento" / f"{territorio}.jsonl"
-
-
-def conhecimento_local(cfg: ia.ConfigIA, territorio: str) -> list[dict]:
-    """As últimas respostas humanas a tickets do território (datadas): contexto, não fonte de número."""
-    arq = arquivo_conhecimento(cfg, territorio)
-    if not arq.exists():
-        return []
-    linhas = [json.loads(l) for l in arq.read_text(encoding="utf-8").splitlines() if l.strip()]
-    return linhas[-CONHECIMENTO_NO_PROMPT:]
-
-
-def responder_ticket(cfg: ia.ConfigIA, territorio: str, competencia: str, numero: int, resposta: str,
-                     por: str) -> dict:
-    """Registra a resposta humana à pergunta `numero` (1, 2...) do ticket aberto da competência e
-    a acrescenta à base de conhecimento local do território."""
-    abertos = sorted((cfg.pasta / "tickets").glob(f"{territorio}_{competencia}_*.json"))
-    if not abertos:
-        raise ValueError(f"Nenhum ticket para {territorio} em {competencia}.")
-    arq = abertos[-1]
-    t = json.loads(arq.read_text(encoding="utf-8"))
-    pergunta = t["perguntas"][numero - 1]
-    pergunta.update(resposta=resposta.strip(), respondido_por=por.strip(),
-                    respondido_em=datetime.now(timezone.utc).isoformat(timespec="seconds"))
-    arq.write_text(_json(t) + "\n", encoding="utf-8")
-    base = arquivo_conhecimento(cfg, territorio)
-    base.parent.mkdir(parents=True, exist_ok=True)
-    with base.open("a", encoding="utf-8") as f:
-        f.write(json.dumps({"competencia": competencia, "pergunta": pergunta["pergunta"], "resposta": pergunta["resposta"],
-                            "respondido_por": pergunta["respondido_por"], "respondido_em": pergunta["respondido_em"]},
-                           ensure_ascii=False) + "\n")
-    return pergunta
-
-
 def _numeros_de(fatos: dict, ids) -> dict:
     return {i: fatos["numeros"][i] for i in ids if i in fatos["numeros"]}
+
+
+def _contexto_de_leitura(fatos: dict) -> dict:
+    """Gatilhos, destaques e posição na faixa histórica (total e grupamentos): o que o Jev precisa
+    para saber se os fatos já respondem a uma dúvida ou sustentam uma afirmação."""
+    setorial = fatos.get("setorial", {})
+    return {"gatilhos": fatos.get("gatilhos"), "destaques": setorial.get("destaques"),
+            "posicoes_na_faixa_historica": {
+                "total": fatos.get("panorama", {}).get("sazonalidade", {}).get("posicao"),
+                **{g: it.get("sazonalidade", {}).get("posicao") for g, it in setorial.get("grupamentos", {}).items()}}}
 
 
 def triar_duvida(ex: ia.Execucao, duvida: Duvida, fatos: dict) -> dict:
     """O Jev classifica a dúvida (não se confia no rótulo do próprio LLM)."""
     estado = {"duvida": duvida.pergunta, "por_que": duvida.por_que, "fatos_relacionados": _numeros_de(fatos, duvida.ids),
+              "contexto": _contexto_de_leitura(fatos),
               "municipio": fatos["territorio"]["nome"], "competencia": fatos["rotulos"]["competencia"]}
     r = ex.decidir(estado, {"tipo": {
         "type": "choice", "instructions": "Que tipo de resposta essa dúvida exige?",
-        "criteria": {"fato_local": "Conhecimento sobre acontecimentos ou empresas do município, que os dados não trazem.",
+        "criteria": {"fora_dos_fatos": "Informação que os dados não trazem (acontecimentos, obras, empresas, deslocamentos).",
                      "metodo": "Saber como ler ou comparar os dados (estatística, conceito do CAGED).",
-                     "nenhuma": "Os fatos relacionados já respondem, ou a dúvida não muda o texto."}}})
+                     "nenhuma": "Os fatos relacionados ou o contexto já respondem, ou a dúvida não muda o texto."}}})
     tipo = r.get("tipo") or {}
     return {"pergunta": duvida.pergunta, "tipo_llm": duvida.tipo, "tipo_jev": tipo.get("choice"),
             "confianca_jev": tipo.get("confidence"), "probabilidades": tipo.get("probabilities")}
@@ -492,11 +466,7 @@ def julgar_afirmacoes(ex: ia.Execucao, boletim: Boletim, fatos: dict) -> list[di
     """O Jev julga se os fatos citados sustentam cada afirmação interpretativa do texto."""
     if not boletim.afirmacoes:
         return []
-    setorial = fatos.get("setorial", {})
-    contexto = {"gatilhos": fatos.get("gatilhos"), "destaques": setorial.get("destaques"),
-                "posicoes_na_faixa_historica": {
-                    "total": fatos.get("panorama", {}).get("sazonalidade", {}).get("posicao"),
-                    **{g: it.get("sazonalidade", {}).get("posicao") for g, it in setorial.get("grupamentos", {}).items()}}}
+    contexto = _contexto_de_leitura(fatos)
     julgadas = []
     for a in boletim.afirmacoes:
         citados = _numeros_de(fatos, a.ids)
@@ -514,10 +484,8 @@ def julgar_afirmacoes(ex: ia.Execucao, boletim: Boletim, fatos: dict) -> list[di
 
 def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_modelo=None,
           precos: ia.Precos | None = None, registro: ia.RegistroCustos | None = None,
-          refazer: bool = False, sem_tickets: bool = False,
-          post_decisoes=None) -> dict:
-    """Gera (ou reaproveita) o boletim com IA de um JSON de fatos. Devolve o resultado gravado, ou
-    {"situacao": "aguardando_resposta", ...} quando abriu ticket de fato local."""
+          refazer: bool = False, post_decisoes=None) -> dict:
+    """Gera (ou reaproveita) o boletim com IA de um JSON de fatos. Devolve o resultado gravado."""
     texto_errado = {p: m for p, m in modelos.items() if p != "juiz" and e_modelo_de_decisao(m)}
     if texto_errado:
         raise ValueError(f"Modelos de decisão não redigem texto: {texto_errado}. Use-os como juiz.")
@@ -531,15 +499,6 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
         resultado["pasta"] = str(pasta)
         return resultado
 
-    # Ticket aberto para estes fatos: sem resposta, nada roda (nem gasta); com resposta, retoma
-    # da análise salva, sem pagar o analista de novo.
-    ticket = arquivo_ticket(cfg, territorio, competencia, chave)
-    salvo = json.loads(ticket.read_text(encoding="utf-8")) if ticket.exists() else None
-    if salvo and not sem_tickets:
-        pendentes = [q["pergunta"] for q in salvo["perguntas"] if not q.get("resposta")]
-        if pendentes:
-            raise AguardandoResposta(f"Ticket {ticket.name} com {len(pendentes)} pergunta(s) sem resposta: {pendentes}")
-
     criar_modelo = criar_modelo or (lambda papel: ia.modelo_openrouter(cfg, modelos[papel], papel))
     agentes = criar_agentes(criar_modelo)
     contexto = Contexto(fatos)
@@ -549,59 +508,36 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
         if post_decisoes:
             ex.post_decisoes = post_decisoes
         base = _fatos_para_prompt(fatos)
-        conhecimento = conhecimento_local(cfg, territorio)
-        bloco_conhecimento = ("Conhecimento local registrado por pessoas (contexto datado; não é fonte de números):\n"
-                              + _json(conhecimento)) if conhecimento else ""
-
-        if salvo:
-            analise = Analise(**salvo["analise"])
-            orientacoes = salvo.get("orientacoes", [])
-            respostas = [q for q in salvo["perguntas"] if q.get("resposta")]
-            decisoes = salvo.get("decisoes", []) + [{"tipo": "retomada_do_ticket", "arquivo": ticket.name}]
-        else:
-            analise = ex.rodar(agentes["analista"], "analista",
-                               f"Fatos do mês (JSON):\n{base}\n\n{bloco_conhecimento}", deps=contexto)
-            orientacoes, respostas, locais = [], [], []
-            for d in analise.duvidas:
-                if "juiz" in modelos:
-                    t = triar_duvida(ex, d, fatos)
-                    tipo = t["tipo_jev"] or d.tipo
-                    if tipo == "nenhuma" and (t["confianca_jev"] or 0) < LIMIAR_TRIAGEM:
-                        tipo = d.tipo  # Jev pouco confiante em descartar: segue o rótulo do LLM
-                else:
-                    t, tipo = {"pergunta": d.pergunta, "tipo_llm": d.tipo}, d.tipo
-                decisoes.append({"tipo": "triagem_de_duvida", **t, "destino": tipo})
-                if tipo == "metodo" and "advisor" in agentes and "advisor" in modelos \
-                        and sum(1 for o in orientacoes) < MAX_ADVISOR:
-                    try:
-                        o: Orientacao = ex.rodar(agentes["advisor"], "advisor",
-                                                 f"Dúvida: {d.pergunta}\nPor quê: {d.por_que}\n"
-                                                 f"Fatos relacionados: {_json(_numeros_de(fatos, d.ids))}")
-                        orientacoes.append({"pergunta": d.pergunta, **o.model_dump()})
-                    except UnexpectedModelBehavior as e:  # advisor é ajuda, não requisito
-                        decisoes.append({"tipo": "advisor_falhou", "pergunta": d.pergunta, "erro": str(e)[:200]})
-                elif tipo == "fato_local":
-                    locais.append({"pergunta": d.pergunta, "por_que": d.por_que, "ids": d.ids})
-            if locais and not sem_tickets:
-                ticket.parent.mkdir(parents=True, exist_ok=True)
-                ticket.write_text(_json({"territorio": territorio, "competencia": competencia, "chave": chave,
-                                         "aberto_em": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                                         "analise": analise.model_dump(), "orientacoes": orientacoes,
-                                         "decisoes": decisoes, "perguntas": locais}) + "\n", encoding="utf-8")
-                return {"situacao": "aguardando_resposta", "ticket": str(ticket), "perguntas": [q["pergunta"] for q in locais],
-                        "execucao": ex.id, "decisoes": decisoes}
-            if locais:  # --sem-tickets: o redator é avisado para não afirmar nada sobre isso
-                respostas = [{"pergunta": q["pergunta"], "resposta": "SEM RESPOSTA: não afirme nada sobre isso."}
-                             for q in locais]
+        analise = ex.rodar(agentes["analista"], "analista", f"Fatos do mês (JSON):\n{base}", deps=contexto)
+        orientacoes, fora_dos_fatos = [], []
+        for d in analise.duvidas:
+            if "juiz" in modelos:
+                t = triar_duvida(ex, d, fatos)
+                tipo = t["tipo_jev"] or d.tipo
+                if tipo == "nenhuma" and (t["confianca_jev"] or 0) < LIMIAR_TRIAGEM:
+                    tipo = d.tipo  # Jev pouco confiante em descartar: segue o rótulo do LLM
+            else:
+                t, tipo = {"pergunta": d.pergunta, "tipo_llm": d.tipo}, d.tipo
+            decisoes.append({"tipo": "triagem_de_duvida", **t, "destino": tipo})
+            if tipo == "metodo" and "advisor" in agentes and "advisor" in modelos \
+                    and sum(1 for o in orientacoes) < MAX_ADVISOR:
+                try:
+                    o: Orientacao = ex.rodar(agentes["advisor"], "advisor",
+                                             f"Dúvida: {d.pergunta}\nPor quê: {d.por_que}\n"
+                                             f"Fatos relacionados: {_json(_numeros_de(fatos, d.ids))}")
+                    orientacoes.append({"pergunta": d.pergunta, **o.model_dump()})
+                except UnexpectedModelBehavior as e:  # advisor é ajuda, não requisito
+                    decisoes.append({"tipo": "advisor_falhou", "pergunta": d.pergunta, "erro": str(e)[:200]})
+            elif tipo == "fora_dos_fatos":
+                fora_dos_fatos.append(d.pergunta)
 
         extras = ""
         if orientacoes:
             extras += "\n\nOrientações de método do advisor (siga-as; não cite o advisor):\n" + _json(orientacoes)
-        if respostas:
-            extras += ("\n\nRespostas de pessoas a dúvidas de fato local (contexto; atribua como informação "
-                       "local, sem números novos):\n" + _json(respostas))
-        if bloco_conhecimento:
-            extras += "\n\n" + bloco_conhecimento
+        if fora_dos_fatos:
+            # Escopo fechado nos fatos: o que exigiria informação externa não é afirmado.
+            extras += ("\n\nAssuntos que os fatos não respondem (NÃO afirme nada sobre eles, nem como "
+                       "possibilidade):\n" + _json(fora_dos_fatos))
         pedido = (f"Fatos do mês (JSON):\n{base}\n\nAnálise do analista (JSON):\n{analise.model_dump_json(indent=2)}"
                   + extras)
         boletim: Boletim = ex.rodar(agentes["redator"], "redator", pedido, deps=contexto)
@@ -647,8 +583,8 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
         "avisos_de_estilo": avisos(boletim, fatos),
         "afirmacoes_nao_sustentadas": [a for a in afirmacoes if not a["sustentada"]],
         "orientacoes_do_advisor": orientacoes,
-        "respostas_humanas": respostas,
-        "decisoes": decisoes,  # registro de decisões (3b-2): triagens, retomadas, julgamentos
+        "fora_dos_fatos": fora_dos_fatos,  # dúvidas que exigiriam informação externa: não afirmadas
+        "decisoes": decisoes,  # registro de decisões (3b-2): triagens e julgamentos
         "parecer_revisor": parecer.model_dump(),
         "revisor_falhou": revisor_falhou,
         "analise": analise.model_dump(),
@@ -669,26 +605,14 @@ def main():
     ap.add_argument("--warehouse", default="/data/warehouse/caged.duckdb")
     ap.add_argument("--refazer", action="store_true", help="gera de novo mesmo com resultado para estes fatos")
     ap.add_argument("--sem-indicadores", action="store_true", help="não busca Pix e Selic no Banco Central")
-    ap.add_argument("--sem-tickets", action="store_true", help="não abre ticket: dúvidas de fato local ficam sem afirmação")
-    ap.add_argument("--responder", type=int, metavar="N", help="responde a pergunta N do ticket aberto e sai")
-    ap.add_argument("--resposta", default="")
-    ap.add_argument("--por", default="", help="quem respondeu (com --responder)")
     a = ap.parse_args()
     cfg = ia.ConfigIA.do_ambiente()
-    if a.responder:
-        if not a.resposta.strip() or not a.por.strip():
-            raise SystemExit("--responder exige --resposta e --por.")
-        q = responder_ticket(cfg, a.territorio, a.competencia, a.responder, a.resposta, a.por)
-        print(f"Resposta registrada para: {q['pergunta']}. Rode o comando de geração de novo para retomar.")
-        return
     f = fatos_mod.gerar_fatos(Path(a.warehouse), a.territorio, a.competencia)
     if not a.sem_indicadores:
         import indicadores
         f = indicadores.anexar(f, Path(a.warehouse))
     try:
-        r = gerar(f, cfg, modelos_do_ambiente(cfg), refazer=a.refazer, sem_tickets=a.sem_tickets)
-    except AguardandoResposta as e:
-        raise SystemExit(f"Aguardando resposta humana: {e}\nResponda com --responder N --resposta \"...\" --por \"Nome\".")
+        r = gerar(f, cfg, modelos_do_ambiente(cfg), refazer=a.refazer)
     except ia.OrcamentoExcedido as e:
         raise SystemExit(f"Recusado pelo orçamento: {e}")
     except Exception as e:
@@ -697,11 +621,6 @@ def main():
         if any(c in str(e) for c in ("401", "402", "403")):
             raise SystemExit(f"A OpenRouter recusou a chamada ({e}). Confira a chave e o limite de crédito dela.")
         raise
-    if r["situacao"] == "aguardando_resposta":
-        print(json.dumps({"situacao": r["situacao"], "ticket": r["ticket"], "perguntas": r["perguntas"]},
-                         ensure_ascii=False, indent=2))
-        print("Responda com: python flows/boletim_ia.py T C --responder N --resposta \"...\" --por \"Nome\"")
-        return
     print(json.dumps({k: r[k] for k in ("situacao", "execucao", "modelos", "versoes_do_redator")}
                      | {"reaproveitado": r.get("reaproveitado", False), "problemas_verificador": len(r["verificador"]),
                         "rejeicoes": r.get("rejeicoes_do_verificador"), "avisos_de_estilo": len(r.get("avisos_de_estilo", [])),

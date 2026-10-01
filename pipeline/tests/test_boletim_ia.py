@@ -299,7 +299,7 @@ def analise_com(*duvidas):
 
 
 class Ticket3b2(unittest.TestCase):
-    """3b-2: triagem de dúvidas, advisor, tickets com estado salvo e julgamento de afirmações.
+    """3b-2: triagem de dúvidas, advisor, dúvidas fora dos fatos e julgamento de afirmações.
     Reaproveita a preparação do Fluxo sem herdar (e re-executar) os testes dele."""
 
     def tearDown(self):
@@ -339,32 +339,32 @@ class Ticket3b2(unittest.TestCase):
         self.assertEqual(r.chamadas["advisor"], 0)
         self.assertEqual(res["decisoes"][0]["destino"], "nenhuma")
 
-    def test_fato_local_abre_ticket_e_retoma_sem_pagar_o_analista_de_novo(self):
-        r = Roteiro(analista=[analise_com(("Houve fechamento de obra em julho?", "fato_local"))], redator=[boletim()],
+    def test_duvida_fora_dos_fatos_nao_para_e_nao_e_afirmada(self):
+        """Escopo fechado nos fatos: nada de ticket nem de pergunta a pessoas; o redator é instruído
+        a não afirmar nada sobre o assunto, e o relatório de revisão o lista."""
+        r = Roteiro(analista=[analise_com(("Houve fechamento de obra em julho?", "fora_dos_fatos"))], redator=[boletim()],
                     revisor=[parecer()], advisor=[{"resposta": "x", "confianca": "alta"}])
-        self.jev = [{"tipo": {"choice": "fato_local", "confidence": 0.99}}]
-        res = self.gerar(r)
-        self.assertEqual(res["situacao"], "aguardando_resposta")
-        self.assertEqual(r.chamadas["redator"], 0)
-        # sem resposta: nem roda
-        with self.assertRaises(boletim_ia.AguardandoResposta):
-            self.gerar(r)
-        self.assertEqual(r.chamadas["analista"], 1)
-        boletim_ia.responder_ticket(self.cfg, "280480", "202607", 1, "Sim, a obra X terminou em junho.", "Fulana")
+        self.jev = [{"tipo": {"choice": "fora_dos_fatos", "confidence": 0.99}}]
         res = self.gerar(r)
         self.assertEqual(res["situacao"], "aguardando_aprovacao")
-        self.assertEqual(r.chamadas["analista"], 1)  # análise reaproveitada do ticket
-        self.assertIn("a obra X terminou em junho", r.prompts["redator"][0])
-        base = boletim_ia.conhecimento_local(self.cfg, "280480")
-        self.assertEqual(base[0]["respondido_por"], "Fulana")
+        self.assertEqual(r.chamadas["advisor"], 0)
+        self.assertIn("NÃO afirme nada", r.prompts["redator"][0])
+        self.assertIn("Houve fechamento de obra em julho?", r.prompts["redator"][0])
+        self.assertEqual(res["fora_dos_fatos"], ["Houve fechamento de obra em julho?"])
+        self.assertFalse((self.cfg.pasta / "tickets").exists())
 
-    def test_sem_tickets_segue_sem_afirmar(self):
-        r = Roteiro(analista=[analise_com(("Houve fechamento de obra?", "fato_local"))], redator=[boletim()],
+    def test_triagem_recebe_a_posicao_na_faixa_historica(self):
+        """Para o Jev ver que "é sazonal?" já está respondido nos fatos."""
+        estados = []
+        def post(chave, corpo, timeout):
+            estados.append(corpo)
+            return {"answers": self.jev.pop(0), "usage": {"cost": 1e-05}}
+        self.post = post
+        r = Roteiro(analista=[analise_com(("O saldo é sazonal?", "metodo"))], redator=[boletim()],
                     revisor=[parecer()], advisor=[{"resposta": "x", "confianca": "alta"}])
-        self.jev = [{"tipo": {"choice": "fato_local", "confidence": 0.99}}]
-        res = self.gerar(r, sem_tickets=True)
-        self.assertEqual(res["situacao"], "aguardando_aprovacao")
-        self.assertIn("SEM RESPOSTA", r.prompts["redator"][0])
+        self.jev = [{"tipo": {"choice": "nenhuma", "confidence": 0.9}}]
+        self.gerar(r)
+        self.assertIn("posicoes_na_faixa_historica", json.dumps(estados[0], ensure_ascii=False))
 
     def test_afirmacao_nao_sustentada_vai_destacada(self):
         com_afirmacoes = {**boletim(), "afirmacoes": [
