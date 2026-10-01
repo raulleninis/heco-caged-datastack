@@ -34,7 +34,11 @@ RESULTADO = {
                 "perfil_e_remuneracao": ["Perfil."], "pontos_de_atencao": ["Acompanhar Serviços."],
                 "nota_metodologica": "Dados provisórios."},
 }
-FATOS = {"setorial": {"grupamentos": {"Serviços": {"saldo": {"valor": -90}, "admissoes": {"valor": 370},
+FATOS = {"competencia": 202607, "territorio": {"codigo": "280480", "nome": "Socorro", "tipo": "municipio"},
+         "provisorio": True, "rotulos": {"competencia": "julho de 2026", "ano_anterior": "julho de 2025"},
+         "panorama": {"saldo": {"valor": -83}, "admissoes": {"valor": 1000}, "desligamentos": {"valor": 1083},
+                      "estoque": {"valor": 25439}, "taxa_mes": {"valor": -0.33}},
+         "setorial": {"grupamentos": {"Serviços": {"saldo": {"valor": -90}, "admissoes": {"valor": 370},
                                                    "desligamentos": {"valor": 460}, "estoque": {"valor": 10907},
                                                    "taxa_mes": {"valor": -0.82}}}},
          "comparacao": {"territorio": {"nome": "Socorro", "saldo": {"valor": -83}, "estoque": {"valor": 25439},

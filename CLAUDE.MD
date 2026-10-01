@@ -55,6 +55,12 @@ escrita em qualquer outro lugar até fechar a conexão.
   gera boletim (PDF) e planilha (XLSX) **do mart**, arquiva no repositório privado do
   arquivo (`arquivo/` aqui é o esqueleto dele, com o bloqueio do Netlify) e envia por SMTP,
   um e-mail por destinatário. Ver "Entrega por e-mail" abaixo
+- Apresentação dos PDFs (design v3): `pdf_design.py` (componentes, fontes Archivo/IBM Plex Sans
+  em `flows/assets/`, OFL), `pdf_automatico.py` (boletim da F15) e `pdf_analitico.py` (com IA).
+  Marca da instância (território, instituição, órgão, logo) na seção `[identidade]` de
+  `perfis/<territorio>.toml`; sem ela, sai neutro (F18). Fontes TTF: Unicode, sem `_latin1`.
+  O selo "Protótipo" sai na 1ª página dos dois (`BoletimPDF(prototype=True)`). Mudar o design não
+  regenera o que já está arquivado/aprovado: só `arquivar --refazer` ou nova revisão
 - `dbt/models/staging/_sources.yml` — declara `caged_raw.caged_movimentacoes`
   como source; `external_location` usa `read_csv_auto(...,
   all_varchar=true)` parametrizado com `{{ var('competencia_arquivo', '*') }}`

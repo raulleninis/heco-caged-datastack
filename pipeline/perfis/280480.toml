@@ -3,6 +3,14 @@
 #
 # [limiares] sobrescreve LIMIARES_PADRAO de flows/fatos.py; o que não estiver aqui usa o padrão.
 # Calibrar ao porte do município (estoque ~25 mil vínculos em 2026).
+# [identidade] é a marca dos PDFs (flows/pdf_design.py). Sem ela, o boletim sai neutro.
+# `logo` é relativo a esta pasta.
+[identidade]
+territorio = "Nossa Senhora do Socorro"
+instituicao = "Observatório de Socorro"
+orgao = "Secretaria Municipal de Planejamento, Orçamento e Gestão"
+logo = "280480-logo.png"
+
 [limiares]
 destaque_min_abs = 20
 base_pequena_perfil = 30

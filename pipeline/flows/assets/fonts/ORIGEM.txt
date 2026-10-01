@@ -1,0 +1,4 @@
+Google Fonts, commit 9710da1eacb3be272583c3224dcb70f9da6eadbb
+https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/archivo/Archivo%5Bwdth%2Cwght%5D.ttf
+https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/ibmplexsans/IBMPlexSans%5Bwdth%2Cwght%5D.ttf
+Pesos estáticos: Archivo 600/800; IBM Plex Sans 400/600. Licenças OFL anexas.

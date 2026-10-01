@@ -25,7 +25,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import duckdb
-from fpdf import FPDF
+from pdf_automatico import renderizar as renderizar_pdf
+from pdf_design import carregar_identidade
 import xlsxwriter
 
 MESES = [
@@ -154,12 +155,6 @@ def fmt_pct(x: float | None) -> str:
     if x is None:
         return "-"
     return ("+" if x > 0 else "") + fmt_num(x * 100) + "%"
-
-
-def _latin1(texto: str) -> str:
-    """As fontes embutidas do PDF só têm Latin-1 (acentos do português cabem;
-    travessão, aspas curvas etc. não). Troca o resto por '?', sem quebrar."""
-    return texto.encode("latin-1", "replace").decode("latin-1")
 
 
 # ---------------------------------------------------------------------- dados
@@ -391,122 +386,10 @@ def _resumo(b: Boletim) -> list[str]:
     return frases
 
 
-def _grafico_saldo(pdf: FPDF, serie: list[dict]) -> None:
-    """Barras do saldo líquido total por competência. Desenhado à mão para não
-    trazer biblioteca gráfica (a VM tem pouca memória). Barras claras = provisório."""
-    x0, largura, altura = pdf.l_margin, pdf.epw, 42
-    topo = pdf.get_y() + 4
-    maximo = max((abs(s["saldo_liquido"]) for s in serie), default=0) or 1
-    metade = altura / 2
-    eixo = topo + metade
-    n = len(serie)
-    passo = largura / n
-    barra = passo * 0.6
-
-    pdf.set_draw_color(120)
-    pdf.line(x0, eixo, x0 + largura, eixo)
-    pdf.set_font("Helvetica", size=7)
-    for i, s in enumerate(serie):
-        v = s["saldo_liquido"]
-        provisorio = s.get("situacao") == PROVISORIO
-        h = abs(v) / maximo * (metade - 4)
-        x = x0 + i * passo + (passo - barra) / 2
-        if v >= 0:
-            pdf.set_fill_color(*((150, 200, 165) if provisorio else (38, 102, 58)))
-            pdf.rect(x, eixo - h, barra, h, style="F")
-            pdf.set_xy(x - 2, eixo - h - 4)
-        else:
-            pdf.set_fill_color(*((225, 155, 165) if provisorio else (165, 29, 45)))
-            pdf.rect(x, eixo, barra, h, style="F")
-            pdf.set_xy(x - 2, eixo + h)
-        pdf.cell(barra + 4, 4, fmt_sinal(v), align="C")
-        pdf.set_xy(x - 2, topo + altura + 1)
-        c = s["competencia"]
-        pdf.cell(barra + 4, 4, f"{c[4:]}/{c[2:4]}", align="C")
-    pdf.set_y(topo + altura + 8)
-
-
 def gerar_pdf(b: Boletim, destino: Path) -> None:
-    pdf = FPDF(format="A4")
-    pdf.set_margins(10, 12, 10)
-    pdf.set_auto_page_break(True, margin=12)
-    pdf.set_title(_latin1(f"{TITULO} - {nome_competencia(b.competencia)}"))
-    pdf.add_page()
-
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 8, _latin1(TITULO), new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", size=12)
-    pdf.cell(0, 7, _latin1(f"Competência: {nome_competencia(b.competencia)}"), new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(3)
-
-    pdf.set_font("Helvetica", size=10)
-    for frase in _resumo(b):
-        pdf.multi_cell(0, 5, _latin1(frase), new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(1)
-    pdf.ln(2)
-
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 6, "Por grupamento de atividade", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", size=8)
-    # Com estoque (F16), a tabela ganha duas colunas; as larguras somam os 190 mm úteis nos dois casos.
-    if b.tem_estoque:
-        cab = ["Grupamento", "Admissões", "Deslig.", "Saldo", "Estoque*", "Var. mês*", "Sal. mediano", "Sal. médio", "Palma"]
-        larguras = (39, 22, 17, 16, 20, 16, 23, 23, 14)
-    else:
-        cab = ["Grupamento", "Admissões", "Deslig.", "Saldo", "Sal. mediano", "Sal. médio", "Palma"]
-        larguras = (52, 20, 20, 20, 30, 30, 18)
-    with pdf.table(
-        col_widths=larguras,
-        text_align=("LEFT",) + ("RIGHT",) * (len(cab) - 1),
-        line_height=4.5,
-    ) as tabela:
-        linha = tabela.row()
-        for c in cab:
-            linha.cell(_latin1(c))
-        for l in b.linhas:
-            linha = tabela.row()
-            linha.cell(_latin1(l["grupamento"]))
-            linha.cell(fmt_int(l["admissoes"]))
-            linha.cell(fmt_int(l["desligamentos"]))
-            linha.cell(fmt_sinal(l["saldo_liquido"]))
-            if b.tem_estoque:
-                linha.cell(fmt_int(l.get("estoque")))
-                linha.cell(fmt_pct(l.get("taxa_variacao_mensal")))
-            linha.cell(fmt_brl(l["salario_mediano_admissao"]))
-            linha.cell(fmt_brl(l["salario_medio_admissao"]))
-            linha.cell(fmt_num(l["palma_index_admissao"], 2))
-        t = b.total
-        linha = tabela.row()
-        linha.cell("Total")
-        linha.cell(fmt_int(t["admissoes"]))
-        linha.cell(fmt_int(t["desligamentos"]))
-        linha.cell(fmt_sinal(t["saldo_liquido"]))
-        if b.tem_estoque:
-            linha.cell(fmt_int(b.estoque_total["estoque"]))
-            linha.cell(fmt_pct(b.estoque_total["taxa_variacao_mensal"]))
-        linha.cell("-")
-        linha.cell("-")
-        linha.cell("-")
-    if b.tem_estoque:
-        pdf.set_font("Helvetica", size=7)
-        pdf.cell(0, 4, _latin1("* Estimativa a partir de marco zero (ver notas)."), new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(6)
-
-    pdf.set_font("Helvetica", "B", 11)
-    titulo_grafico = f"Saldo líquido nos últimos {len(b.serie)} meses"
-    if b.reconciliado:
-        titulo_grafico += " (barras claras = provisório)"
-    pdf.cell(0, 6, _latin1(titulo_grafico), new_x="LMARGIN", new_y="NEXT")
-    _grafico_saldo(pdf, b.serie)
-
-    pdf.set_font("Helvetica", "B", 9)
-    pdf.cell(0, 5, "Notas", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", size=8)
-    for nota in _notas(b):
-        pdf.multi_cell(0, 4, _latin1("- " + nota), new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(0.5)
-
-    pdf.output(str(destino))
+    renderizar_pdf(b, destino, resumo=_resumo(b), notas=_notas(b),
+                   nome_competencia=nome_competencia, competencia_deslocada=competencia_deslocada,
+                   identidade=carregar_identidade(TERRITORIO))
 
 
 def _notas(b: Boletim) -> list[str]:

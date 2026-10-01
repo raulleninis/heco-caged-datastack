@@ -33,7 +33,7 @@ from email.message import EmailMessage
 from email.utils import formatdate, make_msgid, parseaddr
 from pathlib import Path
 
-from fpdf import FPDF
+from pdf_analitico import gerar_pdf as gerar_pdf_analitico
 
 import boletim
 from alertas import _logger, notificar
@@ -77,107 +77,9 @@ def gravar_estado(pasta: Path, **campos) -> dict:
 
 # --- PDF -----------------------------------------------------------------------------------------
 
-def _t(texto: str) -> str:
-    return boletim._latin1(texto)
-
-
 def gerar_pdf(pasta: Path) -> Path:
-    """PDF do boletim com IA a partir de resultado.json e fatos.json (texto + tabelas por código)."""
-    r = json.loads((pasta / "resultado.json").read_text(encoding="utf-8"))
-    f = json.loads((pasta / "fatos.json").read_text(encoding="utf-8"))
-    b = r["boletim"]
-    destino = pasta / f"boletim-ia-{r['competencia']}.pdf"
-
-    pdf = FPDF(format="A4")
-    pdf.set_margins(12, 12, 12)
-    pdf.set_auto_page_break(True, margin=12)
-    pdf.set_title(_t(b["titulo"]))
-    pdf.add_page()
-
-    def titulo(texto, tamanho=11):
-        pdf.ln(2)
-        pdf.set_font("Helvetica", "B", tamanho)
-        pdf.multi_cell(0, 6, _t(texto), new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", size=10)
-
-    def paragrafo(texto, altura=5):
-        pdf.multi_cell(0, altura, _t(texto), new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(1.5)
-
-    pdf.set_font("Helvetica", "B", 15)
-    pdf.multi_cell(0, 7, _t(b["titulo"]), new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(2)
-    pdf.set_font("Helvetica", size=10)
-    paragrafo(b["sintese"])
-    for nome, campos in (("Evolução do emprego", ("panorama",)), ("Setores", ("setores",)),
-                         ("Comparação regional e perfil", ("contexto_regional", "perfil_e_remuneracao"))):
-        titulo(nome)
-        for p in [p for c in campos for p in b[c]]:
-            paragrafo(p)
-    if b.get("pontos_de_atencao"):
-        titulo("O que acompanhar")
-        for p in b["pontos_de_atencao"]:
-            paragrafo("- " + p)
-
-    titulo("Grupamentos")
-    pdf.set_font("Helvetica", size=8)
-    with pdf.table(col_widths=(52, 22, 24, 26, 26, 26), text_align=("LEFT",) + ("RIGHT",) * 5, line_height=4.5) as tab:
-        linha = tab.row()
-        for c in ("Grupamento", "Saldo", "Admissões", "Desligamentos", "Estoque", "Var. no mês"):
-            linha.cell(_t(c))
-        for nome, it in f["setorial"]["grupamentos"].items():
-            v = lambda k: (it.get(k) or {}).get("valor")  # noqa: E731
-            linha = tab.row()
-            linha.cell(_t(nome))
-            linha.cell(boletim.fmt_sinal(v("saldo")) if v("saldo") is not None else "-")
-            linha.cell(boletim.fmt_int(v("admissoes")))
-            linha.cell(boletim.fmt_int(v("desligamentos")))
-            linha.cell(boletim.fmt_int(v("estoque")))
-            linha.cell("-" if v("taxa_mes") is None else boletim.fmt_num(v("taxa_mes")) + "%")
-    c = f["comparacao"]
-    blocos = [x for x in [c.get("territorio"), *c.get("regioes", []), c.get("uf")] if x]
-    if blocos:
-        titulo("Comparação regional")
-        pdf.set_font("Helvetica", size=8)
-        with pdf.table(col_widths=(70, 30, 30, 23, 23), text_align=("LEFT",) + ("RIGHT",) * 4, line_height=4.5) as tab:
-            linha = tab.row()
-            for cab in ("Território", "Saldo", "Estoque", "Var. mês", "Var. 12 meses"):
-                linha.cell(_t(cab))
-            for x in blocos:
-                linha = tab.row()
-                linha.cell(_t(x["nome"]))
-                linha.cell(boletim.fmt_sinal(x["saldo"]["valor"]))
-                linha.cell(boletim.fmt_int(x["estoque"]["valor"]))
-                for k in ("taxa_mes", "taxa_12_meses"):
-                    val = x[k]["valor"]
-                    linha.cell("-" if val is None else boletim.fmt_num(val) + "%")
-    pix = (f.get("indicadores_externos") or {}).get("pix")
-    if pix:
-        titulo("Indicadores complementares")
-        pdf.set_font("Helvetica", "B", 9)
-        paragrafo(f"Pix por município (Banco Central), {pix['competencia']}", altura=4)
-        pdf.set_font("Helvetica", size=8)
-        with pdf.table(col_widths=(62, 28, 36, 28, 32), text_align=("LEFT",) + ("RIGHT",) * 4, line_height=4.5) as tab:
-            linha = tab.row()
-            for cab in ("Território", "Empresas", f"Var. desde {pix['comparado_com']}", "R$ milhões", "Var. nominal"):
-                linha.cell(_t(cab))
-            for x in pix["recortes"]:
-                linha = tab.row()
-                linha.cell(_t(x["nome"]))
-                linha.cell(boletim.fmt_int(x["empresas_recebedoras"]["valor"]))
-                linha.cell(boletim.fmt_num(x["variacao_empresas_12m"]["valor"]) + "%")
-                linha.cell(boletim.fmt_num(x["valor_recebido_milhoes"]["valor"], 1))
-                linha.cell(boletim.fmt_num(x["variacao_valor_12m"]["valor"]) + "%")
-        if pix.get("cuidados"):
-            pdf.ln(1)
-            pdf.set_font("Helvetica", size=8)
-            paragrafo(pix["cuidados"], altura=4)
-    titulo("Nota metodológica", 10)
-    pdf.set_font("Helvetica", size=8)
-    paragrafo(b["nota_metodologica"], altura=4)
-    paragrafo(AVISO_IA, altura=4)
-    pdf.output(str(destino))
-    return destino
+    """Gera a apresentação; revisão, aprovação e envio preservam o mesmo PDF."""
+    return gerar_pdf_analitico(pasta, aviso_ia=AVISO_IA)
 
 
 # --- e-mail --------------------------------------------------------------------------------------
