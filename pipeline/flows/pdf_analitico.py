@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from pdf_design import BoletimPDF, BLUE, INK, MUTED, carregar_identidade, fact, money, number, percent, sign_color, signed
+from pdf_design import BoletimPDF, BLUE, MUTED, carregar_identidade, fact, money, number, percent, sign_color, signed
 
 
 def gerar_pdf(pasta: Path, *, destino: Path | None = None, aviso_ia: str) -> Path:
@@ -15,7 +15,22 @@ def gerar_pdf(pasta: Path, *, destino: Path | None = None, aviso_ia: str) -> Pat
     return destino
 
 
+def _mes_curto(rotulo: str) -> str:
+    """'setembro de 2026' -> 'set/26'."""
+    partes = rotulo.split()
+    return f"{partes[0][:3]}/{partes[-1][-2:]}" if len(partes) >= 3 else rotulo
+
+
+def _nome_atividade(item: dict) -> str:
+    """Nome da atividade, sem caixa alta (as divisões CNAE vêm em maiúsculas do IBGE)."""
+    nome = item["nome"]
+    return nome.capitalize() if nome.isupper() else nome
+
+
 def renderizar(resultado, fatos, destino, *, aviso_ia):
+    """Quatro partes (revisão de 01/10/2026): 1) síntese, cards e panorama; 2) setores com a
+    tabela de grupamentos e a das atividades em destaque; 3) contexto regional, perfil e
+    remuneração; 4) sinais da atividade (Pix), pontos de atenção e nota metodológica."""
     b = resultado["boletim"]
     p = fatos["panorama"]
     rotulos = fatos.get("rotulos", {})
@@ -41,14 +56,12 @@ def renderizar(resultado, fatos, destino, *, aviso_ia):
     ])
     pdf.source(f"Fonte: Novo CAGED, Ministério do Trabalho e Emprego. Dados {status}s.")
     pdf.section("Panorama")
-    panorama = b.get("panorama", [])
-    if panorama:
-        pdf.paragraph(panorama[0])
+    for text in b.get("panorama", []):
+        pdf.paragraph(text)
+    # A faixa histórica é referência complementar: o gráfico vem depois da interpretação.
     faixa = p.get("sazonalidade") or {}
     pdf.historical_range(fact(p, "saldo"), fact(referencia, "saldo"), fact(faixa, "minimo"),
                          fact(faixa, "maximo"), faixa.get("anos", []), mes, anterior)
-    for text in panorama[1:]:
-        pdf.paragraph(text)
 
     pdf.add_page()
     pdf.section("Setores")
@@ -70,27 +83,24 @@ def renderizar(resultado, fatos, destino, *, aviso_ia):
                   rows, [39, 16, 30, 24, 22, 25, 24], bar_column=2, bar_values=values,
                   highlights=highlights, colors=colors)
         pdf.source(f"Grupamentos de atividade econômica, {mes}. Barras proporcionais ao saldo; eixo central = zero.")
-    for item in fatos.get("desagregacao", []):
-        pdf.ensure(65)
-        pdf.rule(pdf.get_y(), INK, .7)
-        pdf.ln(4)
-        pdf.paragraph(f"{item.get('nivel', 'Detalhamento').upper()} · {item['grupamento']}",
-                      size=8.5, bold=True, color=MUTED, line=4, gap=2)
-        pdf.paragraph(item["nome"], size=12, bold=True, line=5.8)
-        value = fact(item, "saldo")
-        pdf.cards([
-            ("Saldo", signed(value), f"vínculos em {mes}", sign_color(value)),
-            ("Admissões", number(fact(item, "admissoes")), "no mês", BLUE),
-            ("Desligamentos", number(fact(item, "desligamentos")), "no mês", BLUE),
-        ])
-        previous = fact(item, "saldo_ano_anterior")
-        if previous is not None:
-            pdf.source(f"Saldo em {anterior}: {signed(previous)} vínculos.")
-        pdf.bars(f"Composição do saldo em {item['grupamento']}", [
-            ("Atividade em destaque", value),
-            (f"Restante de {item['grupamento']}", fact(item, "saldo_restante_do_grupamento")),
-            (f"{item['grupamento']} (total)", fact(grupos.get(item["grupamento"], {}), "saldo")),
-        ], formatter=signed)
+    # Uma tabela só para as atividades em destaque, em vez de um bloco de cards e barras por
+    # atividade (revisão de 01/10/2026: a antiga página 3 repetia o texto da página 2).
+    atividades = fatos.get("desagregacao", [])
+    if atividades:
+        rows, colors = [], {}
+        for i, item in enumerate(atividades):
+            linha = [f"{_nome_atividade(item)} ({item['grupamento']})", fact(item, "saldo"),
+                     fact(item, "admissoes"), fact(item, "desligamentos"),
+                     fact(item, "saldo_ano_anterior"), fact(item, "saldo_restante_do_grupamento")]
+            for column in (1, 4, 5):
+                colors[i, column] = sign_color(linha[column])
+            rows.append([linha[0], signed(linha[1]), number(linha[2]), number(linha[3]),
+                         signed(linha[4]), signed(linha[5])])
+        pdf.table(["Atividade em destaque (grupamento)", "Saldo", "Admissões", "Deslig.",
+                   f"Saldo em {anterior}", "Demais atividades do grupamento"],
+                  rows, [66, 16, 21, 18, 25, 28], colors=colors)
+        pdf.source(f"Atividades que mais explicam o saldo dos grupamentos em destaque, {mes}. "
+                   "Demais atividades: saldo do restante do grupamento.")
 
     pdf.add_page()
     pdf.section("Contexto regional")
@@ -110,40 +120,51 @@ def renderizar(resultado, fatos, destino, *, aviso_ia):
     perfil = fatos.get("perfil", {})
     sexo = perfil.get("sexo", {})
     homem, mulher = sexo.get("Homem", {}), sexo.get("Mulher", {})
-    jovem = perfil.get("faixa_etaria", {}).get("18 a 24", {})
     salario = fatos.get("salario", {})
     cards = []
     if homem and mulher and not any(x.get("base_pequena") for x in (homem, mulher)):
         cards.append(("Admissões por sexo", percent(fact(homem, "participacao_admissoes")),
                       f"homens · {percent(fact(mulher, 'participacao_admissoes'))} mulheres", BLUE))
-    if jovem and not jovem.get("base_pequena"):
-        cards.append(("18 a 24 anos", percent(fact(jovem, "participacao_admissoes")),
-                      f"das admissões; {percent(fact(jovem, 'participacao_admissoes_ano_anterior'))} em {anterior}", BLUE))
     if salario and not salario.get("base_pequena"):
         cards.append(("Salário mediano de admissão", money(fact(salario, "mediana")),
-                      f"variação nominal de {percent(fact(salario, 'variacao_nominal_mediana'))} frente a {anterior}", BLUE))
+                      f"variação nominal de {percent(fact(salario, 'variacao_nominal_mediana'))} frente a "
+                      f"{anterior}, sem correção pela inflação", BLUE))
     if cards:
         pdf.cards(cards)
     for text in b.get("perfil_e_remuneracao", []):
         pdf.paragraph(text)
 
     pix = (fatos.get("indicadores_externos") or {}).get("pix")
-    if b.get("pontos_de_atencao") or pix:
-        pdf.add_page()
+    sinais = b.get("sinais_da_atividade", [])
+    if pix:
+        # Sem quebra forçada: o Pix segue o perfil e a parte final cabe na página 4. Com texto, é
+        # uma seção de sinais da atividade; sem, só o quadro complementar.
+        pdf.section("Sinais da atividade econômica: Pix" if sinais else "Indicador complementar: Pix", reserve=40)
+        for text in sinais:
+            pdf.paragraph(text)
+        recortes = pix.get("recortes", [])
+        # Uma tabela só: território nas linhas; o nível do mês do CAGED e a trajetória da variação
+        # do valor recebido (meses anteriores, o do CAGED e os posteriores já publicados, com *).
+        meses = ([(m, False) for m in pix.get("anteriores") or []] + [(pix, False)]
+                 + [(m, True) for m in pix.get("posteriores") or []])
+
+        def valor(mes, nome):
+            return next((fact(x, "variacao_valor_12m") for x in mes["recortes"] if x["nome"] == nome), None)
+
+        cabecalho = [f"Valor {_mes_curto(m['competencia'])}{'*' if depois else ''}" for m, depois in meses]
+        pdf.table(["Território", "R$ milhões", "Var. empresas", *cabecalho],
+                  [[x["nome"], number(fact(x, "valor_recebido_milhoes"), 1), percent(fact(x, "variacao_empresas_12m")),
+                    *[percent(valor(m, x["nome"])) for m, _ in meses]] for x in recortes],
+                  [50, 20, 20, *[17] * len(meses)], highlights=[0])
+        mes_caged = _mes_curto(pix["competencia"])
+        pdf.source(f"Fonte: Banco Central, Pix por município. R$ milhões e empresas: {pix['competencia']}. Variações "
+                   f"nominais frente ao mesmo mês do ano anterior; {mes_caged} é o mês do CAGED"
+                   + ("; * mês publicado depois dele, sinal a acompanhar, não previsão" if pix.get("posteriores") else "")
+                   + ". Indicador complementar de atividade, não de emprego: parte da alta é adoção do Pix, por isso "
+                   "a leitura é relativa. Município do cadastro da conta.")
     if b.get("pontos_de_atencao"):
         pdf.section("Pontos de atenção")
         pdf.attention(b["pontos_de_atencao"])
-    if pix:
-        pdf.section("Pix por município")
-        pdf.source(f"Banco Central · {pix['competencia']} · comparação com {pix['comparado_com']}")
-        recortes = pix.get("recortes", [])
-        pdf.bars("EMPRESAS RECEBEDORAS DE PIX · VARIAÇÃO NO PERÍODO",
-                 [(x["nome"], fact(x, "variacao_empresas_12m")) for x in recortes])
-        pdf.table(["Território", "Empresas", "Var. empresas", "R$ milhões", "Var. nominal"],
-                  [[x["nome"], number(fact(x, "empresas_recebedoras")), percent(fact(x, "variacao_empresas_12m")),
-                    number(fact(x, "valor_recebido_milhoes"), 1), percent(fact(x, "variacao_valor_12m"))] for x in recortes],
-                  [64, 26, 30, 30, 30], highlights=[0])
-        pdf.source(pix.get("cuidados", "Valores nominais."))
     pdf.section("Nota metodológica", numbered=False)
     pdf.paragraph(b["nota_metodologica"], size=9.3, line=4.8, color=MUTED)
     pdf.paragraph(aviso_ia, size=9.3, line=4.8, color=MUTED)

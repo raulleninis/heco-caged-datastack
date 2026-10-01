@@ -368,6 +368,15 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   percentuais com 2 casas decimais
 - Revisão editorial (30/09/2026): o texto interpreta, a tabela detalha. `numeros_do_texto`
   (boletim_ia) define o que o texto cita; `verificador.numeros_de_tabela` avisa repetição
-  (aviso, nunca reprovação). Pix só no quadro complementar e fora do prompt; nota metodológica
-  por código (`nota_metodologica`, gravada em resultado["boletim"]); o LLM não a escreve.
-  Mudou prompt, não fatos: o hash é o mesmo, então gerar de novo exige `--refazer`
+  (aviso, nunca reprovação). Nota metodológica por código (`nota_metodologica`, gravada em
+  resultado["boletim"]); o LLM não a escreve. Mudou prompt, não fatos: o hash é o mesmo, então
+  gerar de novo exige `--refazer`
+- Revisão de 01/10/2026 (diretrizes do usuário no EDITORIAL de boletim_ia.py): o texto não repete
+  os cards (`CARDS`/`SO_NOS_CARDS`, `numeros_nos_cards` no prompt); panorama começa pela
+  comparação com o ano anterior; "dentro da faixa" nunca é a interpretação principal; setores com
+  profundidade proporcional; saldo por sexo antes da composição; regra de corte. Pix VOLTOU ao
+  prompt como `sinais_da_atividade` (indicador complementar, nunca previsão nem "proxy"); meses
+  de Pix posteriores ao CAGED em `pix.posteriores` (até 3, indicadores.py). PDF (pdf_analitico):
+  4 páginas, atividades em destaque numa tabela única, Pix e pontos de atenção AO FINAL, texto
+  justificado (paragraph align="J", também no boletim da F15), rodapé só com a marca de dados
+  provisórios

@@ -148,10 +148,12 @@ class BoletimPDF(FPDF):
         self.set_line_width(.35)
         self.ellipse(self.l_margin, y + 3, 3.5, 3.5)
         self.at(self.l_margin, y + 2.8, 3.5, "!", size=7, bold=True, align="C")
+        # Marca discreta: o detalhe está na fonte da 1ª página e na nota metodológica (revisão de
+        # 01/10/2026, item 14: a frase longa em toda página era ruído).
         if self.status == "provisório":
-            note = "Dados provisórios, sujeitos a revisão. Leia com cautela e consulte a nota metodológica."
+            note = "Dados provisórios, sujeitos a revisão."
         elif self.status == "consolidado":
-            note = "Dados consolidados, ainda sujeitos a exclusões tardias. Consulte a nota metodológica."
+            note = "Dados consolidados, ainda sujeitos a exclusões tardias."
         else:
             note = "Movimentações declaradas no prazo (MOV). Consulte as limitações na nota metodológica."
         self.at(self.l_margin + 5, y + 2.6, self.epw - 43, note, size=7.5, color=MUTED, line=3.5)
@@ -160,16 +162,17 @@ class BoletimPDF(FPDF):
         if self.identidade.orgao:
             self.at(self.l_margin, y + 12, self.epw, self.identidade.orgao, size=7.8, align="C")
 
-    def paragraph(self, text, *, size=11.25, line=6.2, color=INK, bold=False, gap=3):
+    def paragraph(self, text, *, size=11.25, line=6.2, color=INK, bold=False, gap=3, align="J"):
+        """Texto corrido justificado (a última linha fica à esquerda)."""
         if not text:
             return
         self.set_x(self.l_margin)
         self.font(size, bold=bold, color=color)
-        self.multi_cell(self.epw, line, str(text), align="L", new_x="LMARGIN", new_y="NEXT")
+        self.multi_cell(self.epw, line, str(text), align=align, new_x="LMARGIN", new_y="NEXT")
         self.ln(gap)
 
     def cover(self, title, summary):
-        self.paragraph("EMPREGO FORMAL · EDIÇÃO MENSAL", size=9, bold=True, color=BLUE, line=4, gap=3)
+        self.paragraph("EMPREGO FORMAL · EDIÇÃO MENSAL", size=9, bold=True, color=BLUE, line=4, gap=3, align="L")
         self.font(23, title=True, bold=True)
         self.multi_cell(self.epw, 9, title, align="L", new_x="LMARGIN", new_y="NEXT")
         self.ln(4)
@@ -296,7 +299,7 @@ class BoletimPDF(FPDF):
         if not items:
             return
         self.ensure(23)
-        self.paragraph(title, size=9, bold=True, color=MUTED, line=4.5, gap=2)
+        self.paragraph(title, size=9, bold=True, color=MUTED, line=4.5, gap=2, align="L")
         maximum = max((abs(v) for _, v in items if v is not None), default=0) or 1
         diverging = any(v is not None and v < 0 for _, v in items)
         label_width = 68
@@ -356,8 +359,9 @@ class BoletimPDF(FPDF):
             self.ensure(15)
             self.set_fill_color(*PAPER)
             self.font(10.8)
-            self.multi_cell(self.epw, 6, f"{i}.  {text}", fill=True, padding=3,
-                            align="L", new_x="LMARGIN", new_y="NEXT")
+            # Espaços inseparáveis: a justificação não estica o vão entre o número e o texto.
+            self.multi_cell(self.epw, 6, f"{i}.\u00a0\u00a0{text}", fill=True, padding=3,
+                            align="J", new_x="LMARGIN", new_y="NEXT")
             self.ln(2)
 
     def monthly_series(self, series):

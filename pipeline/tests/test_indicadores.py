@@ -64,6 +64,30 @@ class Indicadores(unittest.TestCase):
                          round(21.75 - uf["variacao_empresas_12m"]["valor"], 2))
         self.assertTrue((self.pasta / "pix_28_202607.json").exists())          # cache em disco
 
+    def test_meses_posteriores_ao_caged_ate_o_primeiro_que_falta(self):
+        """O CAGED olha para trás; o Pix de agosto (já publicado) entra como sinal posterior a julho.
+        Setembro ainda não saiu: a lista para ali."""
+        PIX[202608] = [(2804805, 5300, 900e6), (2800308, 31000, 5200e6), (2802106, 1000, 100e6)]
+        PIX[202508] = [(2804805, 4300, 700e6), (2800308, 26000, 4600e6), (2802106, 950, 95e6)]
+        self.addCleanup(lambda: [PIX.pop(202608), PIX.pop(202508)])
+        n = fatos_mod.Numeros()
+        b = ind.bloco_pix(n, FATOS, {"RMA": ["280480", "280030"]}, baixar_falso, self.pasta)
+        self.assertEqual([m["competencia"] for m in b["posteriores"]], ["agosto de 2026"])
+        socorro = b["posteriores"][0]["recortes"][0]
+        self.assertEqual(socorro["variacao_valor_12m"]["valor"], round((900 - 700) / 700 * 100, 2))
+        self.assertIn("pix.posterior.202608.territorio.variacao_valor_12m", n.tabela)
+        self.assertIn("não previsão", b["cuidados"])
+
+    def test_trajetoria_inclui_meses_anteriores_publicados(self):
+        """Junho entra na trajetória; maio não foi publicado e só é pulado (não interrompe)."""
+        PIX[202606] = [(2804805, 5100, 700e6), (2800308, 29000, 4800e6), (2802106, 1000, 100e6)]
+        PIX[202506] = [(2804805, 4200, 600e6), (2800308, 24000, 4400e6), (2802106, 900, 90e6)]
+        self.addCleanup(lambda: [PIX.pop(202606), PIX.pop(202506)])
+        n = fatos_mod.Numeros()
+        b = ind.bloco_pix(n, FATOS, {"RMA": ["280480", "280030"]}, baixar_falso, self.pasta)
+        self.assertEqual([m["competencia"] for m in b["anteriores"]], ["junho de 2026"])
+        self.assertIn("pix.anterior.202606.territorio.variacao_valor_12m", n.tabela)
+
     def test_mes_nao_publicado_fica_sem_pix(self):
         fatos = {**FATOS, "competencia": "202612"}
         self.assertIsNone(ind.bloco_pix(fatos_mod.Numeros(), fatos, {}, baixar_falso, self.pasta))

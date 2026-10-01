@@ -176,6 +176,38 @@ identifica estabelecimento.
   se os fatos já respondem. O Jev passa a triar com a posição na faixa histórica e os gatilhos
   (o mesmo contexto do julgamento de afirmações). O advisor continua só para método.
 
+**Revisão editorial de 01/10/2026**, a partir da leitura do boletim de 202608 pelo usuário (15
+itens) e das diretrizes editoriais e do Pix que ele escreveu, incorporadas ao EDITORIAL:
+- Texto: o leitor tem de responder seis perguntas em poucos minutos; hierarquia fixa; o texto não
+  repete os cards (`numeros_nos_cards` no prompt; admissões, desligamentos, estoque, taxa do mês e
+  salário mediano fora de `numeros_do_texto`); panorama começa pela comparação com o mesmo mês do
+  ano anterior e pelo motor da mudança; a faixa histórica só é citada quando o mês fica fora dela;
+  setores com profundidade proporcional ao peso no resultado; saldo por sexo antes da composição;
+  faixa etária com no máximo três categorias; regra de corte (reduzir 15% a 25%). Mantidos, por
+  decisões anteriores: percentuais sempre com 2 casas e escopo fechado nos fatos (as diretrizes
+  falavam em contexto externo como "possível fator"; aqui não há contexto externo).
+- Pix volta ao texto como `sinais_da_atividade` (no máximo um parágrafo, vazio quando não for
+  relevante): indicador complementar de atividade, valor recebido antes do número de empresas,
+  comparação com a região e a UF, nunca previsão nem "proxy do aquecimento". `indicadores.py`
+  passa a buscar os meses de Pix já publicados depois da competência do CAGED (até 3), como sinal
+  a acompanhar.
+- PDF em 4 páginas: (1) síntese, cards e panorama, com a faixa histórica depois do texto; (2)
+  setores, com as atividades em destaque numa tabela única (saíram os cards e barras por
+  atividade, que repetiam o texto na antiga página 3); (3) contexto regional, perfil e
+  remuneração (saiu o card de 18 a 24 anos; o do salário diz "sem correção pela inflação"); (4)
+  Pix, pontos de atenção e nota metodológica. Texto corrido justificado; rodapé só com "Dados
+  provisórios, sujeitos a revisão." (a justificação e o rodapé valem também para o boletim da F15).
+- Ajuste no mesmo dia: na primeira geração, o redator deixou o Pix vazio mesmo com setembro já
+  publicado (Socorro +23,27% no valor, contra 11,92% na RMA e 12,55% em Sergipe), por causa da
+  regra "só quando relevante". A seção passou a ser OBRIGATÓRIA quando há Pix (o validador do
+  redator pede nova tentativa), com o modelo de redação sugerido pelo usuário no prompt (neutro
+  quanto ao território) e a ideia do radar: o CAGED olha para trás, o Pix aproxima do presente.
+  A trajetória ganhou os 2 meses anteriores (`pix.anteriores`). No PDF, uma tabela só (território
+  × R$ milhões, variação das empresas e variação do valor mês a mês, * nos posteriores) e uma
+  legenda só; o Pix segue o perfil sem quebra forçada, e o boletim fica em 4 páginas.
+- O aviso de sinal de menos agora pega qualquer número negativo no texto ("é de -263",
+  "(-251 vínculos)"), que antes passava sem aviso.
+
 **Indicadores oficiais (feitos, 29/09/2026):** `flows/indicadores.py`, a pedido do usuário.
 - Pix por município (Banco Central): o único dado de atividade econômica do próprio município,
   mensal e publicado antes do CAGED (em 29/09 já ia até setembro). Empresas que receberam Pix e

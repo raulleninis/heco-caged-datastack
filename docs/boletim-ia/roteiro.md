@@ -34,8 +34,9 @@ como se compara com períodos anteriores e o que acompanhar**.
   no perfil, mediana); limites da faixa histórica, admissões, estoque e taxas dos grupamentos,
   taxas da região e da UF e o Pix ficam só nas tabelas, e citá-los gera aviso de estilo.
 - **Comparação regional:** uma frase, sem números. **O que acompanhar:** o que verificar nas
-  próximas edições, sem repetir o texto. **Pix:** quadro complementar, fora do texto, até haver
-  uma ponte analítica com o CAGED. **Nota metodológica:** gerada por código, quatro frases.
+  próximas edições, sem repetir o texto. **Pix:** desde 01/10/2026, seção "Sinais da atividade
+  econômica", com texto só quando relevante (indicador complementar, comparação relativa, meses
+  posteriores ao CAGED como sinal a acompanhar, nunca previsão); sem texto, só o quadro. **Nota metodológica:** gerada por código, quatro frases.
 - **Critério para um número entrar no texto:** descrever a dimensão de um resultado,
   contextualizá-lo ou mostrar uma mudança relevante. Números de uso interno (contribuição
   percentual de cada setor para o saldo, participação de uma atividade nas movimentações em 12

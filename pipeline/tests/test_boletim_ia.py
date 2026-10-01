@@ -75,6 +75,10 @@ class Verificador(unittest.TestCase):
     def test_sinal_de_menos_no_texto_gera_aviso(self):
         from verificador import avisos_de_estilo
         self.assertIn("sinal de menos", avisos_de_estilo("O saldo de -83 vínculos.")[0]["motivo"])
+        # 202608: passaram sem aviso antes da revisão de 01/10/2026
+        for texto in ("No ano, o saldo acumulado é de -263 vínculos.", "Informação e comunicação (-251 vínculos)."):
+            self.assertTrue(any("sinal de menos" in x["motivo"] for x in avisos_de_estilo(texto)), texto)
+        self.assertFalse(any("sinal de menos" in x["motivo"] for x in avisos_de_estilo("De 2020-2025, 18 a 24 anos.")))
 
     def test_sinaliza_forma_juridica_de_empresa(self):
         tipos = [p["tipo"] for p in verificar_texto("Demissões na Empresa X LTDA.", NUMEROS)]
@@ -97,7 +101,8 @@ class Editorial(unittest.TestCase):
                    "setorial.comercio.saldo": n(11), "setorial.fora_dos_destaques.saldo": n(7),
                    "comparacao.uf.taxa_mes": n(0.31, "pct"), "perfil.sexo.homem.admissoes": n(613),
                    "perfil.sexo.homem.participacao_admissoes": n(69.5, "pct"), "salario.base": n(842),
-                   "salario.mediana": n(1661.0, "brl"), "pix.territorio.empresas_recebedoras": n(5184)}
+                   "salario.mediana": n(1661.0, "brl"), "pix.territorio.empresas_recebedoras": n(5184),
+                   "pix.territorio.variacao_valor_12m": n(23.38, "pct")}
         pix = {"competencia": "julho de 2026", "comparado_com": "julho de 2025", "cuidados": "O Pix ainda cresce por adoção.",
                "recortes": [{"nome": "Município", "empresas_recebedoras": {"valor": 5184}, "variacao_empresas_12m": {"valor": 21.75},
                              "valor_recebido_milhoes": {"valor": 789.1}, "variacao_valor_12m": {"valor": 23.38}}]}
@@ -109,22 +114,25 @@ class Editorial(unittest.TestCase):
                              "destaques": ["Serviços"]}}
 
     def test_numeros_do_texto(self):
+        """Revisão de 01/10/2026: o salário mediano está no card (fora do texto); do Pix, só as
+        variações (os níveis ficam na tabela)."""
         self.assertEqual(boletim_ia.numeros_do_texto(self.fatos()),
                          ["panorama.saldo", "setorial.servicos.saldo", "setorial.fora_dos_destaques.saldo",
-                          "perfil.sexo.homem.participacao_admissoes", "salario.mediana"])
+                          "perfil.sexo.homem.participacao_admissoes", "pix.territorio.variacao_valor_12m"])
 
-    def test_pix_fora_do_prompt_e_no_quadro_complementar(self):
+    def test_pix_no_prompt_e_pontos_de_atencao_ao_final(self):
         f = self.fatos()
         prompt = json.loads(boletim_ia._fatos_para_prompt(f))
-        self.assertNotIn("pix", prompt["indicadores_externos"])
-        self.assertFalse([i for i in prompt["numeros"] if i.startswith("pix.")])
-        self.assertIn("salario.mediana", prompt["numeros_do_texto"])
-        md = boletim_ia.markdown(boletim_ia.Boletim(**boletim()), f)
-        for secao in ("## Evolução do emprego", "## Comparação regional e perfil", "## O que acompanhar",
-                      "## Indicadores complementares", "O Pix ainda cresce por adoção."):
+        self.assertIn("pix", prompt["indicadores_externos"])
+        self.assertIn("pix.territorio.variacao_valor_12m", prompt["numeros_do_texto"])
+        self.assertEqual(prompt["numeros_nos_cards"], ["panorama.saldo", "perfil.sexo.homem.participacao_admissoes",
+                                                       "salario.mediana"])
+        md = boletim_ia.markdown(boletim_ia.Boletim(**boletim(), sinais_da_atividade=["Sinal a acompanhar."]), f)
+        for secao in ("## Evolução do emprego", "## Comparação regional e perfil", "## Sinais da atividade econômica: Pix",
+                      "## Pontos de atenção", "O Pix ainda cresce por adoção."):
             self.assertIn(secao, md)
-        self.assertNotIn("Pontos de atenção", md)
-        self.assertLess(md.index("## Tabelas"), md.index("## Indicadores complementares"))
+        self.assertLess(md.index("## Sinais da atividade econômica: Pix (tabelas)"), md.index("## Pontos de atenção"))
+        self.assertLess(md.index("## Pontos de atenção"), md.index("## Nota metodológica"))
 
     def test_nota_metodologica_por_codigo(self):
         self.assertEqual(boletim_ia.nota_metodologica(self.fatos()),
@@ -140,8 +148,8 @@ def analise(ids=("panorama.saldo",)):
 
 def boletim(numero="−83"):
     return {"titulo": "Boletim", "sintese": f"Saldo de {numero} vínculos.",
-            "panorama": ["Estoque de 25.439."], "setores": ["Serviços concentrou a perda."],
-            "contexto_regional": ["Taxa de -0,33% no mês."], "perfil_e_remuneracao": ["Na faixa de 18 a 24 anos, 306 admissões."],
+            "panorama": ["Resultado pior que em julho de 2025."], "setores": ["Serviços concentrou a perda."],
+            "contexto_regional": ["O município ficou abaixo da região."], "perfil_e_remuneracao": ["Na faixa de 18 a 24 anos, 306 admissões."],
             "pontos_de_atencao": ["Acompanhar Serviços."]}
 
 
@@ -268,6 +276,36 @@ class Fluxo(unittest.TestCase):
         self.assertEqual(r2.chamadas, {"analista": 0, "redator": 0, "revisor": 0})
         self.gerar(r2, refazer=True)
         self.assertEqual(r2.chamadas["redator"], 1)
+
+    def test_com_pix_a_secao_de_sinais_e_obrigatoria(self):
+        """Revisão de 01/10/2026: o redator deixou a seção vazia mesmo com Pix de setembro nos
+        fatos; agora o validador pede uma nova tentativa."""
+        pix = {"competencia": "julho de 2026", "comparado_com": "julho de 2025", "recortes": [], "posteriores": []}
+        fatos = {**FATOS, "indicadores_externos": {"pix": pix}}
+        com_sinais = {**boletim(), "sinais_da_atividade": ["Como indicador complementar, o Pix é um sinal a acompanhar."]}
+        r = Roteiro(analista=[analise()], redator=[boletim(), com_sinais], revisor=[parecer()])
+        res = boletim_ia.gerar(fatos, self.cfg, self.modelos, criar_modelo=r.criar_modelo,
+                               precos=self.precos, registro=self.registro)
+        self.assertEqual(r.chamadas["redator"], 2)
+        self.assertIn("Falta `sinais_da_atividade`", r.prompts["redator"][1])
+        self.assertEqual(len(res["boletim"]["sinais_da_atividade"]), 1)
+
+    def test_refazer_apaga_pdf_e_estado_da_revisao_anterior(self):
+        r = Roteiro(analista=[analise()], redator=[boletim()], revisor=[parecer()])
+        pasta = Path(self.gerar(r)["pasta"])
+        (pasta / "boletim-ia-202607.pdf").write_bytes(b"%PDF antigo")
+        (pasta / "estado.json").write_text('{"status": "em_revisao"}')
+        self.gerar(r, refazer=True)
+        self.assertFalse((pasta / "boletim-ia-202607.pdf").exists())
+        self.assertFalse((pasta / "estado.json").exists())
+
+    def test_refazer_recusa_o_que_ja_foi_aprovado(self):
+        r = Roteiro(analista=[analise()], redator=[boletim()], revisor=[parecer()])
+        pasta = Path(self.gerar(r)["pasta"])
+        (pasta / "estado.json").write_text('{"status": "aprovado"}')
+        with self.assertRaises(ValueError):
+            self.gerar(r, refazer=True)
+        self.assertEqual(r.chamadas["analista"], 1)  # recusado antes de gastar
 
     def test_pior_caso_cabe_no_limite_de_requisicoes(self):
         # tudo dá errado uma vez: analista 2 + redator 2 + revisor 1 + redator 2 = 7 ≤ 8

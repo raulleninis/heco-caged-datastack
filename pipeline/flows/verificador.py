@@ -145,7 +145,9 @@ def avisos_de_estilo(texto: str) -> list[dict]:
             aviso("percentual fora do padrão de 2 casas decimais", m)
     for m in re.finditer(r"mesmo mês do ano anterior", minusculo):
         aviso("use o nome do mês (ex.: 'julho de 2025') em vez de 'mesmo mês do ano anterior'", m)
-    for m in re.finditer(r"\b(saldo|perda|queda|variação|recuo)\s+(de\s+)?[−-]\s?\d", minusculo):
+    # Qualquer número negativo escrito no texto ("é de -263", "(-251 vínculos)"); intervalos como
+    # "2020-2025" não contam (o hífen vem colado num dígito).
+    for m in re.finditer(r"(?:^|[\s(\[:;])[−-]\s?\d", minusculo):
         aviso("sinal de menos no texto: escreva 'perda de 83' ou 'saldo negativo de 83'", m)
     for m in re.finditer(r"provisóri", minusculo):
         aviso("o aviso de dados provisórios fica só na nota metodológica, gerada por código", m)

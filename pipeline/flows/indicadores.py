@@ -8,7 +8,11 @@ números registrados em `numeros` como os demais fatos (o LLM não calcula nada)
   recebido por empresas (aproximação de faturamento). Cuidados, que vão para a nota:
   o Pix ainda cresce como meio de pagamento (parte da alta é adoção), por isso a leitura é
   RELATIVA (município × região × UF, variação em 12 meses); o município é o do cadastro da
-  conta; valores nominais.
+  conta; valores nominais. Indicador COMPLEMENTAR de atividade, nunca medida de emprego.
+  Meses POSTERIORES à competência do CAGED já publicados (até MESES_POSTERIORES) entram em
+  `posteriores`: o CAGED olha para trás, o Pix aproxima o boletim do presente (sinal a
+  acompanhar, nunca previsão; revisão editorial de 01/10/2026). Os MESES_ANTERIORES entram em
+  `anteriores`, para a trajetória de vários meses.
 - **Selic** (SGS 432, meta ao ano): nacional; só entra quando Construção ou Comércio estão entre
   os destaques do mês (setores sensíveis a crédito; roteiro, seção 1.5). Dólar: fora, até o
   perfil de um município justificar.
@@ -32,6 +36,8 @@ URL_PIX = ("https://olinda.bcb.gov.br/olinda/servico/Pix_DadosAbertos/versao/v1/
            "TransacoesPixPorMunicipio(DataBase=@DataBase)")
 URL_SGS = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{serie}/dados"
 SETORES_SENSIVEIS_A_CREDITO = {"Construção", "Comércio"}
+MESES_POSTERIORES = 3
+MESES_ANTERIORES = 2   # trajetória: os meses antes da competência, para ler a tendência
 
 
 def codigo_ibge(codigo6: str) -> int:
@@ -71,29 +77,43 @@ def _soma(linhas: list[dict]) -> tuple[int, float]:
     return sum(l["QT_PES_RecebedorPJ"] for l in linhas), sum(l["VL_RecebedorPJ"] for l in linhas)
 
 
-def bloco_pix(n: Numeros, fatos: dict, membros_regioes: dict[str, list[str]], baixar=_baixar_json,
-              pasta: Path = PASTA) -> dict | None:
-    comp = int(fatos["competencia"])
+def _recortes(fatos: dict, membros_regioes: dict[str, list[str]]) -> list[tuple[str, str, list[str] | None]]:
+    """(chave do id, nome, códigos de 6 dígitos ou None para a UF inteira)."""
     territorio = fatos["territorio"]["codigo"]
-    uf = int(territorio[:2])
-    atual, antes = pix_da_uf(uf, comp, baixar, pasta), pix_da_uf(uf, deslocar(comp, -12), baixar, pasta)
-    if not atual or not antes:
-        return None
     recortes = [("territorio", fatos["territorio"]["nome"], [territorio])]
     recortes += [(f"regiao.{fatos_mod.chave(r)}", r, m) for r, m in membros_regioes.items()]
     recortes += [("uf", fatos["comparacao"]["uf"]["nome"] if fatos["comparacao"].get("uf") else "UF", None)]
+    return recortes
+
+
+def _somas(atual: dict, antes: dict, codigos: list[str] | None):
+    """((empresas, valor) no mês, (empresas, valor) 12 meses antes) do recorte; None se faltar
+    algum município num dos dois meses (soma parcial com cara de completa)."""
+    if codigos is None:
+        return _soma(list(atual.values())), _soma(list(antes.values()))
+    ibge = [codigo_ibge(c) for c in codigos]
+    la, lb = [atual[c] for c in ibge if c in atual], [antes[c] for c in ibge if c in antes]
+    if len(la) != len(ibge) or len(lb) != len(ibge):
+        return None
+    return _soma(la), _soma(lb)
+
+
+def bloco_pix(n: Numeros, fatos: dict, membros_regioes: dict[str, list[str]], baixar=_baixar_json,
+              pasta: Path = PASTA) -> dict | None:
+    comp = int(fatos["competencia"])
+    uf = int(fatos["territorio"]["codigo"][:2])
+    atual, antes = pix_da_uf(uf, comp, baixar, pasta), pix_da_uf(uf, deslocar(comp, -12), baixar, pasta)
+    if not atual or not antes:
+        return None
+    recortes = _recortes(fatos, membros_regioes)
     saida = {"fonte": "Banco Central, Pix por município (dados abertos)", "competencia": rotulo_competencia(comp),
-             "comparado_com": rotulo_competencia(deslocar(comp, -12)), "recortes": []}
+             "comparado_com": rotulo_competencia(deslocar(comp, -12)), "recortes": [], "posteriores": []}
     variacoes = {}
     for chave_id, nome, codigos in recortes:
-        if codigos is None:
-            la, lb = list(atual.values()), list(antes.values())
-        else:
-            ibge = [codigo_ibge(c) for c in codigos]
-            la, lb = [atual[c] for c in ibge if c in atual], [antes[c] for c in ibge if c in antes]
-            if len(la) != len(ibge) or len(lb) != len(ibge):
-                continue
-        (emp, val), (emp_ant, val_ant) = _soma(la), _soma(lb)
+        somas = _somas(atual, antes, codigos)
+        if somas is None:
+            continue
+        (emp, val), (emp_ant, val_ant) = somas
         k = f"pix.{chave_id}"
         variacoes[chave_id] = pct(emp - emp_ant, emp_ant)
         saida["recortes"].append({
@@ -112,9 +132,52 @@ def bloco_pix(n: Numeros, fatos: dict, membros_regioes: dict[str, list[str]], ba
         saida["diferenca_empresas_vs_uf_pp"] = n(
             "pix.diferenca_empresas_vs_uf_pp", round(variacoes["territorio"] - variacoes["uf"], 2), "pp",
             "diferença, em pontos percentuais, entre o crescimento das empresas recebedoras de Pix no município e na UF")
-    saida["cuidados"] = ("O Pix ainda cresce como meio de pagamento: parte da alta é adoção, por isso a leitura é "
-                         "relativa (município contra região e estado). O município é o do cadastro da conta. "
-                         "Valores nominais.")
+    saida["anteriores"] = _serie(n, uf, [deslocar(comp, -k) for k in range(MESES_ANTERIORES, 0, -1)],
+                                 "anterior", recortes, baixar, pasta, ate_faltar=False)
+    saida["posteriores"] = _serie(n, uf, [deslocar(comp, k) for k in range(1, MESES_POSTERIORES + 1)],
+                                  "posterior", recortes, baixar, pasta)
+    saida["cuidados"] = ("Indicador complementar de atividade econômica, não de emprego. O Pix ainda cresce como "
+                         "meio de pagamento: parte da alta é adoção, por isso a leitura é relativa (município contra "
+                         "região e estado). O município é o do cadastro da conta. Valores nominais."
+                         + (" Meses posteriores à competência do CAGED são sinal a acompanhar, não previsão do "
+                            "emprego." if saida["posteriores"] else ""))
+    return saida
+
+
+def _serie(n: Numeros, uf: int, meses: list[int], tipo: str, recortes, baixar, pasta, *,
+           ate_faltar: bool = True) -> list[dict]:
+    """Variação em 12 meses do valor recebido e das empresas, por recorte, em cada mês de
+    `meses` (tipo 'anterior' ou 'posterior' à competência do CAGED). Posteriores param no
+    primeiro mês ainda não publicado; anteriores só pulam o que faltar. Falha de rede aqui só
+    encurta a lista."""
+    rel = "posterior ao CAGED" if tipo == "posterior" else "anterior à competência do CAGED"
+    saida = []
+    for m in meses:
+        try:
+            atual, antes = pix_da_uf(uf, m, baixar, pasta), pix_da_uf(uf, deslocar(m, -12), baixar, pasta)
+        except Exception:
+            atual = antes = None
+        if not atual or not antes:
+            if ate_faltar:
+                break
+            continue
+        mes = {"competencia": rotulo_competencia(m), "recortes": []}
+        for chave_id, nome, codigos in recortes:
+            somas = _somas(atual, antes, codigos)
+            if somas is None:
+                continue
+            (emp, val), (emp_ant, val_ant) = somas
+            k = f"pix.{tipo}.{m}.{chave_id}"
+            mes["recortes"].append({
+                "nome": nome,
+                "variacao_valor_12m": n(f"{k}.variacao_valor_12m", pct(val - val_ant, val_ant), "pct",
+                                        f"variação nominal em 12 meses do valor recebido via Pix por empresas de "
+                                        f"{nome} em {rotulo_competencia(m)} ({rel})"),
+                "variacao_empresas_12m": n(f"{k}.variacao_empresas_12m", pct(emp - emp_ant, emp_ant), "pct",
+                                           f"variação em 12 meses das empresas que receberam Pix em {nome} em "
+                                           f"{rotulo_competencia(m)} ({rel})"),
+            })
+        saida.append(mes)
     return saida
 
 

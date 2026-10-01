@@ -17,9 +17,14 @@ Fluxo fixo, sem agente decidindo chamar outro (docs/fatias/F19-boletim-com-ia.md
 4. revisor (outra família de modelo, com os fatos COMPLETOS e os avisos de estilo): parecer
    sobre causalidade, fontes, rótulos, identificação e estilo. Problema grave gera uma segunda
    versão do redator, verificada de novo.
-5. grava fatos.json, resultado.json e boletim.md. As TABELAS, o quadro do Pix e a nota
-   metodológica são gerados por código a partir dos fatos (dois níveis: o texto interpreta, a
-   tabela detalha); o LLM nunca monta tabela.
+5. grava fatos.json, resultado.json e boletim.md. Cards, TABELAS e a nota metodológica são
+   gerados por código a partir dos fatos (dois níveis: o texto interpreta, a tabela detalha); o
+   LLM nunca monta tabela e não repete o que está nos cards (`numeros_nos_cards`).
+
+Revisão editorial de 01/10/2026: diretrizes do usuário no EDITORIAL (hierarquia, panorama sem
+repetir os cards, faixa histórica como complemento, profundidade proporcional nos setores, saldo
+por sexo antes da composição, regra de corte) e o Pix de volta ao texto como "sinais da atividade
+econômica", com meses posteriores ao CAGED como sinal a acompanhar, nunca previsão.
 
 Pior caso de requisições: analista 2 + redator 2 + revisor 1 + redator 2 = 7, dentro do
 request_limit de 8 da Execucao. Sem hipóteses: o boletim descreve, não explica.
@@ -96,14 +101,20 @@ class Boletim(BaseModel):
     """A nota metodológica não é do LLM: sai por código (`nota_metodologica`)."""
     titulo: str
     sintese: str = Field(description="UMA frase: o resultado do mês e onde se concentrou (sem o estoque)")
-    panorama: list[str] = Field(description="evolução do emprego: admissões e desligamentos do mês, o mesmo mês do "
-                                            "ano anterior, acumulado no ano e em 12 meses; faixa histórica só a posição")
-    setores: list[str] = Field(description="o saldo do destaque e o que o explica (desagregação); os demais "
-                                           "grupamentos numa frase, só com o saldo conjunto")
+    panorama: list[str] = Field(description="interpretação, sem repetir os cards: melhorou ou piorou frente ao mesmo "
+                                            "mês do ano anterior e por quê (admissões, desligamentos ou ambos); "
+                                            "acumulado no ano e em 12 meses; faixa histórica só se fora dela")
+    setores: list[str] = Field(description="os 2 ou 3 movimentos que mais explicam o resultado, com profundidade "
+                                           "proporcional: o principal com a atividade responsável e as demais "
+                                           "atividades; os grupamentos restantes numa frase, só com o saldo conjunto")
     contexto_regional: list[str] = Field(max_length=1, description="UMA frase, sem números: o município frente à "
                                                                    "região e à UF (a tabela traz as taxas)")
-    perfil_e_remuneracao: list[str] = Field(description="só o que mudou de forma relevante no perfil, começando "
-                                                        "pelas maiores perdas ou ganhos; salário mediano")
+    perfil_e_remuneracao: list[str] = Field(description="saldo por sexo primeiro; até 3 faixas etárias pelas maiores "
+                                                        "perdas ou ganhos; remuneração sem repetir o card")
+    sinais_da_atividade: list[str] = Field(default_factory=list, max_length=1,
+                                           description="UM parágrafo sobre o Pix como indicador complementar, "
+                                                       "seguindo o modelo das regras do Pix; obrigatório quando "
+                                                       "os fatos trazem Pix")
     pontos_de_atencao: list[str] = Field(max_length=3, description="o que verificar nas próximas edições (ex.: 'se a "
                                                                    "retração de X persiste em agosto'); não repita o texto")
     afirmacoes: list[Afirmacao] = Field(default_factory=list, max_length=10,
@@ -114,7 +125,8 @@ class Boletim(BaseModel):
 
     def secoes(self) -> list[tuple[str, list[str]]]:
         return [("Evolução do emprego", self.panorama), ("Setores", self.setores),
-                ("Comparação regional e perfil", self.contexto_regional + self.perfil_e_remuneracao)]
+                ("Comparação regional e perfil", self.contexto_regional + self.perfil_e_remuneracao),
+                ("Sinais da atividade econômica: Pix", self.sinais_da_atividade)]
 
     def texto(self) -> str:
         partes = [self.titulo, self.sintese]
@@ -129,6 +141,7 @@ class Boletim(BaseModel):
             "titulo": f(self.titulo), "sintese": f(self.sintese), "panorama": [f(x) for x in self.panorama],
             "setores": [f(x) for x in self.setores], "contexto_regional": [f(x) for x in self.contexto_regional],
             "perfil_e_remuneracao": [f(x) for x in self.perfil_e_remuneracao],
+            "sinais_da_atividade": [f(x) for x in self.sinais_da_atividade],
             "pontos_de_atencao": [f(x) for x in self.pontos_de_atencao]})
 
 
@@ -171,8 +184,8 @@ Regras obrigatórias:
 - Análise setorial pelos grandes grupamentos; desagregue só as atividades de `desagregacao`
   (use `nome_curto` na síntese, `nome` na seção de setores). Nunca identifique ou insinue
   empresas ou estabelecimentos.
-- Não atribua causa. Descreva o que os dados mostram. Não há hipóteses nesta versão: não
-  especule sobre motivos.
+- Não atribua causa. Descreva o que os dados mostram e separe o fato observado de qualquer
+  leitura sua. Não há hipóteses nesta versão: não especule sobre motivos.
 - Salário: a mediana é a referência. A comparação com o ano anterior é NOMINAL (sem correção
   pela inflação): diga isso. A média não precisa aparecer.
 - Categorias com `base_pequena` ou `sem_identificacao` não são interpretadas nem citadas.
@@ -182,38 +195,98 @@ Regras obrigatórias:
 """
 
 EDITORIAL = """\
-Estilo e estrutura (leitor: gestor público; objetivo: entender rápido o que aconteceu, onde se
-concentrou, como se compara e o que acompanhar). O texto INTERPRETA; as tabelas, geradas à
-parte, DETALHAM. Não leia a tabela em voz alta:
-- No texto, use só números de `numeros_do_texto`. Os demais (admissões, estoque e taxas dos
-  grupamentos, limites da faixa histórica, taxas da região e da UF) já estão nas tabelas.
-- Cada número entra uma vez só no boletim. Um número só entra se sustentar uma das mensagens
-  do mês (o resultado, onde se concentrou, a comparação, o perfil que mudou).
+Leitor: gestor público, que precisa responder em poucos minutos: (1) o emprego formal aumentou
+ou diminuiu? (2) qual setor ou atividade explica principalmente o resultado? (3) está melhor ou
+pior que no mesmo mês do ano anterior? (4) o município acompanha ou destoa da região e do
+estado? (5) algum grupo de trabalhadores teve comportamento especialmente relevante? (6) o que
+acompanhar no próximo mês? O que não ajuda a responder a essas perguntas fica fora do texto.
+
+Princípio central: o texto INTERPRETA; cards, tabelas e gráficos, gerados por código, APRESENTAM
+os números. Antes de pôr um dado no texto, pergunte se ele ajuda a entender o que aconteceu, onde
+aconteceu ou por que merece atenção. Se não ajuda, deixe-o fora. Não leia tabela em voz alta.
+- No texto, use só números de `numeros_do_texto`. Os de `numeros_nos_cards` já aparecem em
+  destaque no boletim: não os repita, salvo quando indispensáveis para uma comparação. Cada
+  número entra uma vez só no texto.
+- Hierarquia, nesta ordem: resultado geral; setores ou atividades que mais o explicam; mudança
+  frente ao mesmo mês do ano anterior; acumulado no ano e em 12 meses; diferença frente à região
+  e à UF; mudanças no perfil; remuneração; indicadores complementares. O espaço de cada assunto é
+  proporcional à sua contribuição para o resultado: movimento pequeno não ganha parágrafo.
+
+Seções:
 - Síntese: UMA frase com o resultado do mês e onde se concentrou. Sem o estoque.
-- Evolução do emprego (`panorama`), nesta ordem, sem repetir o saldo da síntese: admissões e
-  desligamentos do mês e a posição na faixa histórica ("dentro da faixa dos meses de julho de
-  2020 a 2025", SEM os limites); o mesmo mês do ano anterior (pelo nome, ex.: "julho de 2025",
-  do campo `rotulos`) e o que mudou em admissões e desligamentos; o acumulado no ano e em 12
-  meses numa frase ("No ano, perda de 188 vínculos; em 12 meses, saldo positivo de 190"), sem
-  explicar a diferença entre os dois períodos.
-- Setores: o saldo do destaque e o que o explica (a atividade de `desagregacao` e o saldo do
-  restante do grupamento); a posição na faixa histórica sem os limites. Os demais grupamentos
-  numa frase só, com o saldo conjunto de `fora_dos_destaques`, sem listar cada um.
-- Contexto regional: UMA frase, sem números, dizendo como o município se saiu frente à região
-  e à UF no mês e em 12 meses (compare as TAXAS; o município faz parte da região e da UF).
-- Perfil: só categorias com `relevante` = true, começando pelas maiores perdas ou ganhos de
-  saldo. Mudança de participação: a atual e a do ano anterior ("69,50% das admissões, ante
-  53,87% em julho de 2025"), sem repetir admissões nem a diferença em pontos percentuais.
-- Remuneração: a mediana, a do ano anterior e a variação nominal, numa frase.
-- Pontos de atenção: 2 ou 3 itens sobre o que VERIFICAR nas próximas edições ("se a retração
-  de X persiste em agosto"). Não repita o que o texto já disse; sem números; sem especular.
+- Panorama (`panorama`): NÃO repita admissões, desligamentos nem estoque (estão nos cards).
+  Comece pela interpretação: o resultado melhorou ou piorou frente ao mesmo mês do ano anterior
+  (pelo nome, do campo `rotulos`, com o saldo daquele mês) e se a mudança veio de menos
+  admissões, de mais desligamentos ou de ambos (`decomposicao`, sem repetir as diferenças, que
+  estão nos cards). Depois, o acumulado no ano e em 12 meses numa frase ("No ano, perda de 188
+  vínculos; em 12 meses, saldo positivo de 190"), sem explicar a diferença entre os períodos. A
+  faixa histórica é referência complementar, mostrada num gráfico: cite-a só quando o mês ficou
+  ACIMA ou ABAIXO dela. "Dentro da faixa" nunca é a interpretação principal: o intervalo costuma
+  ser amplo e sugere uma normalidade que o indicador não garante.
+- Setores: aprofunde só os dois ou três movimentos que mais explicam o resultado municipal. O
+  principal com a atividade responsável (`desagregacao`, `nome` na seção) e, quando ela explica
+  parcela alta do setor, o saldo das demais atividades em conjunto; os outros destaques numa
+  frase cada; os grupamentos restantes numa frase só, com o saldo conjunto de
+  `fora_dos_destaques`. No texto, só o saldo, a atividade principal e, se relevante, a
+  comparação com o ano anterior ou a posição fora da faixa histórica; admissões, desligamentos,
+  estoque e taxas ficam nas tabelas. Prefira "Serviços perdeu 181 vínculos" a "o grupamento
+  apresentou saldo negativo de 181"; para o resto do setor, "as demais atividades somaram perda
+  de 2 vínculos".
+- Contexto regional: UMA frase, sem números, dizendo como o município se saiu frente à região e
+  à UF no mês e em 12 meses. Compare TAXAS; nunca saldos absolutos de territórios de tamanhos
+  diferentes (o município faz parte da região e da UF).
+- Perfil e remuneração: só resultados com diferença relevante, concentração elevada ou mudança
+  importante frente ao ano anterior (`relevante` = true). Priorize o SALDO por sexo, mais
+  informativo que a composição ("Embora respondessem por apenas 27,14% das admissões, as
+  mulheres perderam 171 vínculos, enquanto os homens ganharam 92"); a composição vem depois, só
+  se acrescentar algo. Faixa etária: no máximo três categorias, pelas maiores perdas ou ganhos
+  de saldo, numa frase curta ("As maiores perdas ocorreram entre 25 e 29 anos, 30 e 39 e 18 e 24;
+  a faixa de 40 a 49 foi a única com ganho"); a mudança de participação só entra se for um sinal
+  relevante a acompanhar. Remuneração: o card já mostra a mediana e a variação nominal; no texto,
+  no máximo uma frase que acrescente algo (a mediana do ano anterior), dizendo que a comparação é
+  nominal, sem correção pela inflação. Nunca média e mediana juntas.
+- Sinais da atividade econômica (`sinais_da_atividade`): UM parágrafo, OBRIGATÓRIO sempre que os
+  fatos trouxerem `indicadores_externos.pix`. Siga as regras e o modelo do Pix abaixo.
+- Pontos de atenção: no máximo 3 itens sobre o que VERIFICAR nas próximas edições ("verificar se
+  a retração de X persiste", "acompanhar se o crescimento de Y continua", "observar se a mudança
+  de perfil se mantém"). Não repita o que já aconteceu; sem números; sem especular.
 - Não escreva nota metodológica nem mencione a provisoriedade: a nota sai por código.
-- Convenções: no texto, "perda de 83 vínculos" ou "saldo negativo de 83", sem sinal de menos;
-  percentuais SEMPRE com 2 casas decimais (0,33%); "vínculos" para tudo (não alterne com
-  postos, vagas, empregos). Títulos só com a primeira letra maiúscula.
-- Frases diretas ("teve", "foi", "caiu"). Sem travessão. Sem gerúndio decorativo
-  ("destacando-se", "evidenciando"). Sem "vale ressaltar", "no tocante", "cenário",
-  "impulsionado".
+
+Pix (`indicadores_externos.pix`): indicador COMPLEMENTAR de atividade econômica, nunca medida de
+emprego nem prova de crescimento ou retração da economia. O CAGED olha para trás; o Pix aproxima
+o boletim do presente: além do retrato do emprego no mês, o gestor recebe um pequeno radar do que
+veio depois. Deixe clara a diferença entre indicador complementar e previsão.
+- Prioridade: o VALOR recebido, lido junto com o número de empresas (que, sozinho, é muito
+  contaminado pela própria expansão do Pix). Compare SEMPRE o município com a Região Metropolitana
+  e a UF (a comparação relativa informa mais que o crescimento isolado, porque parte da alta vem
+  da adoção do Pix, da inflação e da troca de dinheiro e cartão por Pix) e olhe a trajetória
+  (`pix.anteriores`, o mês da competência e `pix.posteriores`).
+- Meses posteriores à competência do CAGED (`pix.posteriores`), quando houver: apresente-os
+  explicitamente como dados POSTERIORES ao período do emprego, sinal do comportamento recente da
+  atividade e informação para as próximas competências.
+- Modelo de redação (adapte os números e o que os dados mostram; sem posteriores, omita a frase
+  deles): "Como indicador complementar, os dados de Pix ajudam a acompanhar a evolução recente
+  das transações realizadas por empresas cadastradas no município. Em [mês], [município]
+  registrou crescimento de X% no valor movimentado em relação ao mesmo mês do ano anterior,
+  frente a Y% na [região] e Z% em [UF]. Dados de [mês seguinte], já disponíveis, mostram [...].
+  Embora o Pix não permita antecipar o resultado do emprego formal,
+  seu comportamento oferece um sinal adicional a ser acompanhado nas próximas divulgações do
+  CAGED."
+- Use "sinal a acompanhar", "indício complementar", "comportamento recente da atividade",
+  "informação adicional para as próximas competências". Nunca "indica que o emprego crescerá",
+  "antecipa o resultado do CAGED", "comprova aquecimento da economia", "explica a geração (ou
+  perda) de empregos", nem "proxy do aquecimento da economia".
+
+Corte: antes de entregar, releia o texto só para reduzi-lo. Tire informações repetidas, números
+que estão nos cards ou nas tabelas, explicações óbvias e enumerações longas; cada parágrafo com
+uma mensagem principal. Mire em 15% a 25% menos que a primeira versão, sem perder conclusão
+relevante.
+
+Convenções: "perda de 83 vínculos", "perdeu 83 vínculos" ou "saldo negativo de 83", sem sinal de
+menos; percentuais SEMPRE com 2 casas decimais (0,33%); "vínculos" para tudo (não alterne com
+postos, vagas, empregos). Títulos só com a primeira letra maiúscula. Frases curtas e diretas
+("teve", "foi", "caiu"). Sem travessão. Sem gerúndio decorativo ("destacando-se",
+"evidenciando"). Sem "vale ressaltar", "no tocante", "cenário", "impulsionado".
 """
 
 INSTRUCOES = {
@@ -262,10 +335,16 @@ def criar_agentes(criar_modelo) -> dict[str, Agent]:
         problemas = [p for p in verificar_texto(saida.texto(), ctx.deps.numeros, ctx.deps.rotulos)
                      if p["tipo"] == "numero_fora_dos_fatos"]
         ctx.deps.rejeicoes.append([p["numero"] for p in problemas])
-        if problemas and ctx.retry < ctx.max_retries:
+        pedidos = []
+        if problemas:
             lista = "; ".join(f"{p['numero']} em \"…{p['trecho']}…\"" for p in problemas[:15])
-            raise ModelRetry("Estes números não estão na tabela `numeros` dos fatos (não calcule nem derive "
-                             f"números): {lista}. Reescreva usando só valores da tabela.")
+            pedidos.append("Estes números não estão na tabela `numeros` dos fatos (não calcule nem derive "
+                           f"números): {lista}. Reescreva usando só valores da tabela.")
+        if (ctx.deps.fatos.get("indicadores_externos") or {}).get("pix") and not saida.sinais_da_atividade:
+            pedidos.append("Falta `sinais_da_atividade`: com Pix nos fatos, escreva o parágrafo seguindo o "
+                           "modelo das regras do Pix.")
+        if pedidos and ctx.retry < ctx.max_retries:
+            raise ModelRetry(" ".join(pedidos))
         return saida  # última tentativa: segue com o relatório para a revisão humana
 
     agentes = {"analista": analista, "redator": redator, "revisor": revisor}
@@ -330,16 +409,38 @@ def complementares(fatos: dict) -> str:
     pix = (fatos.get("indicadores_externos") or {}).get("pix")
     if not pix:
         return ""
-    md = ["## Indicadores complementares", "",
-          f"### Pix por município (Banco Central): empresas recebedoras e valor recebido, {pix['competencia']}", "",
-          f"| território | empresas | variação desde {pix['comparado_com']} | R$ milhões | variação nominal |",
+    md = ["## Sinais da atividade econômica: Pix (tabelas)", "",
+          f"### Valor recebido e empresas recebedoras (Banco Central), {pix['competencia']}", "",
+          f"| território | R$ milhões | variação nominal desde {pix['comparado_com']} | empresas | variação |",
           "|---|---:|---:|---:|---:|"]
     for x in pix["recortes"]:
-        md.append(f"| {x['nome']} | {_qtd(_v(x, 'empresas_recebedoras'))} | {_pct(_v(x, 'variacao_empresas_12m'))} | "
-                  f"{str(_v(x, 'valor_recebido_milhoes')).replace('.', ',')} | {_pct(_v(x, 'variacao_valor_12m'))} |")
+        md.append(f"| {x['nome']} | {str(_v(x, 'valor_recebido_milhoes')).replace('.', ',')} | "
+                  f"{_pct(_v(x, 'variacao_valor_12m'))} | {_qtd(_v(x, 'empresas_recebedoras'))} | "
+                  f"{_pct(_v(x, 'variacao_empresas_12m'))} |")
+    trajetoria = trajetoria_pix(pix)
+    if len(trajetoria) > 1:
+        nomes = [x["nome"] for x in pix["recortes"]]
+        md += ["", "### Trajetória: variação do valor recebido em 12 meses (* posterior ao CAGED)", "",
+               "| mês | " + " | ".join(nomes) + " |", "|---|" + "---:|" * len(nomes)]
+        for rotulo, valores in trajetoria:
+            md.append(f"| {rotulo} | " + " | ".join(_pct(v) for v in valores) + " |")
     if pix.get("cuidados"):
         md += ["", pix["cuidados"]]
     return "\n".join(md) + "\n"
+
+
+def trajetoria_pix(pix: dict) -> list[tuple[str, list]]:
+    """(mês, variações do valor em 12 meses por recorte) dos meses anteriores, da competência e
+    dos posteriores (marcados com *), na ordem dos recortes da competência."""
+    nomes = [x["nome"] for x in pix.get("recortes", [])]
+
+    def linha(rotulo, recortes):
+        por_nome = {x["nome"]: _v(x, "variacao_valor_12m") for x in recortes}
+        return rotulo, [por_nome.get(n) for n in nomes]
+
+    return ([linha(m["competencia"], m["recortes"]) for m in pix.get("anteriores", [])]
+            + [linha(pix["competencia"], pix.get("recortes", []))]
+            + [linha(f"{m['competencia']}*", m["recortes"]) for m in pix.get("posteriores", [])])
 
 
 def nota_metodologica(fatos: dict) -> str:
@@ -356,16 +457,37 @@ def nota_metodologica(fatos: dict) -> str:
     return " ".join(frases)
 
 
+# Números que o PDF mostra em cards (pdf_analitico.renderizar). O texto não os repete, salvo para
+# uma comparação (revisão de 01/10/2026, itens 1, 2 e 8).
+CARDS = ("panorama.saldo", "panorama.taxa_mes", "panorama.admissoes", "panorama.desligamentos",
+         "panorama.estoque", "panorama.ano_anterior.admissoes", "panorama.ano_anterior.desligamentos",
+         "panorama.decomposicao.variacao_admissoes", "panorama.decomposicao.variacao_desligamentos",
+         "perfil.sexo.homem.participacao_admissoes", "perfil.sexo.mulher.participacao_admissoes",
+         "salario.mediana", "salario.variacao_nominal_mediana")
+# Dos cards, os que nem para comparação entram no texto (o card já basta). O saldo e as
+# participações por sexo podem aparecer quando sustentam uma comparação.
+SO_NOS_CARDS = set(CARDS) - {"panorama.saldo", "perfil.sexo.homem.participacao_admissoes",
+                             "perfil.sexo.mulher.participacao_admissoes"}
+
+
+def numeros_nos_cards(fatos: dict) -> list[str]:
+    return [i for i in CARDS if i in fatos["numeros"]]
+
+
 def numeros_do_texto(fatos: dict) -> list[str]:
-    """Ids que o texto pode citar; o resto da tabela `numeros` fica nas tabelas (o texto
-    interpreta, a tabela detalha). Número fora desta lista gera aviso de estilo, não reprovação."""
+    """Ids que o texto pode citar; o resto da tabela `numeros` fica nas tabelas e nos cards (o
+    texto interpreta, a tabela detalha). Número fora desta lista gera aviso de estilo, não
+    reprovação."""
     grupamentos = fatos.get("setorial", {}).get("grupamentos", {})
     destaques = {(grupamentos.get(g, {}).get("saldo") or {}).get("id")
                  for g in fatos.get("setorial", {}).get("destaques", [])}
     ids = []
     for i in fatos["numeros"]:
         campo = i.rsplit(".", 1)[-1]
+        if i in SO_NOS_CARDS:
+            continue
         if (i in destaques or i == "setorial.fora_dos_destaques.saldo" or i.startswith("selic.")
+                or (i.startswith("pix.") and (campo.startswith("variacao_") or campo.endswith("_pp")))
                 or (i.startswith("panorama.") and ".faixa_historica." not in i)
                 or (i.startswith("desagregacao.") and campo in ("saldo", "saldo_restante", "saldo_ano_anterior"))
                 or (i.startswith("perfil.") and campo in ("saldo", "participacao_admissoes",
@@ -378,10 +500,12 @@ def numeros_do_texto(fatos: dict) -> list[str]:
 def markdown(boletim: Boletim, fatos: dict) -> str:
     md = [f"# {boletim.titulo}", "", boletim.sintese, ""]
     for titulo, paragrafos in boletim.secoes():
-        md += [f"## {titulo}", "", *[p + "\n" for p in paragrafos]]
-    if boletim.pontos_de_atencao:
-        md += ["## O que acompanhar", ""] + [f"- {p}" for p in boletim.pontos_de_atencao] + [""]
-    md += [tabelas(fatos), complementares(fatos), "## Nota metodológica", "", nota_metodologica(fatos), ""]
+        if paragrafos:
+            md += [f"## {titulo}", "", *[p + "\n" for p in paragrafos]]
+    md += [tabelas(fatos), complementares(fatos)]
+    if boletim.pontos_de_atencao:  # ao final, antes da nota (revisão de 01/10/2026)
+        md += ["## Pontos de atenção", ""] + [f"- {p}" for p in boletim.pontos_de_atencao] + [""]
+    md += ["## Nota metodológica", "", nota_metodologica(fatos), ""]
     return "\n".join(md)
 
 
@@ -421,11 +545,10 @@ def _json(obj) -> str:
 
 
 def _fatos_para_prompt(f: dict) -> str:
-    """Sem o Pix (fica no quadro complementar, fora do texto) e com os ids citáveis no texto."""
-    externos = {k: v for k, v in (f.get("indicadores_externos") or {}).items() if k != "pix"}
-    numeros = {i: v for i, v in f["numeros"].items() if not i.startswith("pix.")}
-    return _json({**{k: v for k, v in f.items() if k != "hash"}, "indicadores_externos": externos,
-                  "numeros": numeros, "numeros_do_texto": numeros_do_texto(f)})
+    """Os fatos, com os ids citáveis no texto e os que já estão nos cards. O Pix voltou ao prompt
+    em 01/10/2026 (seção "Sinais da atividade econômica", com regras próprias)."""
+    return _json({**{k: v for k, v in f.items() if k != "hash"},
+                  "numeros_do_texto": numeros_do_texto(f), "numeros_nos_cards": numeros_nos_cards(f)})
 
 
 # Calibrado em 29/09/2026 (flows/calibracao.py, 130 afirmações de 7 competências, peso 3 para
@@ -498,6 +621,13 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
         resultado["reaproveitado"] = True
         resultado["pasta"] = str(pasta)
         return resultado
+    # Refazer na mesma pasta (mesmo hash dos fatos): o que já foi aprovado ou enviado não se
+    # sobrescreve; o que estava em revisão recomeça (ver _limpar_revisao_anterior).
+    estado_anterior = pasta / "estado.json"
+    if estado_anterior.exists():
+        status = json.loads(estado_anterior.read_text(encoding="utf-8")).get("status")
+        if status in ("aprovado", "enviado"):
+            raise ValueError(f"O boletim em {pasta} já está '{status}': não se gera de novo por cima dele.")
 
     criar_modelo = criar_modelo or (lambda papel: ia.modelo_openrouter(cfg, modelos[papel], papel))
     agentes = criar_agentes(criar_modelo)
@@ -591,11 +721,20 @@ def gerar(fatos: dict, cfg: ia.ConfigIA, modelos: dict[str, str], *, criar_model
         "boletim": {**boletim.model_dump(), "nota_metodologica": nota_metodologica(fatos)},
     }
     pasta.mkdir(parents=True, exist_ok=True)
+    _limpar_revisao_anterior(pasta)
     (pasta / "fatos.json").write_text(_json(fatos) + "\n", encoding="utf-8")
     (pasta / "boletim.md").write_text(markdown(boletim, fatos), encoding="utf-8")
     arquivo.write_text(_json(resultado) + "\n", encoding="utf-8")
     resultado["pasta"] = str(pasta)
     return resultado
+
+
+def _limpar_revisao_anterior(pasta: Path) -> None:
+    """Um texto novo invalida o PDF e o estado de revisão da versão anterior: sem isso, o
+    `entrega_ia.py revisar` reenviaria o PDF antigo (ele só gera o PDF se não existir) e a
+    aprovação valeria para bytes que ninguém releu."""
+    for antigo in [*pasta.glob("boletim-ia-*.pdf"), pasta / "estado.json"]:
+        antigo.unlink(missing_ok=True)
 
 
 def main():
