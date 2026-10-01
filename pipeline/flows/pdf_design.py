@@ -23,6 +23,7 @@ PAPER = (238, 241, 246)
 RULE = (213, 219, 232)
 ORANGE = (232, 134, 40)
 BAR_BORDER_MM = .5 * 25.4 / 96  # 0,5 px CSS = 0,375 pt
+RAIO_CAIXA = 4 * 25.4 / 96  # border-radius: 4px das caixas de fundo (painéis de gráfico, avisos)
 BAR_BORDER_ALPHA = 0x10 / 255  # #00000010 (RGBA)
 
 
@@ -107,6 +108,11 @@ class BoletimPDF(FPDF):
         self.font(size, bold=bold, title=title)
         return self.multi_cell(width, line, str(text), dry_run=True,
                                output=MethodReturnValue.LINES, new_x="LMARGIN", new_y="NEXT")
+
+    def panel(self, x, y, w, h, color=PAPER):
+        """Caixa de fundo com cantos arredondados (4 px)."""
+        self.set_fill_color(*color)
+        self.rect(x, y, w, h, style="F", round_corners=True, corner_radius=RAIO_CAIXA)
 
     def ensure(self, height):
         if self.get_y() + height > self.page_break_trigger:
@@ -220,8 +226,10 @@ class BoletimPDF(FPDF):
     def source(self, text):
         self.paragraph(text, size=8.5, line=4.1, color=MUTED, gap=5)
 
-    def table(self, headers, rows, widths, *, bar_column=None, bar_values=None, highlights=(), colors=None):
-        """Tabela com quebra por linha e cabeçalho repetido; barras vetoriais em escala comum."""
+    def table(self, headers, rows, widths, *, bar_column=None, bar_values=None, highlights=(), colors=None,
+              bold=()):
+        """Tabela com quebra por linha e cabeçalho repetido; barras vetoriais em escala comum.
+        `bold`: índices das linhas em negrito (ex.: a de total)."""
         widths = [self.epw * w / sum(widths) for w in widths]
         line = 4.3
         header_lines = [self.lines(t, w - 4, size=8, bold=True) for t, w in zip(headers, widths)]
@@ -268,7 +276,8 @@ class BoletimPDF(FPDF):
                     else:
                         color = (colors or {}).get((index, column), INK)
                         self.at(x + 2, y + 2.5, w - 4, "\n".join(content[offset:offset + take]),
-                                size=9, color=color, align="L" if column == 0 else "R", line=line)
+                                size=9, bold=index in bold, color=color, align="L" if column == 0 else "R",
+                                line=line)
                     x += w
                 self.rule(y + height)
                 self.set_xy(self.l_margin, y + height)
@@ -303,12 +312,11 @@ class BoletimPDF(FPDF):
         maximum = max((abs(v) for _, v in items if v is not None), default=0) or 1
         diverging = any(v is not None and v < 0 for _, v in items)
         label_width = 68
-        for i, (name, value) in enumerate(items):
-            h = max(9, len(self.lines(name, label_width - 5, size=9.5)) * 4.5 + 4)
-            self.ensure(h)
+        alturas = [max(9, len(self.lines(name, label_width - 5, size=9.5)) * 4.5 + 4) for name, _ in items]
+        self.ensure(sum(alturas))
+        self.panel(self.l_margin, self.get_y(), self.epw, sum(alturas))
+        for i, ((name, value), h) in enumerate(zip(items, alturas)):
             x, y = self.l_margin, self.get_y()
-            self.set_fill_color(*PAPER)
-            self.rect(x, y, self.epw, h, style="F")
             self.at(x + 3, y + 2, label_width - 5, name, size=9.5, bold=i == 0, line=4.5)
             bx, bw = x + label_width + 2, self.epw - label_width - 27
             if diverging:
@@ -326,8 +334,7 @@ class BoletimPDF(FPDF):
             return
         self.ensure(47)
         x, y, w = self.l_margin, self.get_y(), self.epw
-        self.set_fill_color(*PAPER)
-        self.rect(x, y, w, 38, style="F")
+        self.panel(x, y, w, 38)
         minimum = min(low, current, previous if previous is not None else low, 0)
         maximum = max(high, current, previous if previous is not None else high, 0)
         span = maximum - minimum or 1
@@ -355,14 +362,28 @@ class BoletimPDF(FPDF):
         self.source(f"Saldo do mesmo mês nos anos de {period}." if period else "Faixa histórica do mesmo mês.")
 
     def attention(self, items):
-        for i, text in enumerate(items, 1):
-            self.ensure(15)
-            self.set_fill_color(*PAPER)
-            self.font(10.8)
-            # Espaços inseparáveis: a justificação não estica o vão entre o número e o texto.
-            self.multi_cell(self.epw, 6, f"{i}.\u00a0\u00a0{text}", fill=True, padding=3,
-                            align="J", new_x="LMARGIN", new_y="NEXT")
-            self.ln(2)
+        """Pontos de atenção num painel único (cantos arredondados): número em azul numa coluna
+        própria, texto justificado e uma linha fina entre os itens."""
+        if not items:
+            return
+        pad, num_w, line, size = 4, 8, 6, 10.8
+        text_w = self.epw - 2 * pad - num_w
+        alturas = [len(self.lines(t, text_w, size=size, line=line)) * line for t in items]
+        total = pad * 2 + sum(alturas) + 6 * (len(items) - 1)
+        self.ensure(min(total, self.page_break_trigger - self.t_margin))
+        x, y = self.l_margin, self.get_y()
+        self.panel(x, y, self.epw, total)
+        y += pad
+        for i, (text, h) in enumerate(zip(items, alturas), 1):
+            self.at(x + pad, y, num_w, str(i), size=size, bold=True, color=BLUE, line=line)
+            self.set_xy(x + pad + num_w, y)
+            self.font(size)
+            self.multi_cell(text_w, line, text, align="J", new_x="LMARGIN", new_y="NEXT")
+            y += h
+            if i < len(items):
+                self.rule(y + 3, RULE, .25, x + pad, self.epw - 2 * pad)
+                y += 6
+        self.set_xy(self.l_margin, y + pad + 3)
 
     def highlight(self, text, *, color=NEGATIVE):
         """Aviso destacado: negrito na cor `color` (bordô por padrão), sobre o painel claro."""
@@ -372,10 +393,9 @@ class BoletimPDF(FPDF):
         height = len(self.lines(text, self.epw - 8, size=10.5, bold=True, line=5.6)) * 5.6 + 6
         self.ensure(height + 3)
         y = self.get_y()
-        self.set_fill_color(*PAPER)
-        self.rect(self.l_margin, y, self.epw, height, style="F")
+        self.panel(self.l_margin, y, self.epw, height)
         self.set_fill_color(*color)
-        self.rect(self.l_margin, y, 1.2, height, style="F")
+        self.rect(self.l_margin, y, 1.2, height, style="F", round_corners=True, corner_radius=.6)
         self.set_xy(self.l_margin + 4, y + 3)
         self.font(10.5, bold=True, color=color)
         self.multi_cell(self.epw - 8, 5.6, text, align="J", new_x="LMARGIN", new_y="NEXT")
@@ -391,8 +411,7 @@ class BoletimPDF(FPDF):
         height = 74
         self.ensure(height + 4)
         x0, y0, w = self.l_margin, self.get_y(), self.epw
-        self.set_fill_color(*PAPER)
-        self.rect(x0, y0, w, height, style="F")
+        self.panel(x0, y0, w, height)
 
         def mes(c):
             return int(c[:4]) * 12 + int(c[5:7]) - 1
@@ -498,8 +517,7 @@ class BoletimPDF(FPDF):
             return
         self.ensure(64)
         x, y, w = self.l_margin, self.get_y(), self.epw
-        self.set_fill_color(*PAPER)
-        self.rect(x, y, w, 57, style="F")
+        self.panel(x, y, w, 57)
         maximum = max(abs(s["saldo_liquido"]) for s in series) or 1
         step = (w - 8) / len(series)
         axis = y + 26

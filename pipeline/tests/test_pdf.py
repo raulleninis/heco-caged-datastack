@@ -151,6 +151,11 @@ class AnaliticoTest(unittest.TestCase):
             pdf = self.gerar(fatos=fatos)
         self.assertGreater(pdf.stat().st_size, sem)  # a seção (gráfico, cards, textos) foi desenhada
 
+    def test_grupamentos_em_ordem_alfabetica_com_nao_identificado_por_ultimo(self):
+        grupos = {"Serviços": {}, "Não Identificado": {}, "Agropecuária": {}, "Comércio": {}}
+        self.assertEqual([n for n, _ in pdf_analitico.ordenar_grupamentos(grupos)],
+                         ["Agropecuária", "Comércio", "Serviços", "Não Identificado"])
+
     def test_blocos_opcionais_ausentes_sao_omitidos(self):
         fatos = copy.deepcopy(FATOS)
         for chave in ("desagregacao", "indicadores_externos", "perfil", "salario"):

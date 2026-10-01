@@ -433,23 +433,26 @@ def _desagregacao(con, n, territorio, comp, setorial, lim) -> list[dict]:
                     continue
                 k = f"desagregacao.{chave(grupamento)}.{nivel}.{chave(str(r['codigo']))}"
                 saldo_grupamento = setorial["grupamentos"][grupamento]["saldo"]["valor"]
+                # As divisões CNAE vêm do IBGE em maiúsculas ("CONSTRUÇÃO DE EDIFÍCIOS") e o redator
+                # as copiava assim para o texto.
+                nome = r["nome"].capitalize() if r["nome"] and r["nome"].isupper() else r["nome"]
                 sugestoes.append({
                     "grupamento": grupamento,
                     "nivel": nivel,
                     "codigo": r["codigo"],
-                    "nome": r["nome"],
-                    "nome_curto": NOMES_CURTOS.get(r["nome"], r["nome"]),
+                    "nome": nome,
+                    "nome_curto": NOMES_CURTOS.get(r["nome"], nome),
                     # só para escolher a atividade (revisão editorial, item 8): não vai ao texto
                     "apoio": {"participacao_movimentacoes_12m_pct": round(100.0 * part, 2)},
-                    "saldo": n(f"{k}.saldo", r["saldo"] or 0, "vinculos", f"saldo de {r['nome']} no mês"),
+                    "saldo": n(f"{k}.saldo", r["saldo"] or 0, "vinculos", f"saldo de {nome} no mês"),
                     # "os demais subgrupamentos de Serviços somaram +46" (revisão, item 12)
                     "saldo_restante_do_grupamento": n(
                         f"{k}.saldo_restante", saldo_grupamento - (r["saldo"] or 0), "vinculos",
-                        f"saldo do restante de {grupamento}, sem {r['nome']}"),
-                    "admissoes": n(f"{k}.admissoes", r["admissoes"] or 0, "vinculos", f"admissões de {r['nome']} no mês"),
-                    "desligamentos": n(f"{k}.desligamentos", r["desligamentos"] or 0, "vinculos", f"desligamentos de {r['nome']} no mês"),
+                        f"saldo do restante de {grupamento}, sem {nome}"),
+                    "admissoes": n(f"{k}.admissoes", r["admissoes"] or 0, "vinculos", f"admissões de {nome} no mês"),
+                    "desligamentos": n(f"{k}.desligamentos", r["desligamentos"] or 0, "vinculos", f"desligamentos de {nome} no mês"),
                     "saldo_ano_anterior": n(f"{k}.saldo_ano_anterior", r["saldo_ano_anterior"] or 0, "vinculos",
-                                            f"saldo de {r['nome']} no mesmo mês do ano anterior"),
+                                            f"saldo de {nome} no mesmo mês do ano anterior"),
                 })
             if any(s["grupamento"] == grupamento for s in sugestoes):
                 break  # achou no nível mais agregado: não desce para a divisão

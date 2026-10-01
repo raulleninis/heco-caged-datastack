@@ -380,9 +380,14 @@ def tabelas(fatos: dict) -> str:
     md = ["## Tabelas", "", "### Grupamentos", "",
           "| grupamento | saldo | admissões | desligamentos | estoque | variação no mês |",
           "|---|---:|---:|---:|---:|---:|"]
-    for nome, it in fatos["setorial"]["grupamentos"].items():
+    grupos = fatos["setorial"]["grupamentos"]
+    for nome, it in sorted(grupos.items(), key=lambda kv: (kv[0] == "Não Identificado", kv[0])):
         md.append(f"| {nome} | {_int(_v(it, 'saldo'))} | {_qtd(_v(it, 'admissoes'))} | "
                   f"{_qtd(_v(it, 'desligamentos'))} | {_qtd(_v(it, 'estoque'))} | {_pct(_v(it, 'taxa_mes'))} |")
+    p = fatos.get("panorama") or {}
+    if p.get("saldo"):  # total do município, os números do panorama (os dos cards)
+        md.append(f"| **Total** | {_int(_v(p, 'saldo'))} | {_qtd(_v(p, 'admissoes'))} | "
+                  f"{_qtd(_v(p, 'desligamentos'))} | {_qtd(_v(p, 'estoque'))} | {_pct(_v(p, 'taxa_mes'))} |")
     c = fatos["comparacao"]
     blocos = [b for b in [c.get("territorio"), *c.get("regioes", []), c.get("uf")] if b]
     if blocos:

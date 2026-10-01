@@ -15,6 +15,11 @@ def gerar_pdf(pasta: Path, *, destino: Path | None = None, aviso_ia: str) -> Pat
     return destino
 
 
+def ordenar_grupamentos(grupos: dict) -> list[tuple[str, dict]]:
+    """Ordem alfabética, com "Não Identificado" sempre por último."""
+    return sorted(grupos.items(), key=lambda kv: (kv[0] == "Não Identificado", kv[0]))
+
+
 def _perspectivas(pdf, projecao: dict) -> None:
     """Seção Perspectivas (F21), na ordem da especificação: parágrafo, três indicadores, gráfico,
     legenda, o aviso de projeção experimental em destaque e a revisão frente à edição anterior.
@@ -100,7 +105,7 @@ def renderizar(resultado, fatos, destino, *, aviso_ia):
     grupos = fatos.get("setorial", {}).get("grupamentos", {})
     destaques = fatos.get("setorial", {}).get("destaques", [])
     rows, values, highlights, colors = [], [], [], {}
-    for i, (name, item) in enumerate(grupos.items()):
+    for i, (name, item) in enumerate(ordenar_grupamentos(grupos)):
         value = fact(item, "saldo")
         rows.append([name, signed(value), "", number(fact(item, "admissoes")),
                      number(fact(item, "desligamentos")), number(fact(item, "estoque")), percent(fact(item, "taxa_mes"))])
@@ -109,9 +114,15 @@ def renderizar(resultado, fatos, destino, *, aviso_ia):
         if name in destaques:
             highlights.append(i)
     if rows:
+        # Total do município: os números do panorama (os mesmos dos cards da página 1). A barra fica
+        # vazia: a escala compara só os grupamentos.
+        total = fact(p, "saldo")
+        colors[len(rows), 1] = sign_color(total)
+        rows.append(["Total", signed(total), "", number(fact(p, "admissoes")), number(fact(p, "desligamentos")),
+                     number(fact(p, "estoque")), percent(fact(p, "taxa_mes"))])
         pdf.table(["Grupamento", "Saldo", "Perda | ganho", "Admissões", "Deslig.", "Estoque", "Var. mês"],
-                  rows, [39, 16, 30, 24, 22, 25, 24], bar_column=2, bar_values=values,
-                  highlights=highlights, colors=colors)
+                  rows, [39, 16, 30, 24, 22, 25, 24], bar_column=2, bar_values=values + [None],
+                  highlights=highlights, colors=colors, bold=[len(rows) - 1])
         pdf.source(f"Grupamentos de atividade econômica, {mes}. Barras proporcionais ao saldo; eixo central = zero.")
     # Uma tabela só para as atividades em destaque, em vez de um bloco de cards e barras por
     # atividade (revisão de 01/10/2026: a antiga página 3 repetia o texto da página 2).
