@@ -462,6 +462,9 @@ docker compose run --rm pipeline python flows/boletim_ia.py 280480 202607   # --
 
 O boletim não usa notícias: descreve o que os dados mostram, sem explicar causas.
 
+A seção **Perspectivas** (projeção experimental, F21) também é calculada por código e entra por padrão;
+`--sem-projecao` desliga. Ver "Projeção do emprego", abaixo.
+
 Mesmos fatos reaproveitam o resultado sem chamar o modelo. Custos em `/data/ia/custos.jsonl`; resultado,
 fatos e `boletim.md` em `/data/ia/boletins/<territorio>_<competencia>/<hash>/`.
 
@@ -650,6 +653,82 @@ Para carregar o histórico dos arquivos pequenos (FOR e EXC de 2020 em diante):
 docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged.py backfill 2020..2026 --tipos FOR,EXC
 ```
 
+## Projeção do emprego (seção Perspectivas, F21)
+
+O boletim com IA traz, na seção **05 Perspectivas**, uma projeção **experimental** de admissões,
+desligamentos e estoque de vínculos formais até dezembro do ano seguinte. O contrato é a
+[especificação](docs/boletim-ia/especificacao-projecao.md); a implementação, `pipeline/flows/projecao.py`;
+as decisões de integração, a [F21](docs/fatias/F21-projecao-perspectivas.md).
+
+### Como o cálculo é feito
+
+1. **Série de entrada.** Admissões (`A`) e desligamentos (`D`) mensais do município, do
+   `mart_caged_reconciliado` (MOV + FOR − EXC, consolidado e provisório), desde jan/2020. Mês
+   faltando bloqueia a projeção.
+2. **Estoque histórico.** A base guarda fluxos; o nível vem da âncora, o **mesmo estoque publicado
+   na página 1** (o do `mart_estoque`, ancorado no estoque de referência do MTE), recuado mês a mês:
+   `S(t−1) = S(t) − saldo(t)`.
+3. **Método A, taxas sazonais.** Para cada mês do calendário, a média das taxas
+   `A(t)/S(t−1)` e `D(t)/S(t−1)` nos 3 últimos anos disponíveis, sem 2020. Projeta mês a mês: a taxa
+   vezes o estoque projetado, que alimenta o mês seguinte.
+4. **Método B, ETS (Holt-Winters).** Um modelo para `log(A)` e outro para `log(D)`, desde jan/2021,
+   com tendência aditiva amortecida e sazonalidade aditiva de 12 meses (`statsmodels`).
+5. **Combinação.** A média dos dois métodos, separada para admissões e para desligamentos. Saldo e
+   estoque **nunca** são projetados diretamente: saem da identidade contábil
+   `Ŝ(d) = S(T) + Σ (Â − D̂)`.
+6. **Faixa provável.** Backtest de origem móvel: de dez/2022 até o mês anterior, o método é rodado
+   como se fosse aquela data, e o erro de estoque é guardado por horizonte (1, 2, … meses à frente).
+   A faixa é o intervalo entre os percentis 10% e 90% desses erros (com pelo menos 8 erros); nos
+   horizontes sem erros suficientes, ela é estendida por `√(k/k*)`; e nunca estreita com o horizonte.
+7. **Revisão.** A projeção de cada edição **publicada** é gravada (`/data/ia/projecoes/<território>.duckdb`,
+   tabela `projecao_edicoes`). A edição seguinte compara o que projetou para o mês com o que aconteceu e
+   mostra quanto a projeção de dezembro mudou. Sem edição anterior publicada, a comparação usa a projeção
+   recalculada com dados até o mês anterior (o relatório de revisão avisa).
+
+### A lógica por trás das escolhas
+
+- **Fluxos, não saldo.** Admissões e desligamentos têm sazonalidades próprias e mais estáveis que a
+  diferença entre eles; projetá-los separadamente e somar mantém saldo e estoque coerentes por
+  construção (a identidade é verificada e bloqueia a publicação se falhar).
+- **Taxas sobre o estoque.** Um município que cresce contrata e desliga mais em números absolutos; a
+  taxa sobre o estoque acompanha a escala. Os 3 últimos anos dão peso ao comportamento recente sem
+  depender de um ano só.
+- **2020 fora das taxas, ETS desde 2021.** A pandemia distorce taxas e sazonalidade; incluí-la puxaria
+  a projeção para um padrão que não se repetiu.
+- **Logaritmo e tendência amortecida no ETS.** O log trata a sazonalidade como proporcional e impede
+  fluxo negativo; o amortecimento evita que uma tendência recente seja estendida sem limite por 24 meses.
+- **Média de dois métodos.** As taxas capturam a sazonalidade do mês; o ETS, o nível e a tendência
+  recentes. A média tende a errar menos que cada um: no teste com dados passados, o erro médio do
+  estoque 12 meses à frente foi de 591 vínculos, contra 623 de uma referência simples que repete o ano
+  anterior (a referência é calculada a cada edição, e um aviso dispara se a média ficar pior).
+- **Faixa empírica.** Em vez de um intervalo teórico do modelo, a faixa diz o que de fato aconteceu:
+  em 8 de cada 10 testes com dados passados, o resultado real caiu dentro dela.
+- **Textos fixos.** Parágrafo, indicadores, legenda e revisão seguem modelos da especificação, gerados
+  por código; o LLM não escreve sobre a projeção. É sempre "projeção" e "faixa provável", nunca meta ou
+  dado oficial.
+
+### Limites conhecidos
+
+A série é curta (2020 em diante, e 2020 fora das taxas); o backtest tem 44 pontos de partida em ago/2026
+e, nos horizontes mais longos, a faixa é extrapolada; a faixa resume erros passados e não cobre mudanças
+sem precedente; nada fora do CAGED entra (obras, abertura ou fechamento de empresas, conjuntura);
+declarações fora do prazo, exclusões e revisões do estoque de referência mudam o ponto de partida. Esses
+limites vão na nota metodológica de cada edição, e um aviso em destaque, logo após o gráfico, lembra que
+os valores podem mudar pela realidade e por ajustes no método. Os parâmetros (3 anos, início do ETS,
+exclusão de 2020) são revistos uma vez por ano, com o backtest, nunca de um mês para o outro.
+
+### Rodar e conferir
+
+A projeção entra sozinha no `boletim_ia.py` (`--sem-projecao` desliga). Para conferir à mão, ou repetir o
+teste de aceitação da especificação com a base de 28/09/2026 (dados até 202607):
+
+```bash
+docker compose exec -u caged pipeline python flows/projecao.py /data/warehouse/caged.duckdb --estoque 25364 --territorio 280480
+docker compose run --rm --no-deps -v ./pipeline/tests:/app/tests \
+  -e PROJECAO_ACEITACAO_DB=/data/warehouse/caged.duckdb.bak-20260929 \
+  --entrypoint python pipeline -m unittest tests.test_projecao -v
+```
+
 ## Roadmap
 
 - [x] Ingestão automatizada (FTP → `.7z` → `.txt`)
@@ -668,6 +747,7 @@ docker compose run -d --rm --name backfill-fe pipeline python flows/ingest_caged
 - [x] Coletor reproduzível do marco zero (`marco-zero/coletor/`) e `normalizar.py --coleta`: um território novo sem digitar número
 - [x] Estoque ancorado no estoque de referência do MTE, conferido a cada run; marco zero desativado — [F20](docs/fatias/F20-estoque-de-referencia-do-mte.md)
 - [ ] Remover o marco zero de vez, depois de algumas semanas da F20 sem surpresa
+- [x] Projeção experimental do emprego (seção Perspectivas do boletim com IA), com faixa provável por backtest — [F21](docs/fatias/F21-projecao-perspectivas.md)
 - [x] Entrega por e-mail e arquivo autenticado (F15): boletim e planilha arquivados no Netlify (atrás de login) e enviados por e-mail
 - [ ] Boletim analítico com IA ([F19](docs/fatias/F19-boletim-com-ia.md), [roteiro](docs/boletim-ia/roteiro.md))
   - [x] Fatos por código: fluxo reconciliado por subgrupamento e divisão CNAE, perfil das admissões, região, acumulados e gatilhos

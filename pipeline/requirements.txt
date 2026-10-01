@@ -6,3 +6,10 @@ py7zr==0.22.0
 fpdf2==2.8.8
 xlsxwriter==3.2.9
 pydantic-ai-slim[openrouter]==2.51.0
+# Projeção da seção Perspectivas do boletim com IA (F21): ETS (Holt-Winters) do statsmodels, as
+# versões testadas na especificação. Só o boletim com IA as importa; o flow diário não.
+numpy==2.4.6
+pandas==3.0.6
+scipy==1.17.1
+patsy==1.0.3
+statsmodels==0.15.0

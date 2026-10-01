@@ -103,7 +103,7 @@ def _mensagem(cfg: Config, para: str, assunto: str, corpo: list[str], pdf: bytes
     return msg
 
 
-def _relatorio_de_revisao(r: dict) -> str:
+def _relatorio_de_revisao(r: dict, fatos: dict | None = None) -> str:
     linhas = [f"Situação: {r['situacao']} | versões do redator: {r['versoes_do_redator']} | modelos: {r['modelos']}"]
     if r.get("revisor_falhou"):
         linhas += ["ATENÇÃO: o revisor automático falhou nesta geração; só o verificador e o juiz conferiram o texto."]
@@ -121,6 +121,17 @@ def _relatorio_de_revisao(r: dict) -> str:
     if r.get("orientacoes_do_advisor"):
         linhas += ["", "ORIENTAÇÕES DO ADVISOR (dúvidas de método):"]
         linhas += [f"- {o['pergunta']} -> {o['resposta']} (confiança {o['confianca']})" for o in r["orientacoes_do_advisor"]]
+    fatos = fatos or {}
+    if fatos.get("projecao_ausente"):
+        linhas += ["", f"PROJEÇÃO (Perspectivas) FORA DO BOLETIM: {fatos['projecao_ausente']}"]
+    elif fatos.get("projecao"):
+        pr = fatos["projecao"]
+        bt = pr["backtest"]
+        linhas += ["", f"PROJEÇÃO (Perspectivas, experimental): revisão {pr['revisao']['origem']}; "
+                       f"{bt['n_origens']} origens no backtest; MAE do estoque 12 meses à frente "
+                       f"{bt['mae']['comb']['S12']} (ingênuo {bt['mae']['ingenuo']['S12']}). Avisos: "
+                       f"{len(pr['avisos'])}"]
+        linhas += [f"- {a}" for a in pr["avisos"]]
     if r.get("fora_dos_fatos"):
         linhas += ["", "ASSUNTOS FORA DOS FATOS (o texto não deve afirmar nada sobre eles; confira):"]
         linhas += [f"- {q}" for q in r["fora_dos_fatos"]]
@@ -154,7 +165,8 @@ def revisar(territorio: str, competencia: str, *, cfg: Config | None = None, smt
         f"    python flows/entrega_ia.py aprovar {territorio} {competencia} --por \"Seu nome\"",
         "Para pedir outra versão: python flows/boletim_ia.py ... --refazer, e revisar de novo.",
     ]
-    relatorio = ("revisao.txt", _relatorio_de_revisao(r).encode("utf-8"))
+    fatos = json.loads((pasta / "fatos.json").read_text(encoding="utf-8")) if (pasta / "fatos.json").exists() else {}
+    relatorio = ("revisao.txt", _relatorio_de_revisao(r, fatos).encode("utf-8"))
     abrir = smtp_factory or (lambda: abrir_smtp(cfg))
     with abrir() as smtp:
         for d in destinatarios:
@@ -242,7 +254,23 @@ def enviar(territorio: str, competencia: str, *, cfg: Config | None = None, smtp
                           destinatarios_recusados=recusados, erro=None)
     gravar_estado(pasta, status="enviado", enviado_em=agora(), destinatarios=enviados)
     log.info(f"{k} enviado a {enviados} destinatário(s), {recusados} recusado(s).")
+    _gravar_projecao_publicada(pasta, territorio)
     return "enviado"
+
+
+def _gravar_projecao_publicada(pasta: Path, territorio: str) -> None:
+    """F21: a projeção da edição PUBLICADA vira a "edição anterior" do mês seguinte (o parágrafo de
+    revisão). Falhar aqui não desfaz o envio: só se registra, e a próxima edição recalcula."""
+    arquivo = pasta / "fatos.json"
+    projecao = json.loads(arquivo.read_text(encoding="utf-8")).get("projecao") if arquivo.exists() else None
+    if not projecao:
+        return
+    try:
+        import projecao as projecao_mod  # pandas/statsmodels: só aqui
+        destino = projecao_mod.salvar_edicao(territorio, projecao)
+        _logger().info(f"Projeção da edição {projecao['edicao']} gravada em {destino}.")
+    except Exception as e:  # noqa: BLE001
+        _logger().error(f"Não consegui gravar a projeção publicada ({e}); a próxima edição vai recalculá-la.")
 
 
 def main():

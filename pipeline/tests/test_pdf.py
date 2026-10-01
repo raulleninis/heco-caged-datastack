@@ -124,6 +124,33 @@ class AnaliticoTest(unittest.TestCase):
         self.assertEqual(paginas(pdf), 4)
         self.assertIn(b"/Subtype /Image", pdf.read_bytes())  # logo do perfil 280480
 
+    def test_secao_perspectivas_com_grafico_e_revisao(self):
+        """F21: parágrafo, indicadores, gráfico, aviso em destaque e revisão, sem glifo faltando."""
+        hist = [{"competencia": f"2025-{m:02d}", "estoque": 25000 + 20 * m} for m in range(1, 13)] + \
+               [{"competencia": f"2026-{m:02d}", "estoque": 25200 - 10 * m} for m in range(1, 8)]
+        mensal = [{"competencia": c, "admissoes": 900.0, "desligamentos": 880.0, "saldo": 20.0,
+                   "estoque": 25130 + 20 * i, "estoque_lo": 25130 + 20 * i - 100 * (i + 1),
+                   "estoque_hi": 25130 + 20 * i + 120 * (i + 1)}
+                  for i, c in enumerate(["2026-08", "2026-09", "2026-10", "2026-11", "2026-12",
+                                         *[f"2027-{m:02d}" for m in range(1, 13)]])]
+        fatos = copy.deepcopy(FATOS)
+        fatos["projecao"] = {
+            "edicao": "2026-07", "ano": 2026, "ano_prox": 2027, "historico": hist, "projecao_mensal": mensal,
+            "serie_anterior": {"2026-07": 25150.0, "2026-08": 25200.0, "2026-12": 25400.0},
+            "estoque_mes_anterior": 25140.0,
+            "kpis": {"estoque_dez_ano": 25210.0, "estoque_dez_ano_faixa": [24710.0, 25810.0], "saldo_ano": -42.0,
+                     "saldo_ano_faixa": [-480.0, 600.0], "estoque_dez_prox": 25450.0,
+                     "estoque_dez_prox_faixa": [23750.0, 27490.0]},
+            "texto": {"paragrafo": "Com base no padrão histórico…", "revisao": "Na edição anterior…",
+                      "legenda": "Estoque de vínculos formais, jan/25 a dez/27.",
+                      "aviso_experimental": "Projeção experimental: leia com cautela.",
+                      "nota_metodologica": "Projeção experimental: média de dois métodos.",
+                      "fragilidades": "Fragilidades conhecidas: série curta."}}
+        sem = self.gerar().stat().st_size
+        with self.assertNoLogs("fpdf", level="WARNING"):
+            pdf = self.gerar(fatos=fatos)
+        self.assertGreater(pdf.stat().st_size, sem)  # a seção (gráfico, cards, textos) foi desenhada
+
     def test_blocos_opcionais_ausentes_sao_omitidos(self):
         fatos = copy.deepcopy(FATOS)
         for chave in ("desagregacao", "indicadores_externos", "perfil", "salario"):

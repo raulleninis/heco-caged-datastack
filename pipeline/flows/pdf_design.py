@@ -162,13 +162,13 @@ class BoletimPDF(FPDF):
         if self.identidade.orgao:
             self.at(self.l_margin, y + 12, self.epw, self.identidade.orgao, size=7.8, align="C")
 
-    def paragraph(self, text, *, size=11.25, line=6.2, color=INK, bold=False, gap=3, align="J"):
-        """Texto corrido justificado (a última linha fica à esquerda)."""
+    def paragraph(self, text, *, size=11.25, line=6.2, color=INK, bold=False, gap=3, align="J", markdown=False):
+        """Texto corrido justificado (a última linha fica à esquerda). markdown=True aceita **negrito**."""
         if not text:
             return
         self.set_x(self.l_margin)
         self.font(size, bold=bold, color=color)
-        self.multi_cell(self.epw, line, str(text), align=align, new_x="LMARGIN", new_y="NEXT")
+        self.multi_cell(self.epw, line, str(text), align=align, new_x="LMARGIN", new_y="NEXT", markdown=markdown)
         self.ln(gap)
 
     def cover(self, title, summary):
@@ -363,6 +363,134 @@ class BoletimPDF(FPDF):
             self.multi_cell(self.epw, 6, f"{i}.\u00a0\u00a0{text}", fill=True, padding=3,
                             align="J", new_x="LMARGIN", new_y="NEXT")
             self.ln(2)
+
+    def highlight(self, text, *, color=NEGATIVE):
+        """Aviso destacado: negrito na cor `color` (bordô por padrão), sobre o painel claro."""
+        if not text:
+            return
+        self.font(10.5, bold=True, color=color)
+        height = len(self.lines(text, self.epw - 8, size=10.5, bold=True, line=5.6)) * 5.6 + 6
+        self.ensure(height + 3)
+        y = self.get_y()
+        self.set_fill_color(*PAPER)
+        self.rect(self.l_margin, y, self.epw, height, style="F")
+        self.set_fill_color(*color)
+        self.rect(self.l_margin, y, 1.2, height, style="F")
+        self.set_xy(self.l_margin + 4, y + 3)
+        self.font(10.5, bold=True, color=color)
+        self.multi_cell(self.epw - 8, 5.6, text, align="J", new_x="LMARGIN", new_y="NEXT")
+        self.set_xy(self.l_margin, y + height + 3)
+
+    def projection_chart(self, historico, projecao, anterior, estoque_mes_anterior, marcos):
+        """Estoque observado e projetado (seção Perspectivas, especificação da projeção, seção 9): um
+        eixo só; de baixo para cima, faixa provável, projeção da edição anterior (a partir de T-1),
+        observado e projeção central; linha vertical em T, ponto em S_T e círculos nos `marcos`
+        [(AAAA-MM, valor)]. `historico` e `projecao`: [{competencia, estoque[, estoque_lo, estoque_hi]}]."""
+        cores = {"ink": (26, 39, 71), "blue": (58, 95, 168), "prev": (154, 163, 181), "grey": (123, 132, 152),
+                 "rule": (217, 222, 231)}
+        height = 74
+        self.ensure(height + 4)
+        x0, y0, w = self.l_margin, self.get_y(), self.epw
+        self.set_fill_color(*PAPER)
+        self.rect(x0, y0, w, height, style="F")
+
+        def mes(c):
+            return int(c[:4]) * 12 + int(c[5:7]) - 1
+
+        meses = [mes(h["competencia"]) for h in historico] + [mes(p["competencia"]) for p in projecao]
+        m0, m1 = min(meses), max(meses)
+        t = mes(historico[-1]["competencia"])
+        s_t = historico[-1]["estoque"]
+        prev = sorted((mes(c), v) for c, v in anterior.items() if mes(c) >= t)
+        valores = ([h["estoque"] for h in historico] + [p["estoque_lo"] for p in projecao]
+                   + [p["estoque_hi"] for p in projecao] + [v for _, v in prev])
+        vmin, vmax = min(valores), max(valores)
+        bruto = (vmax - vmin) / 4 or 1
+        passo = next(p for p in (100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 20000, 50000, 100000)
+                     if p >= bruto) if bruto <= 100000 else bruto
+        lo_axis = (vmin // passo) * passo
+        hi_axis = -(-vmax // passo) * passo
+        px0, px1 = x0 + 17, x0 + w - 6
+        py0, py1 = y0 + 12, y0 + height - 10
+        X = lambda m: px0 + (m - m0) / max(m1 - m0, 1) * (px1 - px0)  # noqa: E731
+        Y = lambda v: py1 - (v - lo_axis) / (hi_axis - lo_axis) * (py1 - py0)  # noqa: E731
+
+        # legenda numa linha, acima do gráfico
+        lx = x0 + 4
+        for rotulo, estilo in (("Estoque observado", "obs"), ("Projeção central", "proj"),
+                               ("Faixa provável", "faixa"), ("Projeção da edição anterior", "prev")):
+            ly = y0 + 5
+            if estilo == "faixa":
+                with self.local_context(fill_opacity=.16):
+                    self.set_fill_color(*cores["blue"])
+                    self.rect(lx, ly - 1.6, 5, 3.2, style="F")
+            else:
+                cor = {"obs": "ink", "proj": "blue", "prev": "prev"}[estilo]
+                self.set_draw_color(*cores[cor])
+                self.set_line_width(.6)
+                self.set_dash_pattern(**({"dash": 1.2, "gap": .8} if estilo == "proj" else
+                                         {"dash": .3, "gap": .7} if estilo == "prev" else {}))
+                self.line(lx, ly, lx + 5, ly)
+                self.set_dash_pattern()
+            self.at(lx + 6.5, ly - 2, 60, rotulo, size=7.5, color=MUTED, line=4)
+            self.font(7.5)
+            lx += 6.5 + self.get_string_width(rotulo) + 6
+
+        # grade horizontal e rótulos do eixo Y (pt-BR)
+        v = lo_axis
+        while v <= hi_axis + 1e-9:
+            self.set_draw_color(*cores["rule"])
+            self.set_line_width(.25)
+            self.line(px0, Y(v), px1, Y(v))
+            self.at(x0, Y(v) - 2, 15, number(v), size=7, color=cores["grey"], align="R", line=4)
+            v += passo
+        # eixo X: só janeiro e julho
+        for m in range(m0, m1 + 1):
+            if m % 12 in (0, 6):
+                rotulo = f"{['jan', 'jul'][m % 12 // 6]}/{str(m // 12)[2:]}"
+                self.at(X(m) - 8, py1 + 2.5, 16, rotulo, size=7, color=cores["grey"], align="C", line=4)
+
+        proj = [(mes(p["competencia"]), p) for p in projecao]
+        # 1. faixa provável, partindo de S_T
+        pontos = [(X(t), Y(s_t))] + [(X(m), Y(p["estoque_hi"])) for m, p in proj]             + [(X(m), Y(p["estoque_lo"])) for m, p in reversed(proj)]
+        with self.local_context(fill_opacity=.16):
+            self.set_fill_color(*cores["blue"])
+            self.polygon(pontos, style="F")
+        # 2. projeção da edição anterior, a partir de T-1
+        if prev:
+            self.set_draw_color(*cores["prev"])
+            self.set_line_width(.5)
+            self.set_dash_pattern(dash=.3, gap=.7)
+            self.polyline([(X(t - 1), Y(estoque_mes_anterior))] + [(X(m), Y(v)) for m, v in prev])
+            self.set_dash_pattern()
+        # 3. estoque observado
+        self.set_draw_color(*cores["ink"])
+        self.set_line_width(.65)
+        self.polyline([(X(mes(h["competencia"])), Y(h["estoque"])) for h in historico])
+        # 4. projeção central, partindo de S_T
+        self.set_draw_color(*cores["blue"])
+        self.set_dash_pattern(dash=1.4, gap=.9)
+        self.polyline([(X(t), Y(s_t))] + [(X(m), Y(p["estoque"])) for m, p in proj])
+        self.set_dash_pattern()
+        # marcações: linha em T, ponto em S_T, círculos em dezembro
+        self.set_draw_color(*cores["grey"])
+        self.set_line_width(.25)
+        self.set_dash_pattern(dash=.4, gap=.8)
+        self.line(X(t), py0 - 2, X(t), py1)
+        self.set_dash_pattern()
+        self.at(X(t) + 1, py0 - 2.5, 30, "projeção →", size=7, color=cores["grey"], line=4)
+        self.set_fill_color(*cores["ink"])
+        self.ellipse(X(t) - 1.1, Y(s_t) - 1.1, 2.2, 2.2, style="F")
+        self.at(X(t) - 24, Y(s_t) + 1.5, 23, number(s_t), size=7.5, bold=True, color=cores["ink"], align="R", line=4)
+        for competencia, valor in marcos:
+            m = mes(competencia)
+            self.set_draw_color(*cores["blue"])
+            self.set_fill_color(255, 255, 255)
+            self.set_line_width(.5)
+            self.ellipse(X(m) - 1.3, Y(valor) - 1.3, 2.6, 2.6, style="DF")
+            self.at(min(X(m) - 10, px1 - 20), Y(valor) - 6, 20, number(valor), size=7.5, bold=True,
+                    color=cores["blue"], align="C", line=4)
+        self.set_xy(x0, y0 + height + 3)
 
     def monthly_series(self, series):
         if not series:

@@ -141,6 +141,17 @@ class EntregaIATest(unittest.TestCase):
             self.revisar(smtp)
         self.assertEqual(smtp.enviadas, [])
 
+    def test_relatorio_mostra_avisos_ou_ausencia_da_projecao(self):
+        r = {"situacao": "aguardando_aprovacao", "versoes_do_redator": 1, "modelos": {}, "verificador": [],
+             "parecer_revisor": {"resumo": "ok", "problemas": []}}
+        pr = {"revisao": {"origem": "recalculada"}, "avisos": ["Nenhuma edição anterior publicada."],
+              "backtest": {"n_origens": 44, "mae": {"comb": {"S12": 591}, "ingenuo": {"S12": 623}}}}
+        texto = entrega_ia._relatorio_de_revisao(r, {"projecao": pr})
+        self.assertIn("PROJEÇÃO (Perspectivas, experimental): revisão recalculada", texto)
+        self.assertIn("- Nenhuma edição anterior publicada.", texto)
+        self.assertIn("FORA DO BOLETIM: sem âncora",
+                      entrega_ia._relatorio_de_revisao(r, {"projecao_ausente": "sem âncora"}))
+
     def test_aprovacao_exige_nome(self):
         self.revisar()
         with self.assertRaises(entrega_ia.RevisaoRecusada):

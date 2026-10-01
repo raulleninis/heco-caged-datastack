@@ -502,10 +502,19 @@ def markdown(boletim: Boletim, fatos: dict) -> str:
     for titulo, paragrafos in boletim.secoes():
         if paragrafos:
             md += [f"## {titulo}", "", *[p + "\n" for p in paragrafos]]
+    projecao = fatos.get("projecao")
+    if projecao:  # textos fixos da especificação (F21), não do LLM
+        t = projecao["texto"]
+        md += ["## Perspectivas (projeção experimental)", "", t["paragrafo"], "", t["legenda"], "",
+               f"**{t['aviso_experimental']}**", ""]
+        if t.get("revisao"):
+            md += [f"**Revisão.** {t['revisao']}", ""]
     md += [tabelas(fatos), complementares(fatos)]
     if boletim.pontos_de_atencao:  # ao final, antes da nota (revisão de 01/10/2026)
         md += ["## Pontos de atenção", ""] + [f"- {p}" for p in boletim.pontos_de_atencao] + [""]
     md += ["## Nota metodológica", "", nota_metodologica(fatos), ""]
+    if projecao:
+        md += [projecao["texto"]["nota_metodologica"], "", projecao["texto"]["fragilidades"], ""]
     return "\n".join(md)
 
 
@@ -547,8 +556,15 @@ def _json(obj) -> str:
 def _fatos_para_prompt(f: dict) -> str:
     """Os fatos, com os ids citáveis no texto e os que já estão nos cards. O Pix voltou ao prompt
     em 01/10/2026 (seção "Sinais da atividade econômica", com regras próprias)."""
-    return _json({**{k: v for k, v in f.items() if k != "hash"},
-                  "numeros_do_texto": numeros_do_texto(f), "numeros_nos_cards": numeros_nos_cards(f)})
+    # A projeção (F21) fica fora: seus textos são modelos fixos, gerados por código, e o LLM não
+    # escreve sobre ela.
+    fora = {"hash", "projecao", "projecao_ausente"}
+    # JSON compacto: os fatos vão em toda chamada (analista, redator, novas tentativas, revisor), e a
+    # indentação custava ~27% dos tokens de entrada. Em 01/10/2026, com o Pix de volta ao prompt, a
+    # geração de 202608 passou do input_tokens_limit (120 mil) na segunda versão do redator.
+    return json.dumps({**{k: v for k, v in f.items() if k not in fora},
+                       "numeros_do_texto": numeros_do_texto(f), "numeros_nos_cards": numeros_nos_cards(f)},
+                      ensure_ascii=False, separators=(",", ":"), default=str)
 
 
 # Calibrado em 29/09/2026 (flows/calibracao.py, 130 afirmações de 7 competências, peso 3 para
@@ -744,12 +760,16 @@ def main():
     ap.add_argument("--warehouse", default="/data/warehouse/caged.duckdb")
     ap.add_argument("--refazer", action="store_true", help="gera de novo mesmo com resultado para estes fatos")
     ap.add_argument("--sem-indicadores", action="store_true", help="não busca Pix e Selic no Banco Central")
+    ap.add_argument("--sem-projecao", action="store_true", help="sem a seção Perspectivas (projeção, F21)")
     a = ap.parse_args()
     cfg = ia.ConfigIA.do_ambiente()
     f = fatos_mod.gerar_fatos(Path(a.warehouse), a.territorio, a.competencia)
     if not a.sem_indicadores:
         import indicadores
         f = indicadores.anexar(f, Path(a.warehouse))
+    if not a.sem_projecao:
+        import projecao  # pandas/statsmodels: só aqui
+        f = projecao.anexar(f, Path(a.warehouse))
     try:
         r = gerar(f, cfg, modelos_do_ambiente(cfg), refazer=a.refazer)
     except ia.OrcamentoExcedido as e:

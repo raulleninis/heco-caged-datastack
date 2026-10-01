@@ -15,6 +15,35 @@ def gerar_pdf(pasta: Path, *, destino: Path | None = None, aviso_ia: str) -> Pat
     return destino
 
 
+def _perspectivas(pdf, projecao: dict) -> None:
+    """Seção Perspectivas (F21), na ordem da especificação: parágrafo, três indicadores, gráfico,
+    legenda, o aviso de projeção experimental em destaque e a revisão frente à edição anterior.
+    Textos fixos, gerados por código (projecao.redigir_texto)."""
+    texto, k = projecao["texto"], projecao["kpis"]
+    ano, prox = projecao["ano"], projecao["ano_prox"]
+    pdf.section("Perspectivas", reserve=70)
+    pdf.paragraph(texto["paragrafo"])
+
+    def faixa(par, fmt):
+        return f"faixa: {fmt(round(par[0]))} a {fmt(round(par[1]))}"
+
+    saldo = round(k["saldo_ano"])
+    pdf.cards([
+        (f"Estoque projetado · dez/{ano}", number(round(k["estoque_dez_ano"])),
+         faixa(k["estoque_dez_ano_faixa"], number), BLUE),
+        (f"Saldo projetado em {ano}", signed(saldo), faixa(k["saldo_ano_faixa"], signed), BLUE),
+        (f"Estoque projetado · dez/{prox}", number(round(k["estoque_dez_prox"])),
+         faixa(k["estoque_dez_prox_faixa"], number), BLUE),
+    ])
+    pdf.projection_chart(projecao["historico"], projecao["projecao_mensal"], projecao["serie_anterior"],
+                         projecao["estoque_mes_anterior"],
+                         [(f"{ano}-12", round(k["estoque_dez_ano"])), (f"{prox}-12", round(k["estoque_dez_prox"]))])
+    pdf.source(texto["legenda"])
+    pdf.highlight(texto["aviso_experimental"])
+    if texto.get("revisao"):
+        pdf.paragraph(f"**Revisão.** {texto['revisao']}", size=10.5, line=5.8, markdown=True)
+
+
 def _mes_curto(rotulo: str) -> str:
     """'setembro de 2026' -> 'set/26'."""
     partes = rotulo.split()
@@ -28,9 +57,10 @@ def _nome_atividade(item: dict) -> str:
 
 
 def renderizar(resultado, fatos, destino, *, aviso_ia):
-    """Quatro partes (revisão de 01/10/2026): 1) síntese, cards e panorama; 2) setores com a
-    tabela de grupamentos e a das atividades em destaque; 3) contexto regional, perfil e
-    remuneração; 4) sinais da atividade (Pix), pontos de atenção e nota metodológica."""
+    """Partes (revisões de 01/10/2026): 1) síntese, cards e panorama; 2) setores com a tabela de
+    grupamentos e a das atividades em destaque; 3) contexto regional, perfil e remuneração; 4)
+    perspectivas (projeção, F21), sinais da atividade (Pix), pontos de atenção e nota
+    metodológica. Numeração das seções pela ordem: 05 Perspectivas, 06 Pix, 07 Pontos de atenção."""
     b = resultado["boletim"]
     p = fatos["panorama"]
     rotulos = fatos.get("rotulos", {})
@@ -134,6 +164,10 @@ def renderizar(resultado, fatos, destino, *, aviso_ia):
     for text in b.get("perfil_e_remuneracao", []):
         pdf.paragraph(text)
 
+    projecao = fatos.get("projecao")
+    if projecao:
+        _perspectivas(pdf, projecao)
+
     pix = (fatos.get("indicadores_externos") or {}).get("pix")
     sinais = b.get("sinais_da_atividade", [])
     if pix:
@@ -167,5 +201,8 @@ def renderizar(resultado, fatos, destino, *, aviso_ia):
         pdf.attention(b["pontos_de_atencao"])
     pdf.section("Nota metodológica", numbered=False)
     pdf.paragraph(b["nota_metodologica"], size=9.3, line=4.8, color=MUTED)
+    if projecao:
+        pdf.paragraph(projecao["texto"]["nota_metodologica"], size=9.3, line=4.8, color=MUTED)
+        pdf.paragraph(projecao["texto"]["fragilidades"], size=9.3, line=4.8, color=MUTED)
     pdf.paragraph(aviso_ia, size=9.3, line=4.8, color=MUTED)
     pdf.output(str(destino))

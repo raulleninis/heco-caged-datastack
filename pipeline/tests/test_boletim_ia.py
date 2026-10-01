@@ -134,6 +134,16 @@ class Editorial(unittest.TestCase):
         self.assertLess(md.index("## Sinais da atividade econômica: Pix (tabelas)"), md.index("## Pontos de atenção"))
         self.assertLess(md.index("## Pontos de atenção"), md.index("## Nota metodológica"))
 
+    def test_projecao_fica_fora_do_prompt_e_entra_no_markdown(self):
+        f = {**self.fatos(), "projecao": {"texto": {"paragrafo": "Com base no padrão histórico.", "legenda": "Legenda.",
+                                                    "aviso_experimental": "Experimental.", "revisao": None,
+                                                    "nota_metodologica": "Nota da projeção.", "fragilidades": "Fragilidades."}}}
+        self.assertNotIn("projecao", json.loads(boletim_ia._fatos_para_prompt(f)))
+        md = boletim_ia.markdown(boletim_ia.Boletim(**boletim()), f)
+        self.assertIn("## Perspectivas (projeção experimental)", md)
+        self.assertLess(md.index("Fragilidades."), len(md))
+        self.assertGreater(md.index("Fragilidades."), md.index("## Nota metodológica"))
+
     def test_nota_metodologica_por_codigo(self):
         self.assertEqual(boletim_ia.nota_metodologica(self.fatos()),
                          "Os dados do Novo CAGED são provisórios. A faixa histórica considera os meses de julho de "

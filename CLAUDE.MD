@@ -12,8 +12,10 @@ de Nossa Senhora do Socorro/SE, a partir dos microdados do Novo CAGED (PDET).
 - dbt-core + dbt-duckdb — transformação e testes de qualidade
 - Prefect 3.x — orquestração, backend SQLite com volume nomeado para persistência
 - Pipeline executa em container não-root (UID 1000)
-- Versões pinadas (`==`), sem pandas: prefect==3.8.0, dbt-core==1.12.0,
-  dbt-duckdb==1.10.1, duckdb==1.5.5, py7zr==0.22.0 (ver F08). Imagem base
+- Versões pinadas (`==`): prefect==3.8.0, dbt-core==1.12.0,
+  dbt-duckdb==1.10.1, duckdb==1.5.5, py7zr==0.22.0 (ver F08). Sem pandas no pipeline, EXCETO na
+  projeção da F21 (`flows/projecao.py`: numpy 2.4.6, pandas 3.0.6, scipy 1.17.1, statsmodels 0.15.0,
+  decisão do usuário de 01/10/2026), importada só pelo boletim com IA, nunca pelo flow diário. Imagem base
   `python:3.11.10-slim-bookworm` e `prefecthq/prefect:3.8.0-python3.11`
   também pinadas — nenhuma tag flutuante (`:latest`, `:slim`) no projeto.
 
@@ -380,3 +382,24 @@ docs/fatias/F19-boletim-com-ia.md e docs/boletim-ia/roteiro.md. Decidido em 29/0
   4 páginas, atividades em destaque numa tabela única, Pix e pontos de atenção AO FINAL, texto
   justificado (paragraph align="J", também no boletim da F15), rodapé só com a marca de dados
   provisórios
+
+## Projeção: seção Perspectivas do boletim com IA (F21)
+- Contrato: docs/boletim-ia/especificacao-projecao.md (do usuário). NÃO trocar método, parâmetro ou
+  texto sem instrução explícita; o código tem de reproduzir o teste de aceitação da seção 11
+  (tests/test_projecao.py, com PROJECAO_ACEITACAO_DB=.../caged.duckdb.bak-20260929). Metodologia
+  explicada no README ("Projeção do emprego")
+- `flows/projecao.py`: as funções de método são as da referência do usuário. Âncora = estoque da
+  página 1 (fatos panorama.estoque). `anexar()` -> fatos["projecao"] ou fatos["projecao_ausente"]
+  (validação que bloqueia = ProjecaoBloqueada; a seção sai, o boletim não). Fora do prompt: textos
+  fixos por código
+- Edições em /data/ia/projecoes/<territorio>.duckdb (tabela projecao_edicoes da especificação), FORA
+  do warehouse (um escritor só). Gravadas ao PUBLICAR (entrega_ia enviar), não ao gerar
+- PDF: 05 Perspectivas (parágrafo, 3 cards, gráfico vetorial fpdf2 `projection_chart`, legenda, aviso
+  experimental em bordô negrito `highlight`, "**Revisão.**"), 06 Pix, 07 Pontos de atenção; a nota
+  metodológica ganha o texto 7.5 e as fragilidades conhecidas
+- Gráfico sem matplotlib, de propósito (vetorial, mesmas fontes, sem dependência a mais)
+- Tokens (01/10/2026): os fatos vão ao prompt em JSON COMPACTO (`_fatos_para_prompt`); indentado, a
+  geração de 202608 estourou o input_tokens_limit (120 mil) na 2ª versão do redator. Compacto: 101 mil
+  com duas versões do redator e sem nova tentativa do validador. Folga pequena: se voltar a estourar,
+  enxugar o prompt antes de subir o limite (ele define a reserva do pior caso no orçamento)
+

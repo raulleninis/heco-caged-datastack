@@ -37,6 +37,8 @@ flowchart TD
     F12 --> F16["F16 · Estoque a partir<br/>do marco zero · L"]
     F11 --> F17["F17 · Teste de<br/>silêncio · XS"]
     F16 --> F20["F20 · Estoque de referência<br/>do MTE · M"]
+    F19 --> F21["F21 · Projeção:<br/>Perspectivas · L"]
+    F20 --> F21
 
     classDef agora fill:#fde8e8,stroke:#c0392b,color:#7b241c
     classDef pre fill:#fef5e7,stroke:#b9770e,color:#7e5109
@@ -44,7 +46,7 @@ flowchart TD
     classDef vitrine fill:#eafaf1,stroke:#1e8449,color:#145a32
     class F01,F02,F03,F04,F05 agora
     class F06,F07,F08,F08b,F09 pre
-    class F11,F12,F13,F15,F16,F17,F19,F20 prod
+    class F11,F12,F13,F15,F16,F17,F19,F20,F21 prod
     classDef descartada fill:#f2f3f4,stroke:#99a3a4,color:#7b7d7d,stroke-dasharray:4 3
     class F14,F18 vitrine
     class F10 descartada
@@ -74,6 +76,7 @@ flowchart TD
 | [F17](F17-teste-de-silencio.md) ✅ | Teste de silêncio: provar que o alerta chega | XS (+ espera) | produção | (validação de F11) | F11 |
 | [F19](F19-boletim-com-ia.md) 🟡 | Boletim analítico com IA (PydanticAI, OpenRouter, aprovação humana) | XL | produção | (roteiro do boletim) | F16, F15 |
 | [F20](F20-estoque-de-referencia-do-mte.md) ✅ | Estoque ancorado no estoque de referência do MTE (marco zero desativado) | M | produção | (divergência de 202608 com o painel) | F16 |
+| [F21](F21-projecao-perspectivas.md) ✅ | Projeção do emprego: seção Perspectivas do boletim com IA | L | produção | (pedido do usuário, especificação própria) | F19, F20 |
 | [F18](F18-produto-neutro.md) | Produto neutro: de Socorro para um repositório replicável | L | vitrine | (portfólio; D07 revista) | F16, F15 |
 
 > ⛔ **descartada:** a [F10](F10-camada-analitica.md) saiu deste repositório em
